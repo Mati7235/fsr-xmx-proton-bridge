@@ -16,6 +16,8 @@ Experimental compatibility research, not a working bridge yet.
 - Choose a type matching the change, such as `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`, or `chore`.
 - Use a concise scope identifying the affected area, such as `artifact`, `shim`, `tools`, or `docs`.
 - Keep each commit focused; explain motivation and relevant limitations in the body when needed.
+- Commit proactively after each coherent, verified research or implementation milestone; do not wait for a separate user reminder or accumulate unrelated milestones.
+- Before committing, run relevant tests and review the staged diff. Never stage ignored artifacts, proprietary binaries, compiler bundles, caches, or upstream checkouts.
 - Example: `fix(artifact): The DLL of XeSS is not present in Linux (only in windows)`.
 
 ## Structure

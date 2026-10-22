@@ -3,7 +3,7 @@
 Laboratorio para investigar la compatibilidad entre el mod FSR4 XMX de nitec y
 [xess-xmx-linux](https://github.com/HHHHanasak1/xess-xmx-linux).
 
-**Estado: análisis estático inicial. No existe todavía un puente funcional ni se ha probado en GPU.**
+**Estado: PRE compilado offline y prototipo de mapa explícito. No existe todavía un puente funcional ni se ha probado en GPU.**
 Equipo objetivo informado: Intel Arc B580 (Xe2), CachyOS, Steam nativo, Cyberpunk 2077.
 
 ## Hipótesis
@@ -16,6 +16,16 @@ como base. Compartir APIs no garantiza compartir la ABI de recursos y argumentos
 
 - `docs/compatibility.md`: hallazgos, limitaciones y plan de trabajo.
 - `tools/inspect_dll.py`: inventario estático reproducible de cadenas y SHA-256.
+- `tools/extract_resources.py`: extracción de recursos PE sin cargar la DLL.
+- `tools/decompress_mscf.py`: descompresión LZMS con libwim local.
+- `tools/carve_spirv.py`: recuperación heurística inicial (histórica).
+- `tools/parse_cm_payloads.py`: extracción por pies y longitudes de los bloques CM.
+- `tools/reconstruct_pre.py`: tablas del PRE y modelo de layout para la DLL fijada.
+- `tools/inspect_zebin.py`, `tools/build_pre_profile.py`: inspección y perfil del PRE compilado.
+- `tools/apply_cmk_mapping.py`: adaptador offline experimental CMK2 → CMK3.
+- `tools/build_anv_mapping_patch.py`: generador del lector candidato, sin aplicar cambios.
+- `profiles/`, `patches/`: metadata revisada y parche experimental (no binarios).
+- `tests/`: pruebas de CPU; algunas usan artefactos/checkouts locales opcionales.
 - `artifacts/original/`: copias locales de los dos archivos descargados (ignoradas por Git).
 - `artifacts/extracted/fsr-xmx/`: DLL del mod extraída sin ejecución.
 - `upstream/xess-xmx-linux/`: clon independiente de upstream (ignorado por Git).
@@ -30,11 +40,27 @@ python tools/inspect_dll.py \
 El script no carga la DLL. Las cadenas son indicios de implementación, no una
 prueba de funcionamiento ni una especificación completa.
 
+## Investigación actual
+
+Ver [reconstrucción del PRE](docs/pre-resource-map.md): **690 bloques CM**
+recuperados por sus longitudes y desensamblados, opciones embebidas preservadas y
+mapa de once recursos más sampler. La comparación estática encuentra un posible
+desfase de un DWORD en el mapeo automático del puente para el layout de referencia.
+Se confirmó la compilación del PRE Xe2 native_1080 para B580 y su orden de BTIs.
+Ver [compilación offline y prototipo](docs/offline-pre-compilation.md): opciones
+embebidas consumidas, perfil fijado por hashes y lector CMK3 candidato.
+Hay 41 pruebas pasando en el workspace local (algunas requieren artefactos opcionales).
+No equivale a corrección GPU ni a una compilación completa del driver.
+
+La [primera investigación](docs/investigation-2026-10-22.md) se conserva como
+registro histórico; su hipótesis de opciones perdidas en PRE fue corregida.
+
 ## Próximo hito
 
-Extraer de forma estática un kernel CM-SPIR-V representativo y documentar sus
-argumentos, opciones de compilación y root signature. Compararlos con la ABI del
-shim/ANV antes de intentar un microtest de GPU con resultado determinista.
+Resolver los campos de payload que el packer upstream deja en cero y verificar
+las dimensiones locales antes de una prueba GPU. El orden de argumentos/BTIs del
+PRE revisado y la metadata explícita están implementados; falta integrar y compilar
+el lector dentro de Mesa. No se ha aplicado un parche al driver.
 
 No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
 No ejecutar los instaladores de upstream como parte del análisis.

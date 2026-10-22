@@ -50,12 +50,21 @@ Son cadenas extraídas, no una traza observada ni una reconstrucción completa d
 La coincidencia de 'una tabla por superficie' es prometedora, pero no demuestra
 que coincidan los offsets, samplers, argumentos, registros o el layout de vkd3d.
 
+## Avance de investigación
+
+Ver [pre-resource-map.md](pre-resource-map.md): **690 bloques** recuperados por
+pies de longitud, mapa del PRE reconstruido y desfase de un DWORD identificado
+bajo el layout VKD3D de referencia. En PRE las opciones de API son NULL y las
+opciones embebidas se preservan. La [compilación offline](offline-pre-compilation.md)
+confirmó que IGC las consume, compiló el PRE para B580 y verificó los BTIs. Se añadió
+un perfil fijado por hashes y un lector CMK3 candidato, no instalado.
+
 ## Bloqueos pendientes
 
-1. Extraer los packs RCDATA comprimidos del mod, preservando originales y verificando hashes si es posible.
-2. Documentar un kernel real: entrada, tamaño local, argumentos y opciones.
-3. Reconstruir root signature y asignación SurfaceIndex/sampler del mod.
-4. Comparar los requisitos con packer y parche ANV; evitar generalizar por nombres compartidos.
+1. Completar el formato de los datos no CM de 40101 (18 DXBC y seis huecos no clasificados); los seis módulos faltantes ya se recuperaron.
+2. Resolver campos cross-thread de 8 bytes de args 0/9/10 y private_base_stateless; el PRE ya compila y los BTIs se verificaron.
+3. Confirmar sampler y layout del Proton que se use para la prueba; el mapa de superficies del PRE ya se contrastó con zebin.
+4. Compilar el lector candidato dentro de Mesa e integrar selección de perfil/cache identity sin cambiar globalmente XeSS.
 5. Determinar si basta configuración o si hacen falta cambios en el shim, packer o driver.
 6. Revisar compatibilidad de compilador IGC y dispositivo Xe2/Large-GRF.
 
@@ -65,9 +74,15 @@ que coincidan los offsets, samplers, argumentos, registros o el layout de vkd3d.
 - [x] Clonar e identificar revisión upstream.
 - [x] Inventario estático reproducible de la DLL.
 - [x] Mapa inicial de APIs y riesgos ABI.
-- [ ] Extractor de recursos/CM-SPIR-V (sin ejecutar DLL).
-- [ ] Fixture y pruebas CPU para metadatos/ABI.
-- [ ] Diseñar adaptación mínima con evidencia del kernel real.
+- [x] Extractor de recursos y carving inicial CM-SPIR-V (sin ejecutar DLL; no parser completo del pack).
+- [x] Parser por pies CM: 690 bloques recuperados y desensamblados.
+- [x] Opciones y root signature del PRE normal reconstruidas; tamaños de 36 variantes verificados.
+- [x] 22 pruebas CPU sintéticas y 2 opcionales con artefactos locales, incluido modelo del desfase de tablas.
+- [x] Compilación offline del PRE Xe2 native_1080 para B580; BTIs confirmados y control de opciones reproducido.
+- [x] Perfil por hashes, adaptador CMK3 offline y parche candidato de lector ANV para ambas versiones.
+- [x] 41 pruebas locales pasando, incluido bloque C de validación con layouts sintéticos.
+- [ ] Pruebas de layout/copia de información de contexto y resolución de payloads.
+- [ ] Compilación de Mesa e integración runtime del perfil; sin instalar en la sesión.
 - [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
 - [ ] Solo después, integración reversible por juego en Cyberpunk.
 
@@ -78,6 +93,6 @@ Un experimento runtime deberá usar un prefijo descartable y variables por proce
 mantener el canary del driver y comprobar readback GPU determinista más logs de
 inyección. No considerar suficiente el overlay, S_OK, o que desaparezca el magenta.
 
-Build upstream según documentación inspeccionada: shim MSVC/Windows SDK/CMake;
-ANV Mesa parcheado y toolchain IGC/ocloc fijado por upstream. No se instaló ni
-compiló ninguno. No se ha demostrado aún que los kernels FSR compilen o funcionen.
+Build upstream: shim MSVC/Windows SDK/CMake y ANV Mesa parcheado; aún no compilados.
+IGC/ocloc oficiales se extrajeron localmente sin instalación y compilaron un PRE
+para B580. Eso no demuestra corrección GPU ni compatibilidad del resto de etapas.
