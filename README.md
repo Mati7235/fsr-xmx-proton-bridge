@@ -22,6 +22,7 @@ como base. Compartir APIs no garantiza compartir la ABI de recursos y argumentos
 - `tools/parse_cm_payloads.py`: extracción por pies y longitudes de los bloques CM.
 - `tools/reconstruct_pre.py`: tablas del PRE y modelo de layout para la DLL fijada.
 - `tools/inspect_zebin.py`, `tools/build_pre_profile.py`: inspección y perfil del PRE compilado.
+- `tools/audit_pre_payload.py`: auditoría restringida del uso de bytes cross-thread en el PRE.
 - `tools/apply_cmk_mapping.py`: adaptador offline experimental CMK2 → CMK3.
 - `tools/build_anv_mapping_patch.py`: generador del lector candidato, sin aplicar cambios.
 - `profiles/`, `patches/`: metadata revisada y parche experimental (no binarios).
@@ -49,7 +50,10 @@ desfase de un DWORD en el mapeo automático del puente para el layout de referen
 Se confirmó la compilación del PRE Xe2 native_1080 para B580 y su orden de BTIs.
 Ver [compilación offline y prototipo](docs/offline-pre-compilation.md): opciones
 embebidas consumidas, perfil fijado por hashes y lector CMK3 candidato.
-Hay 41 pruebas pasando en el workspace local (algunas requieren artefactos opcionales).
+La [auditoría del payload](docs/pre-payload-audit.md) no encuentra lecturas de los
+cuatro campos extra antes de sobrescribirlos o terminar, bajo una máscara de
+ejecución completa y constante, solo para este binario fijado.
+Hay 68 pruebas pasando en el workspace local (algunas requieren artefactos opcionales).
 No equivale a corrección GPU ni a una compilación completa del driver.
 
 La [primera investigación](docs/investigation-2026-10-22.md) se conserva como
@@ -57,8 +61,10 @@ registro histórico; su hipótesis de opciones perdidas en PRE fue corregida.
 
 ## Próximo hito
 
-Resolver los campos de payload que el packer upstream deja en cero y verificar
-las dimensiones locales antes de una prueba GPU. El orden de argumentos/BTIs del
+Confirmar la máscara de ejecución completa asumida por la auditoría de payload
+y verificar las dimensiones locales antes de una prueba GPU. No se identificó
+necesidad de rellenar los cuatro campos para el código revisado bajo esa condición.
+El orden de argumentos/BTIs del
 PRE revisado y la metadata explícita están implementados; falta integrar y compilar
 el lector dentro de Mesa. No se ha aplicado un parche al driver.
 

@@ -120,7 +120,10 @@ El compilador revela detalles que no debemos dar por resueltos:
 - Args de buffers stateful 0, 9 y 10 tienen también campos de **8 bytes** en offsets
   cross-thread **8, 16 y 24**. El packer upstream los deja en cero.
 - `private_base_stateless` ocupa **8 bytes en offset 0**; también queda en cero.
-- Falta demostrar si el kernel usa esos valores y cómo inicializarlos, no solo sus BTIs.
+- **Avance posterior:** la [auditoría estática del payload](pre-payload-audit.md)
+  no encuentra lecturas de los cuatro campos antes de sobrescribirlos o terminar,
+  suponiendo máscara de ejecución completa y constante. No se identificó necesidad
+  de inicializarlos con direcciones en este binario; falta validar esa máscara.
 - Dimensiones locales 1x1x1 usadas al empaquetar son provisionales; SIMD1 no las prueba.
 - El sampler sigue usando el fallback del driver, no el descriptor dinámico real.
 - Falta identificar el layout del Proton que se vaya a usar en runtime.

@@ -39,8 +39,13 @@ def build(source, zebin):
             'surfaces': [{'arg_index': i, 'bti': bti, 'table_index': i, 'element': 0,
                           'root_index': i+1, 'push_byte_offset': 4+4*i}
                          for i, bti in enumerate(EXPECTED_BTIS)],
+            'payload_review': {
+                'status': 'static-unread-under-full-mask',
+                'evidence': 'profiles/fsr4-pre-native1080-payload-audit.json',
+                'runtime_approved': False,
+            },
             'remaining_reviews': [
-                'Nonzero stateful pointer arguments and private_base_stateless payload.',
+                'Validate full thread execution mask assumed by static pointer-payload audit.',
                 'Actual runtime Vulkan layout and descriptor bindings.',
                 'Dynamic sampler vs fallback behavior.',
                 'Local workgroup dimensions and correctness of GPU readback.',

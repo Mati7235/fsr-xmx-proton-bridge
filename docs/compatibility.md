@@ -58,11 +58,14 @@ bajo el layout VKD3D de referencia. En PRE las opciones de API son NULL y las
 opciones embebidas se preservan. La [compilación offline](offline-pre-compilation.md)
 confirmó que IGC las consume, compiló el PRE para B580 y verificó los BTIs. Se añadió
 un perfil fijado por hashes y un lector CMK3 candidato, no instalado.
+La [auditoría posterior del payload](pre-payload-audit.md) no encuentra lecturas de
+los cuatro campos extra antes de sobrescribirlos o terminar, bajo una máscara de
+ejecución completa y constante en este binario. No se necesitó inventar direcciones.
 
 ## Bloqueos pendientes
 
 1. Completar el formato de los datos no CM de 40101 (18 DXBC y seis huecos no clasificados); los seis módulos faltantes ya se recuperaron.
-2. Resolver campos cross-thread de 8 bytes de args 0/9/10 y private_base_stateless; el PRE ya compila y los BTIs se verificaron.
+2. Validar la máscara de ejecución completa y constante asumida por la auditoría: los campos cross-thread de args 0/9/10 y private_base_stateless no se leen bajo esa condición en el PRE revisado.
 3. Confirmar sampler y layout del Proton que se use para la prueba; el mapa de superficies del PRE ya se contrastó con zebin.
 4. Compilar el lector candidato dentro de Mesa e integrar selección de perfil/cache identity sin cambiar globalmente XeSS.
 5. Determinar si basta configuración o si hacen falta cambios en el shim, packer o driver.
@@ -81,7 +84,9 @@ un perfil fijado por hashes y un lector CMK3 candidato, no instalado.
 - [x] Compilación offline del PRE Xe2 native_1080 para B580; BTIs confirmados y control de opciones reproducido.
 - [x] Perfil por hashes, adaptador CMK3 offline y parche candidato de lector ANV para ambas versiones.
 - [x] 41 pruebas locales pasando, incluido bloque C de validación con layouts sintéticos.
-- [ ] Pruebas de layout/copia de información de contexto y resolución de payloads.
+- [x] Auditoría estática de bytes cross-thread y usos de superficies opacas; sin lecturas bajo máscara completa, con evidencia por hashes.
+- [x] 68 pruebas locales pasando, incluidos casos de lectura, escrituras parciales/predicadas y ramas del auditor.
+- [ ] Pruebas de layout/copia de información de contexto y validación de máscara y dimensiones locales.
 - [ ] Compilación de Mesa e integración runtime del perfil; sin instalar en la sesión.
 - [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
 - [ ] Solo después, integración reversible por juego en Cyberpunk.
