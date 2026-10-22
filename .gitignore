@@ -1,0 +1,7 @@
+# Third-party binaries, source checkouts, and generated analysis
+/artifacts/
+/upstream/
+/analysis/
+__pycache__/
+*.pyc
+/build/
