@@ -1,0 +1,188 @@
+--- a/patches/0001-anv-cm-kernel-injection.patch
++++ b/patches/0001-anv-cm-kernel-injection.patch
+@@ -141,7 +141,7 @@
+ index 7f2c77b..43adc98 100644
+ --- a/src/intel/vulkan/anv_shader_compile.c
+ +++ b/src/intel/vulkan/anv_shader_compile.c
+-@@ -1204,6 +1204,598 @@ anv_shader_compile_fs(struct anv_device *device,
++@@ -1204,6 +1204,636 @@ anv_shader_compile_fs(struct anv_device *device,
+     }
+  }
+  
+@@ -628,9 +628,22 @@
+ +      return ANV_CM_FAILED;
+ +   }
+ +   struct cmk_header h;
+-+   if (fread(&h, sizeof(h), 1, f) != 1 || memcmp(h.magic, "CMK2", 4) != 0 ||
+++   if (fread(&h, sizeof(h), 1, f) != 1 ||
+++       (memcmp(h.magic, "CMK2", 4) != 0 && memcmp(h.magic, "CMK3", 4) != 0) ||
+ +       h.code_size == 0 || h.code_size > (16u << 20)) {
+ +      fprintf(stderr, "ANV CM: bad header in %s\n", path);
+++      fclose(f);
+++      return ANV_CM_FAILED;
+++   }
+++   /* LOCAL CMK3 prototype: two extra u32 fields precede native code.
+++    * Old CMK2 readers reject its magic; CMK2 behavior remains unchanged. */
+++   const bool explicit_table_base = memcmp(h.magic, "CMK3", 4) == 0;
+++   uint32_t mapping[2] = {0, 0}; /* flags, expected push-range size */
+++   if (explicit_table_base &&
+++       (fread(mapping, sizeof(mapping), 1, f) != 1 || mapping[0] != 1 ||
+++        mapping[1] == 0 || (mapping[1] & 3) || h.nsurf == 0 || h.nsurf > 24 ||
+++        (h.table_pc_base & 3))) {
+++      fprintf(stderr, "ANV CM: invalid CMK3 mapping in %s\n", path);
+ +      fclose(f);
+ +      return ANV_CM_FAILED;
+ +   }
+@@ -665,6 +678,31 @@
+ +   memcpy(cs->cm_cross_thread_data, h.cross_data, sizeof(h.cross_data));
+ +
+ +   const struct vk_shader_compile_info *ci = shader_data->info;
+++   if (explicit_table_base) {
+++      uint64_t push_size = 0;
+++      for (uint32_t r = 0; r < ci->push_constant_range_count; r++) {
+++         const uint64_t end = (uint64_t)ci->push_constant_ranges[r].offset +
+++                              ci->push_constant_ranges[r].size;
+++         if (end > push_size)
+++            push_size = end;
+++      }
+++      bool valid = push_size == mapping[1];
+++      for (uint32_t k = 0; k < h.nsurf && valid; k++) {
+++         const uint64_t off = (uint64_t)h.table_pc_base + 4ull * h.table_idx[k];
+++         bool covered = false;
+++         for (uint32_t r = 0; r < ci->push_constant_range_count; r++) {
+++            const uint64_t begin = ci->push_constant_ranges[r].offset;
+++            const uint64_t end = begin + ci->push_constant_ranges[r].size;
+++            covered |= off >= begin && off + 4 <= end;
+++         }
+++         valid &= covered && off + 4 <= push_size;
+++      }
+++      if (!valid) {
+++         fprintf(stderr, "ANV CM: CMK3 push layout mismatch in %s\n", path);
+++         *cs = saved;
+++         return ANV_CM_FAILED;
+++      }
+++   }
+ +   if (cs->cm_has_sampler) {
+ +      const unsigned ns = anv_cm_layout_sampler(ci, cs->cm_sampler_state);
+ +      cs->cm_sampler_from_layout = ns > 0;
+@@ -696,7 +734,7 @@
+ +      } else if (h.heap_set < ci->set_layout_count && ci->set_layouts[h.heap_set]) {
+ +         l = (const struct anv_descriptor_set_layout *)ci->set_layouts[h.heap_set];
+ +      }
+-+      if (auto_heap) {
+++      if (auto_heap && !explicit_table_base) {
+ +         /* vkd3d push constants end with one u32 per descriptor-table root parameter; the kernel's surfaces are
+ +          * the last h.nsurf tables (table_idx counts from the first of those) */
+ +         uint32_t push_size = 0;
+@@ -740,7 +778,7 @@
+  static void
+  anv_shader_compile_cs(struct anv_device *device,
+                        void *mem_ctx,
+-@@ -1214,6 +1806,12 @@ anv_shader_compile_cs(struct anv_device *device,
++@@ -1214,6 +1844,12 @@ anv_shader_compile_cs(struct anv_device *device,
+     const struct intel_device_info *devinfo = compiler->devinfo;
+     nir_shader *nir = shader_data->info->nir;
+  
+@@ -753,7 +791,7 @@
+     shader_data->num_stats = 1;
+  
+     struct brw_compile_cs_params params = {
+-@@ -1245,6 +1843,9 @@ anv_shader_compile_cs(struct anv_device *device,
++@@ -1245,6 +1881,9 @@ anv_shader_compile_cs(struct anv_device *device,
+     }
+  
+     *error_str = params.base.error_str;
+--- a/patches/mesa-26.3/0001-anv-cm-kernel-injection.patch
++++ b/patches/mesa-26.3/0001-anv-cm-kernel-injection.patch
+@@ -186,7 +186,7 @@
+ index 50731c78..d44525d5 100644
+ --- a/src/intel/vulkan/anv_shader_compile.c
+ +++ b/src/intel/vulkan/anv_shader_compile.c
+-@@ -1069,6 +1069,598 @@ wa_18019110168_load_per_primitive_remap_table(nir_builder *b, void *data)
++@@ -1069,6 +1069,636 @@ wa_18019110168_load_per_primitive_remap_table(nir_builder *b, void *data)
+     return nir_iand_imm(b, val, ANV_WA_18019110168_PER_PRIMITIVE_REMAP_TABLE_OFFSET_MASK);
+  }
+  
+@@ -673,9 +673,22 @@
+ +      return ANV_CM_FAILED;
+ +   }
+ +   struct cmk_header h;
+-+   if (fread(&h, sizeof(h), 1, f) != 1 || memcmp(h.magic, "CMK2", 4) != 0 ||
+++   if (fread(&h, sizeof(h), 1, f) != 1 ||
+++       (memcmp(h.magic, "CMK2", 4) != 0 && memcmp(h.magic, "CMK3", 4) != 0) ||
+ +       h.code_size == 0 || h.code_size > (16u << 20)) {
+ +      fprintf(stderr, "ANV CM: bad header in %s\n", path);
+++      fclose(f);
+++      return ANV_CM_FAILED;
+++   }
+++   /* LOCAL CMK3 prototype: two extra u32 fields precede native code.
+++    * Old CMK2 readers reject its magic; CMK2 behavior remains unchanged. */
+++   const bool explicit_table_base = memcmp(h.magic, "CMK3", 4) == 0;
+++   uint32_t mapping[2] = {0, 0}; /* flags, expected push-range size */
+++   if (explicit_table_base &&
+++       (fread(mapping, sizeof(mapping), 1, f) != 1 || mapping[0] != 1 ||
+++        mapping[1] == 0 || (mapping[1] & 3) || h.nsurf == 0 || h.nsurf > 24 ||
+++        (h.table_pc_base & 3))) {
+++      fprintf(stderr, "ANV CM: invalid CMK3 mapping in %s\n", path);
+ +      fclose(f);
+ +      return ANV_CM_FAILED;
+ +   }
+@@ -710,6 +723,31 @@
+ +   memcpy(cs->cm_cross_thread_data, h.cross_data, sizeof(h.cross_data));
+ +
+ +   const struct vk_shader_compile_info *ci = shader_data->info;
+++   if (explicit_table_base) {
+++      uint64_t push_size = 0;
+++      for (uint32_t r = 0; r < ci->push_constant_range_count; r++) {
+++         const uint64_t end = (uint64_t)ci->push_constant_ranges[r].offset +
+++                              ci->push_constant_ranges[r].size;
+++         if (end > push_size)
+++            push_size = end;
+++      }
+++      bool valid = push_size == mapping[1];
+++      for (uint32_t k = 0; k < h.nsurf && valid; k++) {
+++         const uint64_t off = (uint64_t)h.table_pc_base + 4ull * h.table_idx[k];
+++         bool covered = false;
+++         for (uint32_t r = 0; r < ci->push_constant_range_count; r++) {
+++            const uint64_t begin = ci->push_constant_ranges[r].offset;
+++            const uint64_t end = begin + ci->push_constant_ranges[r].size;
+++            covered |= off >= begin && off + 4 <= end;
+++         }
+++         valid &= covered && off + 4 <= push_size;
+++      }
+++      if (!valid) {
+++         fprintf(stderr, "ANV CM: CMK3 push layout mismatch in %s\n", path);
+++         *cs = saved;
+++         return ANV_CM_FAILED;
+++      }
+++   }
+ +   if (cs->cm_has_sampler) {
+ +      const unsigned ns = anv_cm_layout_sampler(ci, cs->cm_sampler_state);
+ +      cs->cm_sampler_from_layout = ns > 0;
+@@ -741,7 +779,7 @@
+ +      } else if (h.heap_set < ci->set_layout_count && ci->set_layouts[h.heap_set]) {
+ +         l = (const struct anv_descriptor_set_layout *)ci->set_layouts[h.heap_set];
+ +      }
+-+      if (auto_heap) {
+++      if (auto_heap && !explicit_table_base) {
+ +         /* vkd3d push constants end with one u32 per descriptor-table root parameter; the kernel's surfaces are
+ +          * the last h.nsurf tables (table_idx counts from the first of those) */
+ +         uint32_t push_size = 0;
+@@ -785,7 +823,7 @@
+  static void
+  populate_compile_params_mesh(struct brw_compile_params *params,
+                               struct anv_shader_data *shader_data,
+-@@ -2472,7 +3064,14 @@ anv_shader_compile(struct vk_device *vk_device,
++@@ -2472,7 +3102,14 @@ anv_shader_compile(struct vk_device *vk_device,
+  
+        shader_data->prog_data.base.source_hash = shader_data->source_hash;
+  
+@@ -801,7 +839,7 @@
+           struct jay_shader_bin *bin =
+              anv_shader_compile_jay(devinfo, mem_ctx, nir, &params, shader_data);
+  
+-@@ -2497,6 +3096,10 @@ anv_shader_compile(struct vk_device *vk_device,
++@@ -2497,6 +3134,10 @@ anv_shader_compile(struct vk_device *vk_device,
+           shader_data->code = brw_compile(compiler, &params);
+        }
+  

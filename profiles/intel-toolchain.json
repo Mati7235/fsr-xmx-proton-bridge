@@ -1,0 +1,25 @@
+{
+  "purpose": "Pinned local offline compiler, extracted without system installation",
+  "igc_version": "2.10.10+18926",
+  "ocloc_release": "25.18.33578.6",
+  "assets": [
+    {
+      "local_file": "artifacts/original/intel-toolchain/igc-core.deb",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.10/intel-igc-core-2_2.10.10%2B18926_amd64.deb",
+      "sha256": "ec3b8e6bb3d6371d3b9963c32ddb1d5315e6b0c3f4ae1d91a7515b5a8907ffe6",
+      "data_member": "data.tar.gz"
+    },
+    {
+      "local_file": "artifacts/original/intel-toolchain/igc-opencl.deb",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.10/intel-igc-opencl-2_2.10.10%2B18926_amd64.deb",
+      "sha256": "0c631f25cd8394a2f7640f9e35b593cc98ca3fbe922419c5cb20b2281477ef4c",
+      "data_member": "data.tar.gz"
+    },
+    {
+      "local_file": "artifacts/original/intel-toolchain/ocloc.deb",
+      "url": "https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb",
+      "sha256": "c772db8891539890237d50c357af1480b22cbd859c0b8afb5355f605a818d758",
+      "data_member": "data.tar.zst"
+    }
+  ]
+}

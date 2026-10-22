@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "status": "experimental-offline-only",
+  "source_dll_sha256": "3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53",
+  "input_sha256": "76942f6cff52b09ea8fef63adfce8b4119fcd45c8c0586c913eedb9e35fe773b",
+  "zebin_sha256": "3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2",
+  "code_sha256": "2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f",
+  "kernel": "fsr4_pre_xmx",
+  "target_pci_id": "0xe20b",
+  "vkd3d_reference": "ef9a02e873715c9e2da0d6db8a236aca8380b303",
+  "expected_push_size": 52,
+  "table_pc_base": 4,
+  "surfaces": [
+    {
+      "arg_index": 0,
+      "bti": 8,
+      "table_index": 0,
+      "element": 0,
+      "root_index": 1,
+      "push_byte_offset": 4
+    },
+    {
+      "arg_index": 1,
+      "bti": 9,
+      "table_index": 1,
+      "element": 0,
+      "root_index": 2,
+      "push_byte_offset": 8
+    },
+    {
+      "arg_index": 2,
+      "bti": 1,
+      "table_index": 2,
+      "element": 0,
+      "root_index": 3,
+      "push_byte_offset": 12
+    },
+    {
+      "arg_index": 3,
+      "bti": 2,
+      "table_index": 3,
+      "element": 0,
+      "root_index": 4,
+      "push_byte_offset": 16
+    },
+    {
+      "arg_index": 4,
+      "bti": 3,
+      "table_index": 4,
+      "element": 0,
+      "root_index": 5,
+      "push_byte_offset": 20
+    },
+    {
+      "arg_index": 5,
+      "bti": 4,
+      "table_index": 5,
+      "element": 0,
+      "root_index": 6,
+      "push_byte_offset": 24
+    },
+    {
+      "arg_index": 6,
+      "bti": 5,
+      "table_index": 6,
+      "element": 0,
+      "root_index": 7,
+      "push_byte_offset": 28
+    },
+    {
+      "arg_index": 7,
+      "bti": 6,
+      "table_index": 7,
+      "element": 0,
+      "root_index": 8,
+      "push_byte_offset": 32
+    },
+    {
+      "arg_index": 8,
+      "bti": 7,
+      "table_index": 8,
+      "element": 0,
+      "root_index": 9,
+      "push_byte_offset": 36
+    },
+    {
+      "arg_index": 9,
+      "bti": 10,
+      "table_index": 9,
+      "element": 0,
+      "root_index": 10,
+      "push_byte_offset": 40
+    },
+    {
+      "arg_index": 10,
+      "bti": 11,
+      "table_index": 10,
+      "element": 0,
+      "root_index": 11,
+      "push_byte_offset": 44
+    }
+  ],
+  "remaining_reviews": [
+    "Nonzero stateful pointer arguments and private_base_stateless payload.",
+    "Actual runtime Vulkan layout and descriptor bindings.",
+    "Dynamic sampler vs fallback behavior.",
+    "Local workgroup dimensions and correctness of GPU readback.",
+    "Other PRE variants and all other FSR stages."
+  ]
+}

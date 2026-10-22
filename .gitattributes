@@ -1,0 +1,2 @@
+# Nested diffs contain significant context spaces; validate with git apply.
+patches/*.patch -whitespace
