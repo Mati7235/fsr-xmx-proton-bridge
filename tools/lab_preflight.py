@@ -20,6 +20,7 @@ PROBE_FILES = (
     "canary.spv",
     "summary.json",
     "probe-spec.json",
+    "payload-audit.json",
 )
 MESA_FILES = (
     "src/intel/vulkan/libvulkan_intel.so",
@@ -106,6 +107,11 @@ def make_manifest(mesa_build, probe_dir):
                 "expected_right_mask": "0xffffffff",
                 "push_size": 52,
                 "table_pc_base": 4,
+                "cmk_magic": "CMK3",
+                "heap_set": 0,
+                "heap_binding": 0,
+                "payload_audit": "restricted-static-no-read",
+                "runtime_approved": False,
             }
             for key, expected in required_contract.items():
                 if spec.get(key) != expected:
@@ -113,6 +119,18 @@ def make_manifest(mesa_build, probe_dir):
             code_hash = spec.get("code_sha256")
             if not isinstance(code_hash, str) or re.fullmatch(r"[0-9a-fA-F]{64}", code_hash) is None:
                 blockers.append("probe-spec.code_sha256 ausente o no es un SHA-256 hexadecimal de 64 caracteres")
+
+    audit = read_json(probe_dir / "payload-audit.json", "payload-audit", blockers)
+    if not isinstance(audit, dict):
+        blockers.append("payload-audit: se esperaba un objeto de auditoría estática")
+    else:
+        if audit.get("status") != "restricted-static-no-read":
+            blockers.append("payload-audit no registra la auditoría estática restringida requerida")
+        if isinstance(spec, dict) and audit.get("code_sha256") != spec.get("code_sha256"):
+            blockers.append("payload-audit.code_sha256 no coincide con probe-spec")
+        zebin = next(entry for entry in probe_files if entry["path"] == "probe_bmg.bin")
+        if zebin["exists"] and audit.get("zebin_sha256") != zebin["sha256"]:
+            blockers.append("payload-audit.zebin_sha256 no coincide con el archivo inventariado")
 
     disasm_path = probe_dir / "disasm/.text.bridge_probe.asm"
     if disasm_path.is_file() and not disasm_path.is_symlink():

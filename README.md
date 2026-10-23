@@ -65,17 +65,21 @@ La [build local de Mesa](docs/lab-mesa-build.md) terminó con LLVM 23, sin insta
 el driver. La revisión estática deriva máscara completa para el CMK `1x1x1`;
 no demuestra la máscara durante la ejecución del kernel.
 El [preflight CPU](docs/lab-first-test.md) inventaría artefactos y hashes, detecta
-faltantes y no declara el runtime listo. Sus ocho pruebas sintéticas pasan.
-El probe y el harness siguen en revisión de integración; compilar no demuestra
-inyección ni resultados GPU correctos.
+faltantes y no declara el runtime listo. El [probe sintético](docs/lab-probe.md)
+compila con DPAS real, auditoría restringida del payload y heap explícito.
+El [harness](lab/README.md) compila con `-Wall -Wextra -Werror`, exige canary,
+evidencia de layout DIRECT e inyección, y comprueba resultados deterministas.
+No se ejecutó. La suite actual pasa **96 pruebas CPU** (incluye modelos y
+comprobaciones estáticas; no son pruebas GPU).
 
 ## Próximo hito
 
-Completar la auditoría del payload del probe sintético y alinear su selección de
-heap con el harness antes de preparar una prueba GPU autorizada. El lector ya
-compila dentro de Mesa local, pero no está instalado. El orden de argumentos/BTIs
-del PRE revisado y la metadata explícita están implementados; la auditoría del
-PRE no se transfiere automáticamente al nuevo probe ni al resto de FSR.
+Revisar los artefactos e ICD locales, registrar el harness/driver por hash y
+acordar explícitamente un experimento GPU aislado. El inventario de
+`build/lab-probe-v09` está completo, pero requiere revisión: no equivale a permiso
+de ejecución ni a validación del runtime. El lector no está instalado.
+Solo un experimento con inyección y readback correctos podrá validar este probe;
+eso tampoco probará FSR completo, Proton u OptiScaler en Cyberpunk.
 
 No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
 No ejecutar los instaladores de upstream como parte del análisis.

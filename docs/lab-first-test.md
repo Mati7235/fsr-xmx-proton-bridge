@@ -14,7 +14,7 @@ del repositorio, cambiando rutas si corresponde:
 ```sh
 python tools/lab_preflight.py \
   --mesa-build build/mesa-26.1.2/out \
-  --probe-dir build/lab-probe-v01 \
+  --probe-dir build/lab-probe-v09 \
   --out analysis/lab-preflight.json
 ```
 
@@ -28,17 +28,18 @@ y hashes; no copia ni empaqueta binarios.
 
 Es un **inventario**, no una validación semántica de binarios: el preflight no
 desensambla ni interpreta el contenido de Mesa, SPIR-V, CMK o zebin. Comprueba
-metadata JSON y algunos valores declarados, y registra hashes para identificar
-bytes. La búsqueda textual de `dpas.` en un archivo de desensamblado tampoco
+metadata JSON y algunos valores declarados, exige CMK3 con heap explícito y
+compara la identidad del zebin con la auditoría registrada. No vuelve a ejecutar
+esa auditoría. Registra hashes para identificar bytes. La búsqueda textual de
+`dpas.` en un archivo de desensamblado tampoco
 certifica la ejecución o corrección de DPAS.
 
-La inspección actual encontró un `.so` de ANV y metadata Meson en
+La compilación local produjo un `.so` de ANV y metadata Meson en
 `build/mesa-26.1.2/out`, pero la mera presencia no acredita máscara/dimensiones,
-parche correcto o prueba de carga. La salida local `build/lab-probe-v01` no
-contiene el conjunto de entregables que exige el preflight; `build/lab-probe-v02`
-tampoco debe considerarse completo por tener archivos intermedios. No reutilizar
-salidas parciales como si fueran un probe terminado. Revisar el informe de
-validación de Mesa y regenerar el probe antes de repetir el preflight.
+parche correcto o prueba de carga. `build/lab-probe-v09` contiene el probe con
+auditoría restringida y heap explícito; ver [evidencia](lab-probe.md). Las salidas
+anteriores pueden estar incompletas o usar el heap automático incompatible.
+No reutilizar salidas parciales como si fueran un probe terminado.
 
 El probe identificado por `kind` es una **prueba sintética DPAS/mapa de recursos**,
 no contiene el kernel FSR. `gpu_validated` debe permanecer `false` hasta una
@@ -49,9 +50,9 @@ explícitamente `fsr.complete_kernel_present=false`, `fsr.bridge_ready=false` y
 
 ## Antes de cualquier prueba manual aislada
 
-No hay todavía un harness runtime verificado en este hito. El harness auxiliar
-CPU-only de `lab/bridge_probe.c` y `lab/README.md`, cuando esté disponible, deberá
-validarse por separado; su compilación CPU no demuestra inyección ni readback GPU.
+No hay todavía un harness validado en runtime. `lab/bridge_probe.c` compila
+localmente y `lab/README.md` describe sus controles e invocación futura. Su
+compilación CPU no demuestra inyección ni readback GPU.
 **No ejecutar una prueba runtime basándose en este documento o en el manifiesto.**
 Hace falta una autorización explícita separada y completar/revisar todos estos
 puntos primero:
@@ -62,7 +63,7 @@ puntos primero:
    hechos de `libvulkan_intel.so`.
 2. Completar y auditar todos los entregables del probe. Mantener el canary activo;
    no ocultar errores de compilación ni sustituir DPAS real con una constante.
-3. Implementar y revisar un harness real con buffers conocidos, comprobación de
+3. Revisar el harness con buffers conocidos, comprobación de
    los 11 resultados y de los slots intactos, readback determinista y evidencia
    inequívoca de que se llamó al kernel CM inyectado. El probe solo es un control
    de ABI, no FSR completo.
@@ -75,7 +76,7 @@ puntos primero:
    canary o cualquier diferencia con los valores esperados. No escalar a FSR ni a
    integración por juego hasta explicar el fallo y revisar evidencia.
 
-No se incluyen comandos de lanzamiento: todavía no existe un harness real cuya
-invocación sea segura y reproducible. El siguiente paso de este alcance es
-completar build/validación del probe y revisar el manifiesto; no realizar una
-prueba GPU.
+Este documento no autoriza los comandos de lanzamiento descritos en `lab/README.md`.
+El siguiente paso es revisar juntos los artefactos y controles, registrar hashes
+del harness/ICD y acordar explícitamente el experimento aislado antes de ejecutar
+una prueba GPU. El timeout del harness no garantiza recuperar una GPU colgada.

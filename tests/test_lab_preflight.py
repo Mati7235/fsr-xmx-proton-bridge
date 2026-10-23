@@ -44,8 +44,17 @@ class LabPreflightTests(unittest.TestCase):
             "push_size": 52,
             "table_pc_base": 4,
             "code_sha256": "a" * 64,
+            "cmk_magic": "CMK3",
+            "heap_set": 0,
+            "heap_binding": 0,
+            "payload_audit": "restricted-static-no-read",
+            "runtime_approved": False,
         }
         (self.probe / "probe-spec.json").write_text(json.dumps(spec))
+        (self.probe / "payload-audit.json").write_text(json.dumps({
+            "status": "restricted-static-no-read", "code_sha256": "a" * 64,
+            "zebin_sha256": lab_preflight.sha256(self.probe / "probe_bmg.bin"),
+        }))
 
     def tearDown(self):
         self.temp.cleanup()
@@ -111,6 +120,19 @@ class LabPreflightTests(unittest.TestCase):
         (self.probe / "disasm/.text.bridge_probe.asm").write_text("mov (1) r1, r2")
         manifest = lab_preflight.make_manifest(self.mesa, self.probe)
         self.assertTrue(any("DPAS" in item for item in manifest["preflight"]["blockers"]))
+
+    def test_legacy_auto_heap_probe_is_rejected(self):
+        path = self.probe / "probe-spec.json"
+        spec = json.loads(path.read_text())
+        spec["heap_set"] = 0xffffffff
+        path.write_text(json.dumps(spec))
+        manifest = lab_preflight.make_manifest(self.mesa, self.probe)
+        self.assertTrue(any("heap_set" in item for item in manifest["preflight"]["blockers"]))
+
+    def test_payload_audit_must_match_inventoried_zebin(self):
+        (self.probe / "probe_bmg.bin").write_bytes(b"different zebin")
+        manifest = lab_preflight.make_manifest(self.mesa, self.probe)
+        self.assertTrue(any("zebin_sha256" in item for item in manifest["preflight"]["blockers"]))
 
     def test_manifest_is_written_even_when_blocked(self):
         (self.probe / "wg1_1_5.cmk").unlink()
