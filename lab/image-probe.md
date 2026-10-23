@@ -1,4 +1,8 @@
-# CM image2D + sampler probe (implemented; GPU not run)
+# CM image2D + sampler probe
+
+The user's first B580 run passed independent captured-byte review; see
+[`docs/first-image-gpu-result.md`](../docs/first-image-gpu-result.md). The offline
+development notes below do not imply that the agent ran GPU work.
 
 This is a separate future probe for image/sampler ABI coverage. It is not FSR,
 does not extend the earlier buffer-only result, and is not authorized to run on

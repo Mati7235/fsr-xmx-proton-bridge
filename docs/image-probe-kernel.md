@@ -1,5 +1,9 @@
 # Synthetic image/sampler kernel probe
 
+The user's first manual run of v16 passed independent GPU readback review:
+[result and limits](first-image-gpu-result.md). The build-time metadata remains
+unchanged; this result is recorded separately from offline provenance.
+
 This is a lab-authored offline CM kernel, not an FSR kernel. `tools/build_image_probe.py`
 assembles and compiles it with the extracted local IGC/ocloc toolchain only; it
 does not load a driver or dispatch GPU work. The shared, canonical input/output

@@ -3,7 +3,7 @@
 Laboratorio para investigar la compatibilidad entre el mod FSR4 XMX de nitec y
 [xess-xmx-linux](https://github.com/HHHHanasak1/xess-xmx-linux).
 
-**Estado: primer probe sintético DPAS/mapa de recursos validado en GPU por el usuario. FSR completo y el puente para juegos todavía no están validados.**
+**Estado: probes sintéticos de DPAS/recursos e imagen/sampler validados en GPU por el usuario. FSR completo y el puente para juegos todavía no están validados.**
 Equipo objetivo informado: Intel Arc B580 (Xe2), CachyOS, Steam nativo, Cyberpunk 2077.
 
 ## Hipótesis
@@ -74,12 +74,12 @@ con inyección y 1.408 valores correctos; esto no valida FSR completo.
 La suite actual pasa **133 pruebas CPU** (incluye modelos y
 comprobaciones estáticas; no son pruebas GPU).
 
-## Próxima prueba manual
+## Prueba de imagen y sampler
 
 La [prueba de imagen y sampler](docs/manual-image-test.md) ya está preparada en
 `build/image-test-v01` con el kernel v16, auditoría propia, hashes y referencia CPU.
-El harness guarda un volcado binario para una comprobación independiente de los
-64 resultados y los 1.984 words centinela. No se ejecutó esta segunda prueba GPU.
+El usuario ya ejecutó esta segunda prueba y se revisó el volcado binario:
+[64 valores con error máximo 0 y 1.984 words centinela intactos](docs/first-image-gpu-result.md).
 
 ## Próximo hito
 
@@ -87,11 +87,12 @@ La [primera prueba manual](docs/manual-synthetic-test.md) ya está preparada en
 `build/lab-test-v02`, con ICD local, hashes y lanzador opt-in. Se reprodujo la
 auditoría del probe v10 y se verificó el paquete CMK3 completo, sin ejecutar GPU.
 La primera ejecución manual ya pasó y su evidencia fue revisada. El lector no
-está instalado en el sistema. El próximo hito es comprobar la evidencia del test
-de imagen/sampler. El [contrato estático del PRE](docs/pre-controlled-test-contract.md)
+está instalado en el sistema. La evidencia del test de imagen/sampler también
+pasó su revisión independiente. El [contrato estático del PRE](docs/pre-controlled-test-contract.md)
 aclara buffers, bindings y guards, pero sus formatos/entradas y oracle siguen
 pendientes. No se despacha el PRE con recursos arbitrarios ni se declara validado
-FSR completo, Proton u OptiScaler.
+FSR completo, Proton u OptiScaler. La investigación continúa con formatos/tamaños
+de recursos del PRE y el defecto de devolución del contexto del shim.
 
 No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
 No ejecutar los instaladores de upstream como parte del análisis.

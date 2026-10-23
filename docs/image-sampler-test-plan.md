@@ -2,7 +2,8 @@
 
 **Preparación terminada:** [comando manual y riesgos](manual-image-test.md).
 Se usa `build/image-test-v01` con el candidato corregido `image-probe-v16`.
-No se ejecutó GPU durante este desarrollo; falta la evidencia de la prueba manual.
+No se ejecutó GPU durante el desarrollo. La primera prueba manual del usuario
+[ya pasó la revisión independiente](first-image-gpu-result.md).
 
 El primer probe validó DPAS y un heap de buffers. El siguiente ejercita una
 imagen muestreada y un sampler antes de intentar el PRE real. Es una prueba

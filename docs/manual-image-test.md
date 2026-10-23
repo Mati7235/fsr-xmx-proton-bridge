@@ -1,6 +1,7 @@
 # Segunda prueba manual: imagen y sampler
 
-**Preparada, todavía no ejecutada en GPU.** Comprueba el muestreo real de una
+**Primera ejecución positiva en GPU:** ver [resultado y límites](first-image-gpu-result.md).
+Comprueba el muestreo real de una
 textura 2x2 con filtrado lineal y bordes clamp. Es un kernel propio, no el PRE ni
 FSR completo. No usa Cyberpunk, OptiScaler ni Proton.
 
