@@ -25,6 +25,14 @@ CPU calcula la interpolación bilineal con centros en `(i+.5)/dimensión` y clam
 por texel; no llama a Vulkan. Sus cinco pruebas cubren centros, media, bordes,
 orden de canales y entradas inválidas.
 
+El harness debe capturar además `image-readback.bin`: los dieciséis buffers de
+128 words cada uno, en orden de slot, little-endian (8.192 bytes).
+`tools/review_image_result.py` vuelve a comprobar esos bytes en CPU de forma
+independiente del comparador C: 64 float32 contra la referencia, NaN rechazados,
+y los 1.984 words centinela restantes intactos. Exige además identidad de los
+artefactos preparados y evidencia de canary, inyección, layout y mapa en logs.
+Sus pruebas usan bytes sintéticos; no representan una ejecución GPU.
+
 ## Criterio para dejar el candidato manual
 
 1. Compilación CPU del CM con instrucción de muestreo real, BTIs y sampler
