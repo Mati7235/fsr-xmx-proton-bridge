@@ -1,5 +1,9 @@
 # Próxima prueba manual: imagen y sampler
 
+**Preparación terminada:** [comando manual y riesgos](manual-image-test.md).
+Se usa `build/image-test-v01` con el candidato corregido `image-probe-v16`.
+No se ejecutó GPU durante este desarrollo; falta la evidencia de la prueba manual.
+
 El primer probe validó DPAS y un heap de buffers. El siguiente ejercita una
 imagen muestreada y un sampler antes de intentar el PRE real. Es una prueba
 sintética propia: no ejecuta código de la DLL ni demuestra FSR completo.

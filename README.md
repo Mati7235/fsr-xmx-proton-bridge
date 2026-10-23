@@ -71,8 +71,15 @@ El [harness](lab/README.md) compila con `-Wall -Wextra -Werror`, exige canary,
 evidencia de layout DIRECT e inyección, y comprueba resultados deterministas.
 El usuario ejecutó el probe: [primer resultado GPU](docs/first-synthetic-gpu-result.md)
 con inyección y 1.408 valores correctos; esto no valida FSR completo.
-La suite actual pasa **102 pruebas CPU** (incluye modelos y
+La suite actual pasa **133 pruebas CPU** (incluye modelos y
 comprobaciones estáticas; no son pruebas GPU).
+
+## Próxima prueba manual
+
+La [prueba de imagen y sampler](docs/manual-image-test.md) ya está preparada en
+`build/image-test-v01` con el kernel v16, auditoría propia, hashes y referencia CPU.
+El harness guarda un volcado binario para una comprobación independiente de los
+64 resultados y los 1.984 words centinela. No se ejecutó esta segunda prueba GPU.
 
 ## Próximo hito
 
@@ -80,9 +87,11 @@ La [primera prueba manual](docs/manual-synthetic-test.md) ya está preparada en
 `build/lab-test-v02`, con ICD local, hashes y lanzador opt-in. Se reprodujo la
 auditoría del probe v10 y se verificó el paquete CMK3 completo, sin ejecutar GPU.
 La primera ejecución manual ya pasó y su evidencia fue revisada. El lector no
-está instalado en el sistema. El próximo hito es diseñar la prueba de recursos
-imagen/sampler y del PRE real con entradas y resultados verificables, antes de
-nuevos experimentos GPU. No está validado FSR completo, Proton ni OptiScaler.
+está instalado en el sistema. El próximo hito es comprobar la evidencia del test
+de imagen/sampler. El [contrato estático del PRE](docs/pre-controlled-test-contract.md)
+aclara buffers, bindings y guards, pero sus formatos/entradas y oracle siguen
+pendientes. No se despacha el PRE con recursos arbitrarios ni se declara validado
+FSR completo, Proton u OptiScaler.
 
 No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
 No ejecutar los instaladores de upstream como parte del análisis.

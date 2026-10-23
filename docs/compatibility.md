@@ -92,6 +92,7 @@ ejecución completa y constante en este binario. No se necesitó inventar direcc
 - [x] Harness Vulkan compilado sin ejecución y preflight de inventario; 96 pruebas CPU pasan.
 - [x] Preparación manual con ICD local, hashes, entorno nuevo y lanzador opt-in; 102 pruebas CPU pasan, sin ejecutar GPU.
 - [x] Usuario ejecutó el probe sintético en B580: inyección y 1.408 valores correctos, con slots restantes intactos; ver [evidencia](first-synthetic-gpu-result.md).
+- [x] Probe de imagen/sampler compilado, auditado y preparado para prueba manual con referencia CPU y readback binario independiente; 133 pruebas CPU pasan.
 - [ ] Integración runtime del perfil y revisión del contrato del probe/harness.
 - [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
 - [ ] Solo después, integración reversible por juego en Cyberpunk.
