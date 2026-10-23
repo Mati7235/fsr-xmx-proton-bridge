@@ -3,7 +3,7 @@
 Laboratorio para investigar la compatibilidad entre el mod FSR4 XMX de nitec y
 [xess-xmx-linux](https://github.com/HHHHanasak1/xess-xmx-linux).
 
-**Estado: PRE y probe sintético compilados offline; Mesa adaptado compila localmente. No existe todavía un puente funcional ni se ha probado en GPU.**
+**Estado: primer probe sintético DPAS/mapa de recursos validado en GPU por el usuario. FSR completo y el puente para juegos todavía no están validados.**
 Equipo objetivo informado: Intel Arc B580 (Xe2), CachyOS, Steam nativo, Cyberpunk 2077.
 
 ## Hipótesis
@@ -69,7 +69,9 @@ faltantes y no declara el runtime listo. El [probe sintético](docs/lab-probe.md
 compila con DPAS real, auditoría restringida del payload y heap explícito.
 El [harness](lab/README.md) compila con `-Wall -Wextra -Werror`, exige canary,
 evidencia de layout DIRECT e inyección, y comprueba resultados deterministas.
-No se ejecutó. La suite actual pasa **102 pruebas CPU** (incluye modelos y
+El usuario ejecutó el probe: [primer resultado GPU](docs/first-synthetic-gpu-result.md)
+con inyección y 1.408 valores correctos; esto no valida FSR completo.
+La suite actual pasa **102 pruebas CPU** (incluye modelos y
 comprobaciones estáticas; no son pruebas GPU).
 
 ## Próximo hito
@@ -77,10 +79,10 @@ comprobaciones estáticas; no son pruebas GPU).
 La [primera prueba manual](docs/manual-synthetic-test.md) ya está preparada en
 `build/lab-test-v02`, con ICD local, hashes y lanzador opt-in. Se reprodujo la
 auditoría del probe v10 y se verificó el paquete CMK3 completo, sin ejecutar GPU.
-El próximo hito es revisar la evidencia de una ejecución manual explícita;
-el lector no está instalado en el sistema.
-Solo un experimento con inyección y readback correctos podrá validar este probe;
-eso tampoco probará FSR completo, Proton u OptiScaler en Cyberpunk.
+La primera ejecución manual ya pasó y su evidencia fue revisada. El lector no
+está instalado en el sistema. El próximo hito es diseñar la prueba de recursos
+imagen/sampler y del PRE real con entradas y resultados verificables, antes de
+nuevos experimentos GPU. No está validado FSR completo, Proton ni OptiScaler.
 
 No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
 No ejecutar los instaladores de upstream como parte del análisis.

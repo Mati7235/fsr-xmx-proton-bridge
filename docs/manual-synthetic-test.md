@@ -1,6 +1,7 @@
 # Primera prueba manual: DPAS y mapa de recursos
 
-**Preparada para ejecución manual, todavía no validada en GPU.** No prueba FSR,
+**Primera ejecución manual positiva en B580:** ver
+[resultado y límites](first-synthetic-gpu-result.md). No prueba FSR,
 Proton, OptiScaler ni Cyberpunk: usa un kernel sintético propio.
 
 ## Antes de ejecutarla
