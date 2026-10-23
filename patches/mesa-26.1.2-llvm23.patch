@@ -1,0 +1,14 @@
+--- a/src/compiler/clc/clc_helpers.cpp
++++ b/src/compiler/clc/clc_helpers.cpp
+@@ -1186,7 +1186,11 @@
+    if (args->use_llvm_spirv_target) {
+       const char *triple = args->address_bits == 32 ? "spirv-unknown-unknown" : "spirv64-unknown-unknown";
+       std::string error_msg("");
++#if LLVM_VERSION_MAJOR >= 23
++      auto target = TargetRegistry::lookupTarget(llvm::Triple(triple), error_msg);
++#else
+       auto target = TargetRegistry::lookupTarget(triple, error_msg);
++#endif
+       if (target) {
+          auto TM = target->createTargetMachine(
+ #if LLVM_VERSION_MAJOR >= 21
