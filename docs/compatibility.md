@@ -90,6 +90,7 @@ ejecución completa y constante en este binario. No se necesitó inventar direcc
 - [x] Compilación CPU de Mesa local con LLVM 23 y lector candidato; sin instalar ni ejecutar en GPU.
 - [x] Probe sintético DPAS compilado, payload auditado bajo supuestos estáticos y heap CMK3 explícito.
 - [x] Harness Vulkan compilado sin ejecución y preflight de inventario; 96 pruebas CPU pasan.
+- [x] Preparación manual con ICD local, hashes, entorno nuevo y lanzador opt-in; 102 pruebas CPU pasan, sin ejecutar GPU.
 - [ ] Integración runtime del perfil y revisión del contrato del probe/harness.
 - [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
 - [ ] Solo después, integración reversible por juego en Cyberpunk.

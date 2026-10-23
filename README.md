@@ -69,15 +69,16 @@ faltantes y no declara el runtime listo. El [probe sintético](docs/lab-probe.md
 compila con DPAS real, auditoría restringida del payload y heap explícito.
 El [harness](lab/README.md) compila con `-Wall -Wextra -Werror`, exige canary,
 evidencia de layout DIRECT e inyección, y comprueba resultados deterministas.
-No se ejecutó. La suite actual pasa **96 pruebas CPU** (incluye modelos y
+No se ejecutó. La suite actual pasa **102 pruebas CPU** (incluye modelos y
 comprobaciones estáticas; no son pruebas GPU).
 
 ## Próximo hito
 
-Revisar los artefactos e ICD locales, registrar el harness/driver por hash y
-acordar explícitamente un experimento GPU aislado. El inventario de
-`build/lab-probe-v09` está completo, pero requiere revisión: no equivale a permiso
-de ejecución ni a validación del runtime. El lector no está instalado.
+La [primera prueba manual](docs/manual-synthetic-test.md) ya está preparada en
+`build/lab-test-v02`, con ICD local, hashes y lanzador opt-in. Se reprodujo la
+auditoría del probe v10 y se verificó el paquete CMK3 completo, sin ejecutar GPU.
+El próximo hito es revisar la evidencia de una ejecución manual explícita;
+el lector no está instalado en el sistema.
 Solo un experimento con inyección y readback correctos podrá validar este probe;
 eso tampoco probará FSR completo, Proton u OptiScaler en Cyberpunk.
 

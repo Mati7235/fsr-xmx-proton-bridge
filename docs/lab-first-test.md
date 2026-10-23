@@ -1,5 +1,9 @@
 # Primera prueba del laboratorio: preflight y límites
 
+**La preparación manual ya está terminada:** ver
+[comando, riesgos y resultados esperados](manual-synthetic-test.md).
+Este documento explica el inventario y sus límites, no un resultado GPU.
+
 Este hito prepara un inventario reproducible, no un launcher. El preflight lee
 archivos locales, extrae metadata Meson y calcula SHA-256 de un conjunto acotado
 de artefactos. No invoca Mesa, el probe, `vulkaninfo`, Vulkan, el driver ni
@@ -14,7 +18,7 @@ del repositorio, cambiando rutas si corresponde:
 ```sh
 python tools/lab_preflight.py \
   --mesa-build build/mesa-26.1.2/out \
-  --probe-dir build/lab-probe-v09 \
+  --probe-dir build/lab-probe-v10 \
   --out analysis/lab-preflight.json
 ```
 
@@ -36,7 +40,7 @@ certifica la ejecución o corrección de DPAS.
 
 La compilación local produjo un `.so` de ANV y metadata Meson en
 `build/mesa-26.1.2/out`, pero la mera presencia no acredita máscara/dimensiones,
-parche correcto o prueba de carga. `build/lab-probe-v09` contiene el probe con
+parche correcto o prueba de carga. `build/lab-probe-v10` contiene el probe con
 auditoría restringida y heap explícito; ver [evidencia](lab-probe.md). Las salidas
 anteriores pueden estar incompletas o usar el heap automático incompatible.
 No reutilizar salidas parciales como si fueran un probe terminado.
@@ -53,9 +57,9 @@ explícitamente `fsr.complete_kernel_present=false`, `fsr.bridge_ready=false` y
 No hay todavía un harness validado en runtime. `lab/bridge_probe.c` compila
 localmente y `lab/README.md` describe sus controles e invocación futura. Su
 compilación CPU no demuestra inyección ni readback GPU.
-**No ejecutar una prueba runtime basándose en este documento o en el manifiesto.**
-Hace falta una autorización explícita separada y completar/revisar todos estos
-puntos primero:
+El inventario solo no autoriza una prueba runtime. Para iniciar el experimento
+manual, usar la preparación revisada y el opt-in explícito descritos en
+`manual-synthetic-test.md`, manteniendo estos requisitos:
 
 1. La validación de `docs/lab-mesa-build.md` debe confirmar el parche y build de
    Mesa, la máscara de ejecución y dimensiones locales; registrar revisión,
@@ -76,7 +80,7 @@ puntos primero:
    canary o cualquier diferencia con los valores esperados. No escalar a FSR ni a
    integración por juego hasta explicar el fallo y revisar evidencia.
 
-Este documento no autoriza los comandos de lanzamiento descritos en `lab/README.md`.
-El siguiente paso es revisar juntos los artefactos y controles, registrar hashes
-del harness/ICD y acordar explícitamente el experimento aislado antes de ejecutar
-una prueba GPU. El timeout del harness no garantiza recuperar una GPU colgada.
+La preparación `build/lab-test-v02` registra los hashes del harness/ICD/driver y
+probe, y verifica su identidad antes de cada ejecución manual. El agente no
+ejecutó la prueba GPU. El timeout del harness no garantiza recuperar una GPU
+colgada.
