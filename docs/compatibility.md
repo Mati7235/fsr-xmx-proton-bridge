@@ -67,7 +67,7 @@ ejecución completa y constante en este binario. No se necesitó inventar direcc
 1. Completar el formato de los datos no CM de 40101 (18 DXBC y seis huecos no clasificados); los seis módulos faltantes ya se recuperaron.
 2. Validar la máscara de ejecución completa y constante asumida por la auditoría: los campos cross-thread de args 0/9/10 y private_base_stateless no se leen bajo esa condición en el PRE revisado.
 3. Confirmar sampler y layout del Proton que se use para la prueba; el mapa de superficies del PRE ya se contrastó con zebin.
-4. Compilar el lector candidato dentro de Mesa e integrar selección de perfil/cache identity sin cambiar globalmente XeSS.
+4. Revisar la integración del lector ya compilado dentro de Mesa local e integrar selección de perfil/cache identity sin cambiar globalmente XeSS; ver [build local](lab-mesa-build.md).
 5. Determinar si basta configuración o si hacen falta cambios en el shim, packer o driver.
 6. Revisar compatibilidad de compilador IGC y dispositivo Xe2/Large-GRF.
 
@@ -87,7 +87,8 @@ ejecución completa y constante en este binario. No se necesitó inventar direcc
 - [x] Auditoría estática de bytes cross-thread y usos de superficies opacas; sin lecturas bajo máscara completa, con evidencia por hashes.
 - [x] 68 pruebas locales pasando, incluidos casos de lectura, escrituras parciales/predicadas y ramas del auditor.
 - [ ] Pruebas de layout/copia de información de contexto y validación de máscara y dimensiones locales.
-- [ ] Compilación de Mesa e integración runtime del perfil; sin instalar en la sesión.
+- [x] Compilación CPU de Mesa local con LLVM 23 y lector candidato; sin instalar ni ejecutar en GPU.
+- [ ] Integración runtime del perfil y revisión del contrato del probe/harness.
 - [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
 - [ ] Solo después, integración reversible por juego en Cyberpunk.
 
@@ -98,6 +99,7 @@ Un experimento runtime deberá usar un prefijo descartable y variables por proce
 mantener el canary del driver y comprobar readback GPU determinista más logs de
 inyección. No considerar suficiente el overlay, S_OK, o que desaparezca el magenta.
 
-Build upstream: shim MSVC/Windows SDK/CMake y ANV Mesa parcheado; aún no compilados.
+Build upstream: shim MSVC/Windows SDK/CMake aún no compilado. ANV Mesa parcheado
+compiló localmente con LLVM 23, sin instalar ni ejecutar el ICD.
 IGC/ocloc oficiales se extrajeron localmente sin instalación y compilaron un PRE
 para B580. Eso no demuestra corrección GPU ni compatibilidad del resto de etapas.

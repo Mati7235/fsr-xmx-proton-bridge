@@ -3,7 +3,7 @@
 Laboratorio para investigar la compatibilidad entre el mod FSR4 XMX de nitec y
 [xess-xmx-linux](https://github.com/HHHHanasak1/xess-xmx-linux).
 
-**Estado: PRE compilado offline y prototipo de mapa explícito. No existe todavía un puente funcional ni se ha probado en GPU.**
+**Estado: PRE y probe sintético compilados offline; Mesa adaptado compila localmente. No existe todavía un puente funcional ni se ha probado en GPU.**
 Equipo objetivo informado: Intel Arc B580 (Xe2), CachyOS, Steam nativo, Cyberpunk 2077.
 
 ## Hipótesis
@@ -53,20 +53,29 @@ embebidas consumidas, perfil fijado por hashes y lector CMK3 candidato.
 La [auditoría del payload](docs/pre-payload-audit.md) no encuentra lecturas de los
 cuatro campos extra antes de sobrescribirlos o terminar, bajo una máscara de
 ejecución completa y constante, solo para este binario fijado.
-Hay 68 pruebas pasando en el workspace local (algunas requieren artefactos opcionales).
-No equivale a corrección GPU ni a una compilación completa del driver.
+Ese hito quedó verificado con 68 pruebas (algunas requieren artefactos opcionales).
+No equivale a corrección GPU; la compilación posterior de Mesa se detalla abajo.
 
 La [primera investigación](docs/investigation-2026-10-22.md) se conserva como
 registro histórico; su hipótesis de opciones perdidas en PRE fue corregida.
 
+## Laboratorio aislado
+
+La [build local de Mesa](docs/lab-mesa-build.md) terminó con LLVM 23, sin instalar
+el driver. La revisión estática deriva máscara completa para el CMK `1x1x1`;
+no demuestra la máscara durante la ejecución del kernel.
+El [preflight CPU](docs/lab-first-test.md) inventaría artefactos y hashes, detecta
+faltantes y no declara el runtime listo. Sus ocho pruebas sintéticas pasan.
+El probe y el harness siguen en revisión de integración; compilar no demuestra
+inyección ni resultados GPU correctos.
+
 ## Próximo hito
 
-Confirmar la máscara de ejecución completa asumida por la auditoría de payload
-y verificar las dimensiones locales antes de una prueba GPU. No se identificó
-necesidad de rellenar los cuatro campos para el código revisado bajo esa condición.
-El orden de argumentos/BTIs del
-PRE revisado y la metadata explícita están implementados; falta integrar y compilar
-el lector dentro de Mesa. No se ha aplicado un parche al driver.
+Completar la auditoría del payload del probe sintético y alinear su selección de
+heap con el harness antes de preparar una prueba GPU autorizada. El lector ya
+compila dentro de Mesa local, pero no está instalado. El orden de argumentos/BTIs
+del PRE revisado y la metadata explícita están implementados; la auditoría del
+PRE no se transfiere automáticamente al nuevo probe ni al resto de FSR.
 
 No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
 No ejecutar los instaladores de upstream como parte del análisis.
