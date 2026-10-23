@@ -87,7 +87,10 @@ def placeholder_source(z):
     return f'''#version 450
 layout(local_size_x=1, local_size_y=1, local_size_z={z}) in;
 layout(set=0,binding=0,std430) buffer Heap {{ uint words[]; }} heap[16];
-void main() {{ heap[0].words[0] = 0x584d5843u; }}
+void main() {{
+    if (gl_LocalInvocationIndex == 0u)
+        heap[0].words[0] = 0x584d5843u;
+}}
 '''
 
 

@@ -9,7 +9,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'tools'))
 from build_lab_probe import (audit_probe_spirv, pack_probe, payload_layout_sha256,
-                             shader_source)
+                             placeholder_source, shader_source)
 
 
 def pack_fixture():
@@ -46,6 +46,12 @@ def run_pack(zebin, report, audit, **kwargs):
 
 
 class LabProbeShaderTests(unittest.TestCase):
+    def test_marker_has_only_one_writer_per_workgroup(self):
+        for size in (5, 17):
+            source = placeholder_source(size)
+            self.assertIn('if (gl_LocalInvocationIndex == 0u)', source)
+            self.assertEqual(source.count('heap[0].words[0] ='), 1)
+
     def test_uses_dpas_signature_from_compiled_pre(self):
         source = shader_source()
         self.assertIn('llvm.genx.dpas2.v128f32.v128f32.v128i32.v64i32', source)

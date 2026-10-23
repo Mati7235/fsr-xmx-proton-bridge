@@ -426,6 +426,7 @@ run_gpu(const char *probe_dir, const char *log_dir,
        setenv("ANV_CM_SPV_DIR", log_dir, 1) != 0 ||
        setenv("ANV_CM_DEBUG", "1", 1) != 0 ||
        setenv("ANV_CM_TRACE", "1", 1) != 0 ||
+       setenv("VK_LOADER_LAYERS_DISABLE", "*", 1) != 0 ||
        setenv("VK_DRIVER_FILES", manifest, 1) != 0 ||
        setenv("VK_ICD_FILENAMES", manifest, 1) != 0)
       fail("cannot set process-local driver/ICD environment");

@@ -75,6 +75,13 @@ dimension values.
 
 ## Offline evidence
 
+The manual-test candidate is now `build/lab-probe-v10`. It preserves the audited
+native CM kernel and explicit heap mapping below, but corrects the two marker
+SPIR-V shaders to write only from `gl_LocalInvocationIndex == 0`. This removes
+concurrent unsynchronized writes to the same word. Both corrected Vulkan marker
+modules pass `spirv-val --target-env vulkan1.1`; this is not validation of the CM
+module or of GPU execution. The v09 evidence below is retained as history.
+
 Reproduction with local IGC `2.10.10+18926` / ocloc `25.18.33578.6`:
 
 ```sh

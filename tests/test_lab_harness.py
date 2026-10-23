@@ -65,6 +65,7 @@ class LabHarnessContractTests(unittest.TestCase):
         self.assertIn("/probe-driver.log", SOURCE)
         self.assertIn("direct_heap_layout_in_log(probe_log)", SOURCE)
         self.assertIn("clear_inherited_prefix(\"ANV_CM_\")", SOURCE)
+        self.assertIn('setenv("VK_LOADER_LAYERS_DISABLE", "*", 1)', SOURCE)
 
     def test_queue_wait_is_fenced_and_bounded(self):
         self.assertIn("vkWaitForFences", SOURCE)

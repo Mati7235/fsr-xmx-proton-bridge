@@ -43,6 +43,8 @@ to be a regular file inside the explicitly supplied local Mesa build root. It
 then sets `VK_DRIVER_FILES` and `VK_ICD_FILENAMES` for this process to that exact
 manifest and removes inherited Vulkan driver/layer selectors and **all**
 inherited `ANV_CM_*` variables before setting the four probe-specific values.
+It also sets `VK_LOADER_LAYERS_DISABLE=*` in the child process to disable loader
+layers, including implicit layers, rather than relying on the parent's selectors.
 `icd-selection.txt` records the selected manifest/library/root. This confirms
 the requested loader configuration, not independently which shared object the
 loader ultimately mapped; `icd-driver.log` records instance-creation diagnostics.
@@ -60,6 +62,9 @@ then lets the marker placeholder shader run. The harness checks the marker's
 contents, the marker word in buffer 0, and that every other word in all 16
 storage buffers is still sentinel. This is separate from the synthetic target
 shader, whose `(1,1,5)` placeholder selects the static `wg1_1_5.cmk` path.
+Both marker shaders now write only from local invocation index zero. The previous
+unconditional writes from all invocations raced; use `build/lab-probe-v10` or a
+new build from the corrected source, not the historical v09 marker shaders.
 
 ## Descriptor-layout integration contract
 
