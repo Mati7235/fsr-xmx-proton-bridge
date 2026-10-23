@@ -47,6 +47,10 @@ def review(evidence_dir, manifest_path):
     verify_manifest(manifest)
     if 'patched ANV' not in (evidence / 'anv_canary').read_text():
         raise ValueError('Missing patched ANV canary recognition')
+    canary = (evidence / 'canary-evidence.txt').read_text()
+    if ('buffer 0 word 0 is 0x584d5843' not in canary
+            or 'every other word in all 16 buffers remains sentinel' not in canary):
+        raise ValueError('Missing canary readback and sentinel evidence')
     log = (evidence / 'probe-driver.log').read_text()
     if not re.search(r'ANV CM: injected .*wg2_1_5\.cmk\b', log):
         raise ValueError('Missing image kernel injection evidence')
