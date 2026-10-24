@@ -95,6 +95,7 @@ ejecución completa y constante en este binario. No se necesitó inventar direcc
 - [x] Usuario ejecutó el probe sintético en B580: inyección y 1.408 valores correctos, con slots restantes intactos; ver [evidencia](first-synthetic-gpu-result.md).
 - [x] Probe de imagen/sampler compilado, auditado y preparado para prueba manual con referencia CPU y readback binario independiente; 133 pruebas CPU pasan.
 - [x] Usuario ejecutó imagen/sampler en B580: revisión binaria independiente confirma 64 valores con error máximo 0 y 1.984 words centinela intactos; ver [resultado](first-image-gpu-result.md).
+- [x] [Vistas PRE del host](pre-resource-descriptors.md) reconstruidas para buffers: `R8_UINT`, SRV de 2.112/128 bytes y límite inferior del UAV native_1080; assertions de ABI D3D12 y 150 pruebas CPU pasan. Formatos de imágenes/entradas y oracle siguen pendientes.
 - [ ] Integración runtime del perfil y revisión del contrato del probe/harness.
 - [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
 - [ ] Solo después, integración reversible por juego en Cyberpunk.

@@ -71,7 +71,7 @@ El [harness](lab/README.md) compila con `-Wall -Wextra -Werror`, exige canary,
 evidencia de layout DIRECT e inyección, y comprueba resultados deterministas.
 El usuario ejecutó el probe: [primer resultado GPU](docs/first-synthetic-gpu-result.md)
 con inyección y 1.408 valores correctos; esto no valida FSR completo.
-La suite actual pasa **133 pruebas CPU** (incluye modelos y
+La suite actual pasa **150 pruebas CPU** (incluye modelos y
 comprobaciones estáticas; no son pruebas GPU).
 
 ## Prueba de imagen y sampler
@@ -93,6 +93,19 @@ aclara buffers, bindings y guards, pero sus formatos/entradas y oracle siguen
 pendientes. No se despacha el PRE con recursos arbitrarios ni se declara validado
 FSR completo, Proton u OptiScaler. La investigación continúa con formatos/tamaños
 de recursos del PRE y el defecto de devolución del contexto del shim.
+
+El [parche candidato del contexto](docs/context-output-fix.md) ya devuelve los
+campos compatibles al inicializar las dos APIs D3D12 heredadas, con tests CPU y
+[compilación completa desde Linux](docs/shim-cross-build.md), sin ejecutar DLL.
+La reutilización de un contexto D3D12 existente conserva una limitación conocida;
+el parche no está instalado en upstream ni en ningún prefijo.
+La [inspección fijada de dimensiones](docs/pre-dispatch-dimensions.md) mantiene
+abiertos los gates del tamaño local y de la máscara del PRE real.
+La [reconstrucción de vistas del host](docs/pre-resource-descriptors.md) ya fija
+los buffers `R8_UINT`: vistas SRV de 2.112 y 128 bytes, y UAV de arg 0 con mínimo
+de 8.294.400 bytes para native_1080. No son tamaños exactos de asignación.
+Los formatos/contenidos de las imágenes y la [referencia de salida](docs/pre-reference-options.md)
+siguen pendientes; todavía no hay un launcher PRE autorizado para GPU.
 
 No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
 No ejecutar los instaladores de upstream como parte del análisis.

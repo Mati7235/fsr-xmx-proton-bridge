@@ -92,14 +92,22 @@ extrae tipos/guards sin asignar semántica de escena. Pruebas CPU:
   (`.text.fsr4_pre_xmx.asm:139,146,2297`). El acceso float4 de `:5627` usa una
   dirección derivada del arg 10: su bloque inicial de 128 bytes se carga en
   `:5190-5220` y los campos leídos incluyen offsets 8–84, DWORD/byte offsets
-  64–80, flags en byte 100 y dirección base en byte 104 (`:5261-5325`,
-  `:5573-5602`). Hay guard por bit `0x400` de flags; bit `0x2000` selecciona
+  64–80, flags en byte 100 y offset base en bytes relativo a arg 0 en byte 104
+  (`:5261-5325`, `:5573-5602`). Hay guard por bit `0x400` de flags; bit `0x2000` selecciona
   entre `base` y `base+16` para leer float4, y el primer canal participa en la
   normalización/comparación. No se deducen nombres semánticos de esos campos.
   La ruta final escribe 128 bytes de salida por grupo en arg 0 en el índice
   OWORD `wg_y*960 + wg_x*8` (`:15977-15993`), cuando pasa su guard. Así que arg 0
   no debe inicializarse como un buffer vacío de readback: contiene regiones de
   entrada/scratch y salida cuyas relaciones exactas dependen del header arg 10.
+- La [reconstrucción del host](pre-resource-descriptors.md) identifica vistas
+  tipadas `R8_UINT BUFFER`: UAV de arg 0 con `NumElements=Width`, SRV de arg 9
+  con 2.112 elementos/bytes y SRV de arg 10 con 128 elementos/bytes, desde
+  contexto `+0xa80`/`+0xa98`. Para native_1080, la DLL exige dimensión BUFFER
+  y `8.294.400 <= Width <= 0xffffffff` en arg 0; el mínimo se obtiene del
+  factor 1 de la tabla de variante, no de suponer una asignación exacta.
+  Los backing resources y sus contenidos todavía no están reconstruidos.
+  Los probes sintéticos no validan automáticamente estas vistas tipadas.
 - Los ocho bytes cross-thread extra de args 0/9/10 y `private_base_stateless`
   están estáticamente sin lectura antes de overwrite/fin **solo bajo máscara de
   ejecución completa y constante** para este zebin (`pre-payload-audit.md`). Esos

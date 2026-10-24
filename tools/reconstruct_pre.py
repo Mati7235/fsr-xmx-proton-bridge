@@ -68,7 +68,9 @@ def reconstruct(data):
         nameptr, = struct.unpack('<Q', at(rva, 8))
         offset0, length0 = struct.unpack('<QI', at(rva+0xd8+8, 12))
         offset1, length1 = struct.unpack('<QI', at(0x613b0+0xf0*i, 12))
+        width_factor, = struct.unpack('<I', at(rva+0x24, 4))
         variants.append({'variant': cstring(nameptr), 'index': i+1,
+                         'arg0_width_bound_factor': width_factor,
                          'pack_40101': {'offset': offset0, 'submitted_size': length0},
                          'pack_40102': {'offset': offset1, 'submitted_size': length1}})
     return {'dll_sha256': DLL_SHA256, 'manual_evidence': {
