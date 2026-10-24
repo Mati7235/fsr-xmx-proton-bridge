@@ -51,3 +51,15 @@ The coordinator additionally [cross-built the complete patched shim](shim-cross-
 with LLVM-MinGW in an isolated source copy. That is an offline compilation/link
 check, not a Windows SDK/MSVC build or runtime validation. The patch remains a
 candidate: it has not been installed in upstream, a prefix or a game.
+
+## Known pre-existing reuse limitation
+
+The patch fixes output propagation when a D3D12 context half is initialized.
+Both legacy exports still return early with `S_OK` when the supplied context
+already contains a D3D12 half. That upstream path neither initializes nor copies
+device/driver outputs into a fresh caller structure. It remains unfixed; do not
+interpret this patch as complete API conformance for repeated creation calls.
+Changing reuse semantics safely requires a separate decision about cached
+information, requested-version validation and device identity, rather than
+blindly reinitializing a live context. The CPU harness characterizes this path
+explicitly so the limitation is not mistaken for tested output propagation.

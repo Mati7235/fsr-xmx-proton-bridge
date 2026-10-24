@@ -199,6 +199,13 @@ int main() {
              out.value.pDeviceDriverVersion != driverVersion ||
              out.value.DeviceDriverBuildNumber != 9876) return 2;
          if (memcmp(&out.value.RequestedExtensionVersion, &expectedVersion, sizeof(expectedVersion))) return 4;
+         // Characterize, do not conceal, upstream's separate early-return bug:
+         // a reused D3D12 half returns S_OK without filling a fresh info struct.
+         Guarded reused; seed(reused); Guarded reusedSnapshot = reused;
+         INTCExtensionContext* existing = ctx;
+         hr = api ? _INTC_D3D12_CreateDeviceExtensionContext1(&device, &ctx, &reused.value, nullptr)
+                  : _INTC_D3D12_CreateDeviceExtensionContext(&device, &ctx, &reused.value, nullptr);
+         if (hr != S_OK || ctx != existing || memcmp(&reused, &reusedSnapshot, sizeof(reused))) return 6;
          delete ctx->m_pD3D12ExtensionContext; delete ctx;
          seed(out); initResult = E_FAIL; ctx = nullptr;
          Guarded snapshot = out;

@@ -35,7 +35,7 @@ Son cadenas extraídas, no una traza observada ni una reconstrucción completa d
 | Área | Hallazgo | Evidencia upstream |
 |---|---|---|
 | Versión | Acepta 4.20.0 mediante comparación contra máximo 5.20.0; esto no prueba implementación completa | `shim/src/D3D12ExtensionContext.cpp:7-30`, `shim/src/ExtensionContextBase.h:42-45` |
-| Contexto | Dos APIs D3D12 heredadas usan información temporal que no devuelven al llamador; [parche candidato y tests CPU](context-output-fix.md) corrigen la copia compatible, sin instalarlo | `shim/src/dll/Igdext.def:33`, `shim/src/dll/IgdextApiDll.cpp:343-494` |
+| Contexto | [Parche candidato y tests CPU](context-output-fix.md) corrigen la copia compatible al inicializar dos APIs D3D12 heredadas; queda pendiente la salida al reutilizar una mitad D3D12 ya creada. Sin instalarlo | `shim/src/dll/Igdext.def:33`, `shim/src/dll/IgdextApiDll.cpp:343-494` |
 | Capacidades | OPTIONS1 y OPTIONS2 implementadas; respuestas basadas en GPU detectada, con overrides | `shim/src/dll/D3D12Api.cpp:397-426` |
 | Detección GPU | Registro PCI de Wine, no necesariamente el dispositivo D3D12 recibido; default optimista si no detecta | `shim/src/dll/GpuInfo.cpp:12-42` |
 | PSO CM-SPIR-V | Guarda kernels dinámicos; no requiere whitelist fija XeSS | `shim/src/dll/D3D12Api.cpp:218-249`, `shim/CMakeLists.txt:39-43` |
