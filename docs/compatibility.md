@@ -105,7 +105,9 @@ Un experimento runtime deberá usar un prefijo descartable y variables por proce
 mantener el canary del driver y comprobar readback GPU determinista más logs de
 inyección. No considerar suficiente el overlay, S_OK, o que desaparezca el magenta.
 
-Build upstream: shim MSVC/Windows SDK/CMake aún no compilado. ANV Mesa parcheado
+El [shim baseline compiló desde Linux](shim-cross-build.md) con LLVM-MinGW UCRT,
+sin ejecutar la DLL; la variante MSVC/Windows SDK no se compiló. Los imports UCRT
+siguen pendientes de validación runtime. ANV Mesa parcheado
 compiló localmente con LLVM 23, sin instalar ni ejecutar el ICD.
 IGC/ocloc oficiales se extrajeron localmente sin instalación y compilaron un PRE
 para B580. Eso no demuestra corrección GPU ni compatibilidad del resto de etapas.
