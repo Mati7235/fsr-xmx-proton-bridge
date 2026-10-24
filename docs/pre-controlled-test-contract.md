@@ -146,6 +146,9 @@ Antes del primer dispatch PRE aún hacen falta:
    regla estática simple que permita declarar esperado un buffer/image de salida.
    A falta de oracle, limitarse a verificar inyección, límites/guardas y ausencia
    de corrupción fuera de la salida no acredita corrección funcional.
+   Ver [opciones de referencia](pre-reference-options.md): una captura del bridge
+   que todavía falla no es automáticamente un oracle; otro frontend para el
+   mismo zebin puede contrastar bindings, pero no es otra implementación de FSR.
 6. Revisar con hashes la versión real de Proton/VKD3D, el layout push, heap/sampler,
    el mapa de bindings y el ciclo de vida/sincronización antes de autorizar runtime.
 
