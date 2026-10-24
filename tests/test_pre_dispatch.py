@@ -10,6 +10,7 @@ from inspect_pre_dispatch import inspect
 ZE_INFO = ROOT / 'analysis/offline-pre/full/ze_info.yaml'
 ASSEMBLY = ROOT / 'analysis/pre-payload/disasm/.text.fsr4_pre_xmx.asm'
 ZEBIN = ROOT / 'analysis/offline-pre/full/pre_bmg.bin'
+IR = ROOT / 'analysis/fsr-resources/xe2-first.spvasm'
 
 
 @unittest.skipUnless(ZE_INFO.is_file() and ASSEMBLY.is_file() and ZEBIN.is_file(),
@@ -35,6 +36,14 @@ class PreDispatchInspectionTests(unittest.TestCase):
     def test_rejects_truncated_zebin(self):
         with self.assertRaisesRegex(ValueError, 'zebin SHA-256'):
             inspect(ZE_INFO.read_bytes(), ASSEMBLY.read_bytes(), ZEBIN.read_bytes()[:-1])
+
+    @unittest.skipUnless(IR.is_file(), 'Requires pinned local PRE SPIR-V assembly')
+    def test_ir_builtin_evidence_does_not_authorize_local_size(self):
+        result = inspect(ZE_INFO.read_bytes(), ASSEMBLY.read_bytes(), ZEBIN.read_bytes(), IR.read_bytes())
+        self.assertEqual(result['observed']['spirv_builtin_declarations'], ['WorkgroupId'])
+        self.assertIsNone(result['not_established']['required_workgroup_size'])
+        with self.assertRaisesRegex(ValueError, 'SPIR-V assembly SHA-256'):
+            inspect(ZE_INFO.read_bytes(), ASSEMBLY.read_bytes(), ZEBIN.read_bytes(), IR.read_bytes() + b'\n')
 
 
 class PreDispatchHashGateTests(unittest.TestCase):
