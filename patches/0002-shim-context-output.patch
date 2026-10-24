@@ -1,0 +1,60 @@
+--- a/shim/src/dll/IgdextApiDll.cpp
++++ b/shim/src/dll/IgdextApiDll.cpp
+@@ -337,6 +337,23 @@
+     return E_NOTIMPL;
+ }
+ 
++static void CopyExtensionInfo1OutputsToOld(INTCExtensionInfo& destination, const INTCExtensionInfo1& source)
++{
++    destination.IntelDeviceInfo.GPUMaxFreq = source.IntelDeviceInfo.GPUMaxFreq;
++    destination.IntelDeviceInfo.GPUMinFreq = source.IntelDeviceInfo.GPUMinFreq;
++    destination.IntelDeviceInfo.GTGeneration = source.IntelDeviceInfo.GTGeneration;
++    destination.IntelDeviceInfo.EUCount = source.IntelDeviceInfo.EUCount;
++    destination.IntelDeviceInfo.PackageTDP = source.IntelDeviceInfo.PackageTDP;
++    destination.IntelDeviceInfo.MaxFillRate = source.IntelDeviceInfo.MaxFillRate;
++    for (size_t i = 0; i < 64; ++i)
++    {
++        destination.IntelDeviceInfo.GTGenerationName[i] = source.IntelDeviceInfo.GTGenerationName[i];
++    }
++    destination.pDeviceDriverDesc = source.pDeviceDriverDesc;
++    destination.pDeviceDriverVersion = source.pDeviceDriverVersion;
++    destination.DeviceDriverBuildNumber = source.DeviceDriverBuildNumber;
++}
++
+ HRESULT _INTC_D3D12_CreateDeviceExtensionContext(
+     const ID3D12Device*    pDevice,
+     INTCExtensionContext** ppExtensionContext,
+@@ -349,7 +366,7 @@
+     }
+ 
+     // D3D12ExtensionContext::InitExtensions expects the extended INTCExtensionInfo1 layout;
+-    // only RequestedExtensionVersion is meaningful since the stub never writes device info back.
++    // Preserve the requested input; copy the compatible outputs back only on success.
+     INTCExtensionInfo1 extensionInfo1;
+     memset(&extensionInfo1, 0, sizeof(INTCExtensionInfo1));
+     extensionInfo1.RequestedExtensionVersion = pExtensionInfo->RequestedExtensionVersion;
+@@ -415,6 +432,7 @@
+         return result;
+     }
+ 
++    CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1);
+     *ppExtensionContext = pExtensionContext;
+ 
+     return result;
+@@ -432,7 +450,7 @@
+     }
+ 
+     // D3D12ExtensionContext::InitExtensions expects the extended INTCExtensionInfo1 layout;
+-    // only RequestedExtensionVersion is meaningful since the stub never writes device info back.
++    // Preserve the requested input; copy the compatible outputs back only on success.
+     INTCExtensionInfo1 extensionInfo1;
+     memset(&extensionInfo1, 0, sizeof(INTCExtensionInfo1));
+     extensionInfo1.RequestedExtensionVersion = pExtensionInfo->RequestedExtensionVersion;
+@@ -489,6 +507,7 @@
+         return result;
+     }
+ 
++    CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1);
+     *ppExtensionContext = pExtensionContext;
+ 
+     return result;

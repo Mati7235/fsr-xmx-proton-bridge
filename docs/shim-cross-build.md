@@ -50,6 +50,25 @@ fuentes, DLL e imports; `pe-inspection.txt` conserva la inspección completa.
 
 ## Límites de esta build
 
+### Variante con corrección de contexto
+
+Se copió el baseline a `build/shim-cross-context-v01/source/` y se aplicó
+`patches/0002-shim-context-output.patch` con `patch -p2` desde esa copia.
+Solo cambió `src/dll/IgdextApiDll.cpp`. Se repitieron la configuración y el build
+anteriores sustituyendo `shim-cross-baseline-v01` por `shim-cross-context-v01`.
+
+Los 13 objetos y el enlace terminaron correctamente. La DLL parcheada tiene
+1.615.872 bytes y SHA-256
+`c5b5620f5b8dca1fa44ad853e30cae31a6541a779d896c90810802cc4afbde0d`.
+El parche usado tiene SHA-256
+`fa9c302b4cc3cc9ac4fff746c41c17d94a06e879e37f50da60f116f3337d8508`.
+Los 75 exports (nombre y ordinal) y la lista de DLLs importadas coinciden con el
+baseline. No se afirma que las direcciones o todo el PE sean idénticos.
+El reporte y la inspección están en `build/shim-cross-context-v01/report.json`
+y `pe-inspection.txt`. Ver [corrección y tests CPU](context-output-fix.md).
+
+### Validación pendiente
+
 La variante UCRT enlaza el runtime C++ estáticamente según el CMake upstream,
 pero **mantiene imports de las API de UCRT**, además de KERNEL32 y ADVAPI32.
 No equivale a la distribución MSVC con CRT totalmente estático de upstream.

@@ -35,7 +35,7 @@ Son cadenas extraídas, no una traza observada ni una reconstrucción completa d
 | Área | Hallazgo | Evidencia upstream |
 |---|---|---|
 | Versión | Acepta 4.20.0 mediante comparación contra máximo 5.20.0; esto no prueba implementación completa | `shim/src/D3D12ExtensionContext.cpp:7-30`, `shim/src/ExtensionContextBase.h:42-45` |
-| Contexto | Exporta `_INTC_D3D12_CreateDeviceExtensionContext`; variante sin sufijo usa información temporal que no devuelve completamente al llamador | `shim/src/dll/Igdext.def:33`, `shim/src/dll/IgdextApiDll.cpp:343-434` |
+| Contexto | Dos APIs D3D12 heredadas usan información temporal que no devuelven al llamador; [parche candidato y tests CPU](context-output-fix.md) corrigen la copia compatible, sin instalarlo | `shim/src/dll/Igdext.def:33`, `shim/src/dll/IgdextApiDll.cpp:343-494` |
 | Capacidades | OPTIONS1 y OPTIONS2 implementadas; respuestas basadas en GPU detectada, con overrides | `shim/src/dll/D3D12Api.cpp:397-426` |
 | Detección GPU | Registro PCI de Wine, no necesariamente el dispositivo D3D12 recibido; default optimista si no detecta | `shim/src/dll/GpuInfo.cpp:12-42` |
 | PSO CM-SPIR-V | Guarda kernels dinámicos; no requiere whitelist fija XeSS | `shim/src/dll/D3D12Api.cpp:218-249`, `shim/CMakeLists.txt:39-43` |
@@ -86,7 +86,8 @@ ejecución completa y constante en este binario. No se necesitó inventar direcc
 - [x] 41 pruebas locales pasando, incluido bloque C de validación con layouts sintéticos.
 - [x] Auditoría estática de bytes cross-thread y usos de superficies opacas; sin lecturas bajo máscara completa, con evidencia por hashes.
 - [x] 68 pruebas locales pasando, incluidos casos de lectura, escrituras parciales/predicadas y ramas del auditor.
-- [ ] Pruebas de layout/copia de información de contexto y validación de máscara y dimensiones locales.
+- [x] Parche candidato de copia de contexto D3D12: ABI Windows y cuerpos generados probados en CPU, y shim completo compilado con LLVM-MinGW sin ejecutar DLL.
+- [ ] Validación de máscara y dimensiones locales del PRE; [inspector fijado](pre-dispatch-dimensions.md) conserva los gates abiertos.
 - [x] Compilación CPU de Mesa local con LLVM 23 y lector candidato; sin instalar ni ejecutar en GPU.
 - [x] Probe sintético DPAS compilado, payload auditado bajo supuestos estáticos y heap CMK3 explícito.
 - [x] Harness Vulkan compilado sin ejecución y preflight de inventario; 96 pruebas CPU pasan.
