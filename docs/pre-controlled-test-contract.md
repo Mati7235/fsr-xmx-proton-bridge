@@ -158,6 +158,11 @@ desaparición de magenta no bastan.
 
 ## Evidencia estática y límites exactos
 
+- La [inspección fijada de dimensiones](pre-dispatch-dimensions.md) separa
+  `simd_size`, anchos SIMD nativos, payload de IDs locales y selector Vulkan.
+  No determina el tamaño local ni valida la máscara runtime; ambos gates siguen
+  abiertos. Su inspector rechaza metadata, zebin o desensamblado alterados.
+
 - `analysis/fsr-resources/xe2-first.spvasm`: types `OpTypeImage` Unknown en líneas
   2473–2477; guards en 5166–5185; firma/call typed store y SSA en 3057–3068,
   3180, 5152–5154, 5238–5250, 15278–15312. `7` es `.xyz`, superficie `%9780`
