@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "status": "experimental-offline-only",
+  "kernel": "fsr4_pre_xmx",
+  "variant": "native_1080",
+  "variant_provenance": "Positional assumption inherited from the old census (pack-40102.raw envelope index 0, rec_idx 0). NOT confirmed against the 4.1.2 DLL variant table (source fadbcb50...); do not generalize to other variants.",
+  "source_dll_sha256": "fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732",
+  "pack": {
+    "file": "analysis/fsr-xmx-412/pack-40102.raw",
+    "raw_sha256": "d88aa9d67b3b039934927ce6dfea407bed0280370ed9170281533b62d995e491",
+    "offset": 0,
+    "ir_size": 358776,
+    "trailer_size": 97,
+    "envelope_size": 358873,
+    "ir_sha256": "49e069fd7ad17af19589195e274d8a1af191af363608f71d0a50ad0a21f9f568",
+    "envelope_sha256": "ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab",
+    "embedded_string_a": "-vc-payload -Xfinalizer '-noDPASMacro'",
+    "embedded_string_b": " -target-features=+ocl_runtime"
+  },
+  "input_sha256": "ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab",
+  "zebin_sha256": "b1781bb45a675005a81fb6679ad5f0b02d1252987a0d1f49af38cd4cf13751c2",
+  "zebin_size": 395256,
+  "code_sha256": "68b962b5a01984d02b0bbe15bda0c8e3d04dd49ad8a58d93e5c16dbb28f8792c",
+  "code_size": 30464,
+  "target_pci_id": "0xe20b",
+  "toolchain": {
+    "igc_version": "2.10.10+18926",
+    "ocloc_release": "25.18.33578.6",
+    "profile": "profiles/intel-toolchain.json"
+  },
+  "build_options": "-vc-codegen  -Xfinalizer '-noDPASMacro'",
+  "build_options_sha256": "9348be653b5d57bbcb245ec7a30608a6584632c514a4472d250bc04786a0ae6e",
+  "options_evidence": {
+    "full_input_reproduced_twice": "zebin b1781bb4... both runs; buildOptions carry -noDPASMacro, byte-identical to the old build",
+    "stripped_ir_control": "zebin ff889fb8..., code e941cd97..., buildOptions '-vc-codegen' only; same BTIs, different code -- IGC consumes the embedded footer options, same as the old control",
+    "warning_preserved": "LLVM triple mismatch warning kept, not suppressed"
+  },
+  "execution_env": {
+    "grf_count": 128,
+    "simd_size": 1,
+    "has_dpas": true,
+    "has_sample": true,
+    "has_fence_for_image_access": true,
+    "has_no_stateless_write": true,
+    "offset_to_skip_per_thread_data_load": 128
+  },
+  "per_thread_payload": [
+    {
+      "arg_type": "packed_local_ids",
+      "offset": 0,
+      "size": 6
+    }
+  ],
+  "binding_table_indices": [8, 9, 1, 2, 3, 4, 5, 6, 7, 10, 11],
+  "expected_push_size": 52,
+  "table_pc_base": 4,
+  "surface_count": 11,
+  "surfaces": [
+    {
+      "arg_index": 0,
+      "bti": 8,
+      "table_index": 0,
+      "element": 0,
+      "root_index": 1,
+      "push_byte_offset": 4
+    },
+    {
+      "arg_index": 1,
+      "bti": 9,
+      "table_index": 1,
+      "element": 0,
+      "root_index": 2,
+      "push_byte_offset": 8
+    },
+    {
+      "arg_index": 2,
+      "bti": 1,
+      "table_index": 2,
+      "element": 0,
+      "root_index": 3,
+      "push_byte_offset": 12
+    },
+    {
+      "arg_index": 3,
+      "bti": 2,
+      "table_index": 3,
+      "element": 0,
+      "root_index": 4,
+      "push_byte_offset": 16
+    },
+    {
+      "arg_index": 4,
+      "bti": 3,
+      "table_index": 4,
+      "element": 0,
+      "root_index": 5,
+      "push_byte_offset": 20
+    },
+    {
+      "arg_index": 5,
+      "bti": 4,
+      "table_index": 5,
+      "element": 0,
+      "root_index": 6,
+      "push_byte_offset": 24
+    },
+    {
+      "arg_index": 6,
+      "bti": 5,
+      "table_index": 6,
+      "element": 0,
+      "root_index": 7,
+      "push_byte_offset": 28
+    },
+    {
+      "arg_index": 7,
+      "bti": 6,
+      "table_index": 7,
+      "element": 0,
+      "root_index": 8,
+      "push_byte_offset": 32
+    },
+    {
+      "arg_index": 8,
+      "bti": 7,
+      "table_index": 8,
+      "element": 0,
+      "root_index": 9,
+      "push_byte_offset": 36
+    },
+    {
+      "arg_index": 9,
+      "bti": 10,
+      "table_index": 9,
+      "element": 0,
+      "root_index": 10,
+      "push_byte_offset": 40
+    },
+    {
+      "arg_index": 10,
+      "bti": 11,
+      "table_index": 10,
+      "element": 0,
+      "root_index": 11,
+      "push_byte_offset": 44
+    }
+  ],
+  "layout_provenance": "BTI order and ze_info bytes are identical to the reviewed old build (ze_info sha 5546d517... unchanged), so the same pre_layout derivation applies: 11 stateful surfaces plus a separate sampler (arg 11, sampler index 0), push offsets 4..44, push_range_size 52, explicit table base 4 (not the auto-inferred 8). Sampler stays out of the surface count.",
+  "payload_review": {
+    "status": "static-blocked-unsupported-opcode",
+    "evidence": "profiles/fsr4-pre-412-native1080-payload-audit.json",
+    "runtime_approved": false
+  },
+  "differs_from_old_build": {
+    "ir_size": "358776 (was 330108)",
+    "code_sha256": "68b962b5... (was 2e42d33c...)",
+    "zebin_sha256": "b1781bb4... (was 3e974d57...)",
+    "code_size": "30464 (was 29376)",
+    "zebin_size": "395256 (was 365504)",
+    "assembly_sha256": "7773a88b... (was a9c82bbb...)",
+    "ir_assembly_sha256": "7ac12fd2... (was 7ed1d81b...)",
+    "same_as_old": "BTI order, ze_info bytes, buildOptions bytes, execution_env, payload offsets, per-thread layout, IR guards 120x540, IR surface-sole-use pattern"
+  },
+  "remaining_reviews": [
+    "Review macl/acc0 native semantics before any payload-safety claim for 4.1.2.",
+    "Validate full thread execution mask assumed by any future pointer-payload audit.",
+    "Confirm the native_1080 variant label against the 4.1.2 DLL variant table; do not compile other envelopes as named variants yet.",
+    "Actual runtime Vulkan layout and descriptor bindings.",
+    "Dynamic sampler vs fallback behavior.",
+    "Local workgroup dimensions and correctness of GPU readback.",
+    "Other PRE variants and all other FSR stages."
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "status": "static-analysis-blocked",
+  "block_reason": "unsupported-native-opcode-macl",
+  "input_sha256": "ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab",
+  "ir_sha256": "49e069fd7ad17af19589195e274d8a1af191af363608f71d0a50ad0a21f9f568",
+  "zebin_sha256": "b1781bb45a675005a81fb6679ad5f0b02d1252987a0d1f49af38cd4cf13751c2",
+  "code_sha256": "68b962b5a01984d02b0bbe15bda0c8e3d04dd49ad8a58d93e5c16dbb28f8792c",
+  "assembly_sha256": "7773a88bf497bf416d535589b0e4fb85bd3f8e14d2982a2cec52133028ba2cf9",
+  "embedded_spirv_sha256": "49e069fd7ad17af19589195e274d8a1af191af363608f71d0a50ad0a21f9f568",
+  "ir_assembly_sha256": "7ac12fd2f17cb82f7ffad5a59609366448c1bc11a7947175c0c25e19dd9d46a2",
+  "provenance": {
+    "pack": "analysis/fsr-xmx-412/pack-40102.raw",
+    "envelope_offset": 0,
+    "envelope_size": 358873,
+    "ir_size": 358776,
+    "trailer_size": 97,
+    "kernel": "fsr4_pre_xmx",
+    "variant_assumption": "native_1080 by old-census pack position (index 0); NOT confirmed against the 4.1.2 DLL variant table",
+    "toolchain": "IGC 2.10.10+18926, ocloc 25.18.33578.6, target 0xe20b (profiles/intel-toolchain.json)",
+    "staging": "analysis/offline-pre-412/ (git-ignored)",
+    "legacy_tool": "tools/audit_pre_payload.py (unmodified; its pins still reject this input, fail-closed)"
+  },
+  "legacy_auditor_result": {
+    "build_report": "rejected: Unreviewed CM input (EXPECTED_INPUT/EXPECTED_ZEBIN pins unchanged; correct fail-closed behavior, not a tool bug)",
+    "parse_isa": "rejected: Unsupported native opcode macl",
+    "first_unsupported_file_line": 444,
+    "unsupported_line": "macl (1|M0)              r1.0<1>:d     r82.14<0;1,0>:d   r80.1<0;1,0>:d   {Compacted}",
+    "context_preceding_line": "(W)     mul (8|M0)               acc0.0<1>:d   r82.14<0;1,0>:d   r80.2<0;1,0>:uw",
+    "opcode_delta_vs_old_iga": "exactly one macl instruction is new; all other opcodes parse. acc0 flows (252 occurrences) are pre-existing in the old IGA with an identical surrounding pattern, and the old auditor already treats acc0 as non-GRF state in both binaries."
+  },
+  "ir_surface_parameters": [
+    {
+      "arg_index": 0,
+      "parameter": "%788",
+      "type": "opaque CM buffer surface",
+      "sole_use": "llvm.genx.address.convert.i32.p1intel.buffer_rw_t"
+    },
+    {
+      "arg_index": 9,
+      "parameter": "%797",
+      "type": "opaque CM buffer surface",
+      "sole_use": "llvm.genx.address.convert.i32.p1intel.buffer_rw_t"
+    },
+    {
+      "arg_index": 10,
+      "parameter": "%798",
+      "type": "opaque CM buffer surface",
+      "sole_use": "llvm.genx.address.convert.i32.p1intel.buffer_rw_t"
+    }
+  ],
+  "ir_entry": {
+    "params": 12,
+    "wrapper_preserves_argument_order": true,
+    "guards": [
+      "WorkgroupId.x >= 120",
+      "WorkgroupId.y >= 540"
+    ],
+    "guard_evidence": "OpConstant %uint 120 / 540 with OpUGreaterThanEqual in embedded.spvasm (same pattern as the old IR)"
+  },
+  "nonzero_payload_fields": [
+    {
+      "arg_type": "arg_bypointer",
+      "offset": 8,
+      "size": 8,
+      "arg_index": 0,
+      "addrmode": "stateful",
+      "addrspace": "global",
+      "access_type": "readwrite"
+    },
+    {
+      "arg_type": "arg_bypointer",
+      "offset": 16,
+      "size": 8,
+      "arg_index": 9,
+      "addrmode": "stateful",
+      "addrspace": "global",
+      "access_type": "readwrite"
+    },
+    {
+      "arg_type": "arg_bypointer",
+      "offset": 24,
+      "size": 8,
+      "arg_index": 10,
+      "addrmode": "stateful",
+      "addrspace": "global",
+      "access_type": "readwrite"
+    },
+    {
+      "arg_type": "private_base_stateless",
+      "offset": 0,
+      "size": 8
+    }
+  ],
+  "native_byte_liveness": {
+    "status": "blocked-unsupported-opcode",
+    "unsupported_opcode": "macl",
+    "assumptions": [
+      "full constant thread execution mask",
+      "64-byte GRFs",
+      "decoded IGA send descriptions agree with native encoding"
+    ],
+    "seed_line": 11,
+    "seed_register": 2,
+    "seed_size": 32,
+    "visited_instructions_with_live_bytes": "unknown (audit did not run to completion)",
+    "possible_reads": "unknown (audit did not run to completion)",
+    "overwrites": "unknown (audit did not run to completion)"
+  },
+  "experimental_extension_note": "UNREVIEWED, NOT A SAFETY CLAIM: monkey-patching the auditor's opcode set with macl (treated as a generic ternary read plus destination write, same shape as mad) parses the new IGA and yields 160 visited instructions, zero possible reads, and overwrites at file lines 20/23/143/179/379 -- the same shape as the old audit. This was computed inline for evidence only, tools/audit_pre_payload.py was NOT modified, and the implicit acc0 source semantics of macl plus the pre-existing acc0-is-not-GRF assumption remain unreviewed. No unread verdict is claimed for 4.1.2.",
+  "runtime_approved": false
+}
