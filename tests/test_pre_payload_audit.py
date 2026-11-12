@@ -127,6 +127,72 @@ class NativePayloadTests(unittest.TestCase):
     def test_full_mask_assumption_is_explicit(self):
         self.assertIn('full constant thread execution mask', native()['assumptions'])
 
+    # Fase 3 hardening: predicated stores, diamond joins, backedges with
+    # partial kills, and fail-closed send/transpose decoding. All CPU-only.
+    def test_predicated_store_response_does_not_kill(self):
+        r = native('(f0.0) send.ugm (1|M0) null r4 r2:1 0x8000000 0x6200B504 // wr:1+1, rd:0; store.ugm.d32x4t.a32.bti[8]',
+                   'mov (1|M0) r3.0<1>:ud r2.0<0;1,0>:ud')
+        self.assertEqual(r['status'], 'possible-read')
+
+    def test_predicated_partial_overwrite_preserves_all_bytes(self):
+        r = native('(f0.0) mov (1|M0) r2.0<1>:ud 0x0:ud',
+                   'mov (1|M0) r3.0<1>:ud r2.0<0;1,0>:ud')
+        self.assertEqual(r['possible_reads'][0]['offsets'], [0, 1, 2, 3])
+
+    def test_diamond_join_union_preserves_complementary_halves(self):
+        # Each branch kills a complementary half; union must keep both live,
+        # so the later read is still a possible read (conservative).
+        r = native('(W&f0.0) jmpi L100',
+                   'mov (4|M0) r2.0<1>:ud 0x0:ud',
+                   '(W) jmpi L200',
+                   'L100:',
+                   'mov (4|M0) r2.4<1>:ud 0x0:ud',
+                   'L200:',
+                   'mov (1|M0) r3.0<1>:ud r2.0<0;1,0>:ud')
+        self.assertEqual(r['status'], 'possible-read')
+
+    def test_diamond_join_both_branches_full_kill_is_safe(self):
+        r = native('(W&f0.0) jmpi L100',
+                   'mov (8|M0) r2.0<1>:ud 0x0:ud',
+                   '(W) jmpi L200',
+                   'L100:',
+                   'mov (8|M0) r2.0<1>:ud 0x0:ud',
+                   'L200:',
+                   'mov (1|M0) r3.0<1>:ud r2.0<0;1,0>:ud')
+        self.assertEqual(r['possible_reads'], [])
+
+    def test_backedge_partial_kill_needs_fixed_point(self):
+        r = native('L100:',
+                   'mov (4|M0) r2.0<1>:ud 0x0:ud',
+                   '(W&f0.0) jmpi L100',
+                   'mov (1|M0) r3.0<1>:ud r2.4<0;1,0>:ud')
+        # Low half is killed on every iteration, high half survives the loop.
+        self.assertEqual(r['possible_reads'][0]['offsets'], list(range(16, 20)))
+
+    def test_illegal_with_live_bytes_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'illegal/padding'):
+            audit_native('\n'.join([SEED, 'illegal', END]), seed_line=1)
+
+    def test_missing_send_lengths_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'decoded message lengths'):
+            native('send.ugm (1|M0) r2 r4 null:0 0x0 0x0 // no lengths')
+
+    def test_register_descriptor_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'Register-based message descriptor'):
+            native('send.ugm (1|M0) r2 r4 null:0 r5 0x0 // wr:1+0, rd:1; load.ugm.d32x4t.a32.bti[8]')
+
+    def test_transpose_wrong_width_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'Transpose is only modelled for SIMD1'):
+            native('send.ugm (8|M0) r4 r2 null:0 0x8000000 0x6210B500 // wr:1+0, rd:1; load.ugm.d32x4t.a32.bti[8]')
+
+    def test_transpose_load_with_data_input_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'Unexpected load data input'):
+            native('send.ugm (1|M0) r4 r2 r4:1 0x8000000 0x6210B500 // wr:1+1, rd:1; load.ugm.d32x4t.a32.bti[8]')
+
+    def test_transpose_store_with_response_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'Unexpected store response'):
+            native('send.ugm (1|M0) r4 r4 r2:1 0x8000000 0x6200B504 // wr:1+1, rd:1; store.ugm.d32x4t.a32.bti[8]')
+
 
 class IrSurfaceTests(unittest.TestCase):
     def test_opaque_surface_conversion(self):
