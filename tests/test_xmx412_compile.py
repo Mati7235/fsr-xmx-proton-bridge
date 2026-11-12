@@ -213,18 +213,20 @@ class NewProfilePinTests(unittest.TestCase):
                          "profiles/fsr4-pre-412-native1080-payload-audit.json")
         self.assertFalse(profile["payload_review"]["runtime_approved"])
 
-    def test_audit_profile_is_blocked_not_safe(self):
+    def test_audit_profile_is_clean_static_only(self):
         audit = json.loads(NEW_AUDIT.read_text())
-        self.assertEqual(audit["status"], "static-analysis-blocked")
+        self.assertEqual(audit["status"], "static-analysis-only")
         self.assertEqual(audit["input_sha256"], EXPECTED_ENV_SHA)
         self.assertEqual(audit["zebin_sha256"], EXPECTED_ZEBIN_SHA)
         self.assertEqual(audit["code_sha256"], EXPECTED_CODE_SHA)
         self.assertEqual(audit["assembly_sha256"], EXPECTED_ASM_SHA)
         self.assertEqual(audit["ir_assembly_sha256"], EXPECTED_IR_ASM_SHA)
-        self.assertEqual(audit["native_byte_liveness"]["status"],
-                         "blocked-unsupported-opcode")
-        self.assertEqual(audit["native_byte_liveness"]["possible_reads"],
-                         "unknown (audit did not run to completion)")
+        live = audit["native_byte_liveness"]
+        self.assertEqual(live["status"], "unread-before-overwrite-or-end")
+        self.assertEqual(live["possible_reads"], [])
+        self.assertEqual(live["visited_instructions_with_live_bytes"], 160)
+        self.assertEqual([o["line"] for o in live["overwrites"]],
+                         [20, 23, 143, 179, 379])
         self.assertFalse(audit["runtime_approved"])
         self.assertEqual(
             [p["arg_index"] for p in audit["ir_surface_parameters"]],
@@ -244,12 +246,20 @@ class LegacyAuditorFailClosedTests(unittest.TestCase):
             build_report(INPUT.read_bytes(), ZEBIN.read_bytes(),
                          NATIVE_ASM.read_bytes(), IR_ASM.read_bytes())
 
-    def test_new_opcode_rejected_without_silent_pass(self):
+    def test_reviewed_opcode_accepted_unreviewed_still_rejected(self):
         import sys
         sys.path.insert(0, str(ROOT / "tools"))
-        from audit_pre_payload import parse_isa
-        with self.assertRaisesRegex(ValueError, "macl"):
-            parse_isa(NATIVE_ASM.read_text(encoding="utf-8"))
+        from audit_pre_payload import audit_native, parse_isa
+        # macl is now reviewed (implicit acc0 read, no GRF aliasing): parses.
+        ins, _ = parse_isa(NATIVE_ASM.read_text(encoding="utf-8"))
+        self.assertTrue(any(i['op'] == 'macl' and i['line'] == 444 for i in ins))
+        # The full kernel still audits clean with the extended model.
+        live = audit_native(NATIVE_ASM.read_text(encoding="utf-8"), 11)
+        self.assertEqual(live['status'], 'unread-before-overwrite-or-end')
+        self.assertEqual(live['possible_reads'], [])
+        # Unreviewed opcodes (incl. mach) still rejected fail-closed.
+        with self.assertRaisesRegex(ValueError, "mach"):
+            parse_isa('mach (1|M0) r1.0<1>:d r2.0<0;1,0>:d r80.1<0;1,0>:d')
 
 
 if __name__ == "__main__":

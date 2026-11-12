@@ -147,7 +147,7 @@
   ],
   "layout_provenance": "BTI order and ze_info bytes are identical to the reviewed old build (ze_info sha 5546d517... unchanged), so the same pre_layout derivation applies: 11 stateful surfaces plus a separate sampler (arg 11, sampler index 0), push offsets 4..44, push_range_size 52, explicit table base 4 (not the auto-inferred 8). Sampler stays out of the surface count.",
   "payload_review": {
-    "status": "static-blocked-unsupported-opcode",
+    "status": "static-unread-under-full-mask",
     "evidence": "profiles/fsr4-pre-412-native1080-payload-audit.json",
     "runtime_approved": false
   },
@@ -162,7 +162,7 @@
     "same_as_old": "BTI order, ze_info bytes, buildOptions bytes, execution_env, payload offsets, per-thread layout, IR guards 120x540, IR surface-sole-use pattern"
   },
   "remaining_reviews": [
-    "Review macl/acc0 native semantics before any payload-safety claim for 4.1.2.",
+    "macl/acc0 reviewed in docs/xmx412-macl-acc0.md with clean static verdict (still static-only, runtime_approved false).",
     "Validate full thread execution mask assumed by any future pointer-payload audit.",
     "Confirm the native_1080 variant label against the 4.1.2 DLL variant table; do not compile other envelopes as named variants yet.",
     "Actual runtime Vulkan layout and descriptor bindings.",

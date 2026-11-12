@@ -6,6 +6,11 @@ constant thread execution mask. Branches join with union; predicated writes do
 not kill bytes (SEL selects a value rather than suppressing its destination).
 Send padding is not data: transpose UGM SIMD1 consumes one A32 address.
 Unsupported ISA/IR or changed reviewed identities must not become a safe result.
+
+Accumulator model (minimal, conservative): explicit accN operands are tracked
+per overlapping pair, plus the implicit acc0 read of mac/mac/macl (acc0.0
+always used). mac/macl never write acc here (no-kill); mach would read+write
+but stays rejected. A read of tainted acc is a possible-read.
 """
 import argparse
 from collections import deque
@@ -23,10 +28,20 @@ GRF_BYTES = 64
 GRF_COUNT = 128
 TYPES = {'b': 1, 'ub': 1, 'w': 2, 'uw': 2, 'hf': 2, 'bf': 2,
          'd': 4, 'ud': 4, 'f': 4, 'q': 8, 'uq': 8, 'df': 8}
-OPS = {'mov', 'and', 'or', 'xor', 'add', 'mul', 'mad', 'mac', 'cmp', 'sel',
+OPS = {'mov', 'and', 'or', 'xor', 'add', 'mul', 'mad', 'mac', 'macl', 'cmp', 'sel',
        'shl', 'shr', 'rnde', 'rndd', 'dpas.8x8', 'math.inv', 'math.log',
        'math.exp', 'math.sqt', 'jmpi', 'nop', 'sync.nop', 'illegal',
        'send.ugm', 'send.smpl', 'send.tgm', 'send.gtwy'}
+# Implicit accumulator groups. IGC documents acc0.0 as the always-used implicit
+# source for macl (AccWrCtrl NOT set) and for mach (AccWrCtrl set); the IGA
+# dependency tables mark MAC/MACH/MACL as implicit acc0 readers. Only acc0
+# (group 0, covering the overlapping acc0/acc1 pair) is modelled as implicit;
+# explicit accN operands are tracked per overlapping pair (0/1, 2/3, ...).
+# mac/macl are modelled as acc readers that never write acc (conservative
+# no-kill: assuming a write would unsoundly clear taint). mach would be a
+# reader+writer but stays rejected in OPS (fail-closed, not observed here).
+IMPLICIT_ACC_READ_OPS = {'mac', 'macl', 'mach'}
+IMPLICIT_ACC_WRITE_OPS = {'mach'}
 
 
 def parse_isa(text):
@@ -111,6 +126,45 @@ def send_register(token, size):
     return set(range(start, start+size))
 
 
+def _acc_groups_in_token(token):
+    # Overlapping pair grouping: acc0/acc1 share a group, acc2/acc3 share, etc.
+    # Conservative for the documented acc overlap (see IGA RegDeps).
+    return {(int(n)//2)*2 for n in re.findall(r'acc(\d+)', token)}
+
+
+def acc_accesses(ins):
+    """Return (acc_read_groups, acc_write_groups) for the accumulator file.
+
+    Explicit accN operands plus the implicit acc0 read of mac/macl/mach
+    (acc0.0 always used, per IGC BuildIRImpl/RegDeps). mac/macl never write
+    acc here (conservative no-kill); mach would read+write but stays
+    rejected in OPS. Predicated non-sel writes do not kill, mirroring GRF.
+    Send payloads with acc are unreviewed and rejected fail-closed.
+    """
+    op, args = ins['op'], ins['args']
+    if op in {'jmpi', 'nop', 'sync.nop', 'illegal'}:
+        return set(), set()
+    if op.startswith('send.'):
+        if any('acc' in t for t in args):
+            raise ValueError('Accumulator in send payload not reviewed')
+        return set(), set()
+    if not args:
+        raise ValueError('Missing data operands')
+    read, write = set(), set()
+    if 'acc' in args[0]:
+        write.update(_acc_groups_in_token(args[0]))
+    for token in args[1:]:
+        if 'acc' in token:
+            read.update(_acc_groups_in_token(token))
+    if op in IMPLICIT_ACC_READ_OPS:
+        read.add(0)
+    if op in IMPLICIT_ACC_WRITE_OPS:
+        write.add(0)
+    if 'f' in ins['pred'] and op != 'sel':
+        write = set()
+    return read, write
+
+
 def accesses(ins):
     op, args, width = ins['op'], ins['args'], ins['width']
     conditional = 'f' in ins['pred']
@@ -157,22 +211,55 @@ def audit_native(text, seed_line, seed_register=2, seed_size=32):
         raise ValueError('Missing seed instruction or continuation')
     start = seeds[0]+1
     original = set(range(seed_register*GRF_BYTES, seed_register*GRF_BYTES+seed_size))
-    states = {start: original}
+    # Per-program-point state is (grf_live, acc_live). grf_live holds original
+    # byte identities still present in r2; acc_live maps accumulator pair-group
+    # -> set of original byte identities currently possibly held there.
+    # Accumulators start clean: the cross-thread payload is only in r2.
+    states = {start: (set(original), {})}
     queue, reads, kills, visited = deque([start]), {}, {}, set()
     while queue:
         index = queue.popleft()
-        live = states[index]
-        if not live:
+        live, acc_live = states[index]
+        if not live and all(not v for v in acc_live.values()):
             continue
         ins = instructions[index]
         visited.add(index)
         used, written = accesses(ins)
+        acc_read, acc_write = acc_accesses(ins)
         if live & used:
-            reads[ins['line']] = sorted(b-seed_register*GRF_BYTES for b in live & used)
+            prev = set(reads.get(ins['line'], []))
+            prev.update(b-seed_register*GRF_BYTES for b in live & used)
+            reads[ins['line']] = sorted(prev)
+        acc_taint_read = set()
+        for group in acc_read:
+            acc_taint_read |= acc_live.get(group, set())
+        if acc_taint_read:
+            prev = set(reads.get(ins['line'], []))
+            prev.update(b-seed_register*GRF_BYTES for b in acc_taint_read)
+            reads[ins['line']] = sorted(prev)
         removed = live & written
         if removed:
-            kills[ins['line']] = sorted(b-seed_register*GRF_BYTES for b in removed)
+            prev = set(kills.get(ins['line'], []))
+            prev.update(b-seed_register*GRF_BYTES for b in removed)
+            kills[ins['line']] = sorted(prev)
         outgoing = live-written
+        # Accumulator transfer: new value derives from live GRF sources plus
+        # any acc taint read. Unconditional writes replace; predicated
+        # non-sel writes may or may not happen, so they union (no kill).
+        new_from_grf = live & used
+        outgoing_acc = dict(acc_live)
+        for group in acc_write:
+            outgoing_acc[group] = set(new_from_grf) | set(acc_taint_read)
+        conditional = 'f' in ins['pred'] and ins['op'] != 'sel'
+        if conditional:
+            dst = ins['args'][0] if ins['args'] else ''
+            if 'acc' in dst:
+                for group in _acc_groups_in_token(dst):
+                    outgoing_acc[group] = (outgoing_acc.get(group, set())
+                                           | set(new_from_grf) | set(acc_taint_read))
+            if ins['op'] in IMPLICIT_ACC_WRITE_OPS:
+                outgoing_acc[0] = (outgoing_acc.get(0, set())
+                                   | set(new_from_grf) | set(acc_taint_read))
         if ins['op'] == 'illegal':
             raise ValueError('Reached illegal/padding with live original bytes')
         if 'end of thread' in ins['comment']:
@@ -186,10 +273,16 @@ def audit_native(text, seed_line, seed_register=2, seed_size=32):
         for successor in successors:
             if successor >= len(instructions):
                 raise ValueError('Live data reached an invalid native continuation')
-            previous = states.get(successor, set())
-            merged = previous | outgoing
-            if merged != previous:
-                states[successor] = merged
+            prev_live, prev_acc = states.get(successor, (set(), {}))
+            merged_live = prev_live | outgoing
+            merged_acc = dict(prev_acc)
+            for group, taint in outgoing_acc.items():
+                merged_acc[group] = merged_acc.get(group, set()) | taint
+            # Prune empty acc groups to keep state comparison stable.
+            merged_acc = {g: v for g, v in merged_acc.items() if v}
+            prev_acc_pruned = {g: v for g, v in prev_acc.items() if v}
+            if merged_live != prev_live or merged_acc != prev_acc_pruned:
+                states[successor] = (merged_live, merged_acc)
                 queue.append(successor)
     return {'status': 'possible-read' if reads else 'unread-before-overwrite-or-end',
             'assumptions': ['full constant thread execution mask', '64-byte GRFs',

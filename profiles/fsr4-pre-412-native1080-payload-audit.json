@@ -1,7 +1,6 @@
 {
   "schema_version": 1,
-  "status": "static-analysis-blocked",
-  "block_reason": "unsupported-native-opcode-macl",
+  "status": "static-analysis-only",
   "input_sha256": "ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab",
   "ir_sha256": "49e069fd7ad17af19589195e274d8a1af191af363608f71d0a50ad0a21f9f568",
   "zebin_sha256": "b1781bb45a675005a81fb6679ad5f0b02d1252987a0d1f49af38cd4cf13751c2",
@@ -19,15 +18,15 @@
     "variant_assumption": "native_1080 by old-census pack position (index 0); NOT confirmed against the 4.1.2 DLL variant table",
     "toolchain": "IGC 2.10.10+18926, ocloc 25.18.33578.6, target 0xe20b (profiles/intel-toolchain.json)",
     "staging": "analysis/offline-pre-412/ (git-ignored)",
-    "legacy_tool": "tools/audit_pre_payload.py (unmodified; its pins still reject this input, fail-closed)"
+    "tool": "tools/audit_pre_payload.py (extended with reviewed macl+acc0 model; EXPECTED_* pins unchanged, still fail-closed for unreviewed identities)"
   },
-  "legacy_auditor_result": {
-    "build_report": "rejected: Unreviewed CM input (EXPECTED_INPUT/EXPECTED_ZEBIN pins unchanged; correct fail-closed behavior, not a tool bug)",
-    "parse_isa": "rejected: Unsupported native opcode macl",
-    "first_unsupported_file_line": 444,
-    "unsupported_line": "macl (1|M0)              r1.0<1>:d     r82.14<0;1,0>:d   r80.1<0;1,0>:d   {Compacted}",
-    "context_preceding_line": "(W)     mul (8|M0)               acc0.0<1>:d   r82.14<0;1,0>:d   r80.2<0;1,0>:uw",
-    "opcode_delta_vs_old_iga": "exactly one macl instruction is new; all other opcodes parse. acc0 flows (252 occurrences) are pre-existing in the old IGA with an identical surrounding pattern, and the old auditor already treats acc0 as non-GRF state in both binaries."
+  "auditor_result": {
+    "build_report": "rejected (expected): Unreviewed CM input vs old EXPECTED_INPUT/EXPECTED_ZEBIN pins; correct fail-closed for identities, not a tool bug",
+    "parse_isa": "accepted: macl is now a reviewed opcode (implicit acc0 read, GRF ternary shape)",
+    "unblocked_file_line": 444,
+    "unblocked_line": "macl (1|M0)              r1.0<1>:d     r82.14<0;1,0>:d   r80.1<0;1,0>:d   {Compacted}",
+    "context_preceding_line": "(W)     mul (1|M0)               acc0.0<1>:d   r82.14<0;1,0>:d   r80.2<0;1,0>:uw",
+    "opcode_delta_vs_old_iga": "exactly one macl instruction is new (file line 444); all other opcodes already parsed. acc0 lines: 252 old vs 253 new (one extra mul acc0 at line 442 feeding macl). See docs/xmx412-macl-acc0.md."
   },
   "ir_surface_parameters": [
     {
@@ -93,8 +92,7 @@
     }
   ],
   "native_byte_liveness": {
-    "status": "blocked-unsupported-opcode",
-    "unsupported_opcode": "macl",
+    "status": "unread-before-overwrite-or-end",
     "assumptions": [
       "full constant thread execution mask",
       "64-byte GRFs",
@@ -103,10 +101,108 @@
     "seed_line": 11,
     "seed_register": 2,
     "seed_size": 32,
-    "visited_instructions_with_live_bytes": "unknown (audit did not run to completion)",
-    "possible_reads": "unknown (audit did not run to completion)",
-    "overwrites": "unknown (audit did not run to completion)"
+    "visited_instructions_with_live_bytes": 160,
+    "possible_reads": [],
+    "overwrites": [
+      {
+        "line": 20,
+        "offsets": [
+          0,
+          1
+        ]
+      },
+      {
+        "line": 23,
+        "offsets": [
+          2,
+          3
+        ]
+      },
+      {
+        "line": 143,
+        "offsets": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ]
+      },
+      {
+        "line": 179,
+        "offsets": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ]
+      },
+      {
+        "line": 379,
+        "offsets": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ]
+      }
+    ]
   },
-  "experimental_extension_note": "UNREVIEWED, NOT A SAFETY CLAIM: monkey-patching the auditor's opcode set with macl (treated as a generic ternary read plus destination write, same shape as mad) parses the new IGA and yields 160 visited instructions, zero possible reads, and overwrites at file lines 20/23/143/179/379 -- the same shape as the old audit. This was computed inline for evidence only, tools/audit_pre_payload.py was NOT modified, and the implicit acc0 source semantics of macl plus the pre-existing acc0-is-not-GRF assumption remain unreviewed. No unread verdict is claimed for 4.1.2.",
+  "auditor_extension": "REVIEWED macl+acc0 model (see docs/xmx412-macl-acc0.md): macl is a 2-src/1-dst integer op with implicit acc0 read (acc0.0 always used, AccWrCtrl NOT set) and no GRF aliasing; mac/mac/macl reads do not write acc here (conservative no-kill), explicit accN tracked per overlapping pair with predicated-write/no-kill except sel. Full-kernel audit yields 160 visited, zero possible reads, overwrites at 20/23/143/179/379 -- identical shape to the old build. Accumulators start clean; no live path writes r2 bytes to acc, so the implicit macl read at line 444 is clean. Untested opcodes (incl. mach) still rejected fail-closed.",
   "runtime_approved": false
 }
