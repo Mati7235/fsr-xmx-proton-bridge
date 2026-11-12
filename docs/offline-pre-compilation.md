@@ -132,8 +132,35 @@ El compilador revela detalles que no debemos dar por resueltos:
 - Falta corregir/cubrir la devolución de información GPU del contexto.
 - Los demás kernels y variantes no están cubiertos por este perfil.
 
-Por eso el perfil y el artefacto CMK3 llevan estado **experimental-offline-only**.
+ Por eso el perfil y el artefacto CMK3 llevan estado **experimental-offline-only**.
 No copiarlos a un cache runtime. No activar el helper con ellos todavía.
+
+## 8. Promoción 4.1.2 (estado actual, sin runtime)
+
+La serie 4.1.2 cerró el hueco que dejaba este documento en §4/§7:
+
+- Perfil nuevo `profiles/fsr4-pre-412-native1080-bmg.json`
+  (`experimental-offline-only`): `input ce372719…`, `code 68b962b5…`,
+  `zebin b1781bb4…`, `surface_count 11`, `push 52`, `base 4` (misma
+  derivación que el viejo: mismo orden/BTIs + mismo `ze_info`).
+- Auditoría `profiles/fsr4-pre-412-native1080-payload-audit.json`:
+  `static-analysis-only` / `unread-before-overwrite-or-end`
+  (160 visitadas, 0 lecturas); ver [macl/acc0](xmx412-macl-acc0.md).
+  `runtime_approved=false` se mantiene.
+- `profiles/registry.json` ya tiene **2 entradas** (vieja `2e42d33c…` +
+  nueva `68b962b5…`). Digest de cache `registry_gen()` pasó de
+  `0x912cda6a` (1 entrada) a **`0x3ddd809f`** (2 entradas), embebido en
+  `patches/0001-anv-cmk3-explicit-mapping.patch` (ambas variantes
+  `anv_cm_toolchain_gen`). Miss → ruta legacy CMK2, sin cambio global.
+- Detalle de compilación/auditoría en [offline 4.1.2](xmx412-offline-compile.md);
+  recheck/regen del puente en [recheck](xmx412-bridge-recheck.md) y
+  [regen](xmx412-bridge-regen.md).
+
+Qué falta (no es runtime): traza Fase 1 autorizada (grid real, tablas,
+DIAG `rootParameters==13`, bytes pre/post), oracle de salida, máscara/
+local-size, helper nuevo y tabla de variantes 4.1.2. `profiles/xmx412-pins.json`
+sigue como staging con `REQUIRED-TBD` (deuda documental, no bloquea el
+registry ya promovido). Nada se copia a cachés runtime ni se instala.
 
 ## 5. Reproducción
 

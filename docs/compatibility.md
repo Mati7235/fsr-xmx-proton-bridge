@@ -100,6 +100,21 @@ ejecución completa y constante en este binario. No se necesitó inventar direcc
 - [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
 - [ ] Solo después, integración reversible por juego en Cyberpunk.
 
+## Serie 4.1.2 (DLL `fadbcb50…b37f44732`, 45.558.272 B) — cerrada en estático
+
+- [x] Decodificador LZMS del envelope (header 24 B + chunks, digest SHA-256 por loader `FUN_180029640`); 6 packs, 1.977 envelopes CM; ver [envelope](xmx412-pack-envelope.md).
+- [x] Censo SPIR-V PRE Xe2 + dispatch equivalente + 18 variantes: entry `fsr4_pre_xmx`, 12 args, `WorkgroupId` único, guards `120×540/240×1080/480×2160`, conteos `78/85/1`, grid/modos idénticos a 4.0.2x; helper reescrito (no reutilizar `0x180002df0`); ver [censo](xmx412-spirv-census.md), [dispatch](xmx412-dispatch.md), [variantes](xmx412-variants.md).
+- [x] Compilación offline PRE `native_1080` posicional (IR `49e069fd…`, envelope `ce372719…` → zebin `b1781bb4…`, code `68b962b5…`, `ze_info` byte-idéntico al viejo, BTIs `[8,9,1,2,3,4,5,6,7,10,11]`); ver [offline 4.1.2](xmx412-offline-compile.md).
+- [x] Auditoría `macl`/`acc0` limpia bajo máscara completa y constante (160 visitadas, 0 lecturas, overwrites 20/23/143/179/379; alcance un kernel/input/output); ver [auditoría](xmx412-macl-acc0.md) (commit `db2e834`). `runtime_approved=false` se mantiene.
+- [x] Puente re-verificado contra 4.1.2: 0002/0003 mantener, 0001 mantener forma, registry promovido a 2 entradas con digest nuevo; determinismo + `apply --check` + shim 14/14; ver [recheck](xmx412-bridge-recheck.md), [regen](xmx412-bridge-regen.md).
+- [x] Runbook de traza Spider-Man fijado (DLL/pack/IR/envelope con SHA-256, contrato y checklist); ver [runbook](spiderman-trace-runbook.md) y [checklist de usuario](xmx412-user-checklist.md).
+
+## Sigue abierto (no runtime, no oracle, no dispatch real)
+
+- [ ] Traza runtime Fase 1 en prefijo descartable (usuario, manual): grid real, 11 tablas + sampler, `rootParameters`, DIAG/FNV, bytes pre/post; ver [spec](pre-trace-capture-spec.md) y [runbook](spiderman-trace-runbook.md).
+- [ ] Oracle de salida y contenidos iniciales (formatos de 8 imágenes, bytes arg 9/10/0, referencia CPU); ver [contrato](pre-controlled-test-contract.md).
+- [ ] Dispatch real: máscara/local-size, helper nuevo (`0xbbd0`+`0x27bc0`), tabla de variantes 4.1.2 (nombres posicionales no confirmados), resto de PREs/pass6/otras familias.
+
 ## Criterio de éxito y seguridad
 
 No modificar el driver de la sesión ni prefijos del usuario durante el análisis.

@@ -16,7 +16,7 @@
 ++         /* LOCAL profile generation: the reviewed PRE profile registry
 ++          * selects which kernels may use the explicit CMK3 layout; any
 ++          * registry change must invalidate previously cached kernels. */
-++         h = (h ^ 0x912cda6au) * 16777619u;
+++         h = (h ^ 0x3ddd809fu) * 16777619u;
  +   }
  +   gen = h;
  +   done = true;
@@ -121,7 +121,7 @@
 ++         /* LOCAL profile generation: the reviewed PRE profile registry
 ++          * selects which kernels may use the explicit CMK3 layout; any
 ++          * registry change must invalidate previously cached kernels. */
-++         h = (h ^ 0x912cda6au) * 16777619u;
+++         h = (h ^ 0x3ddd809fu) * 16777619u;
  +   }
  +   gen = h;
  +   done = true;

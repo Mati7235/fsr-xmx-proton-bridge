@@ -19,13 +19,17 @@ from pre_profile_registry import find_profile, load, registry_gen
 REGISTRY = ROOT / "profiles/registry.json"
 PATCH = ROOT / "patches/0001-anv-cmk3-explicit-mapping.patch"
 PROFILE = ROOT / "profiles/fsr4-pre-native1080-bmg.json"
+PROFILE_412 = ROOT / "profiles/fsr4-pre-412-native1080-bmg.json"
 KNOWN_CODE = "2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f"
+KNOWN_CODE_412 = "68b962b5a01984d02b0bbe15bda0c8e3d04dd49ad8a58d93e5c16dbb28f8792c"
+OLD_GEN = "912cda6a"
 
 
 class RegistryTests(unittest.TestCase):
     def test_registry_loads_and_selects_reviewed_pre(self) -> None:
         registry = load()
         self.assertEqual(registry["status"], "experimental-offline-only")
+        self.assertEqual(len(registry["profiles"]), 2)
         entry = find_profile(KNOWN_CODE, registry)
         self.assertIsNotNone(entry)
         assert entry is not None
@@ -33,33 +37,51 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual((entry["table_pc_base"], entry["expected_push_size"]), (4, 52))
         self.assertEqual(entry["surface_count"], 11)
 
+    def test_registry_selects_reviewed_pre_412(self) -> None:
+        registry = load()
+        entry = find_profile(KNOWN_CODE_412, registry)
+        self.assertIsNotNone(entry)
+        assert entry is not None
+        self.assertEqual(entry["kernel"], "fsr4_pre_xmx")
+        self.assertEqual(entry["profile"], "profiles/fsr4-pre-412-native1080-bmg.json")
+        self.assertEqual((entry["table_pc_base"], entry["expected_push_size"]), (4, 52))
+        self.assertEqual(entry["surface_count"], 11)
+
     def test_unknown_code_falls_back_to_legacy(self) -> None:
         self.assertIsNone(find_profile("0" * 64))
         self.assertIsNone(find_profile("ff" * 64))
+        self.assertIsNone(find_profile("REQUIRED-TBD"))
 
     def test_registry_matches_profile_file(self) -> None:
-        entry = find_profile(KNOWN_CODE)
-        assert entry is not None
-        profile = json.loads(PROFILE.read_text())
-        for key in ("code_sha256", "input_sha256", "zebin_sha256"):
-            self.assertEqual(profile[key], entry[key])
-        self.assertEqual(profile["expected_push_size"], entry["expected_push_size"])
-        self.assertEqual(profile["table_pc_base"], entry["table_pc_base"])
-        self.assertEqual(len(profile["surfaces"]), entry["surface_count"])
-        self.assertTrue((ROOT / entry["profile"]).is_file())
-        # Internal consistency enforced by tools/apply_cmk_mapping.convert.
-        for index, surface in enumerate(profile["surfaces"]):
-            self.assertEqual(surface["arg_index"], index)
-            self.assertEqual(surface["push_byte_offset"],
-                             entry["table_pc_base"] + 4 * surface["table_index"])
+        for code, profile_path in ((KNOWN_CODE, PROFILE),
+                                   (KNOWN_CODE_412, PROFILE_412)):
+            entry = find_profile(code)
+            assert entry is not None
+            profile = json.loads(profile_path.read_text())
+            for key in ("code_sha256", "input_sha256", "zebin_sha256"):
+                self.assertEqual(profile[key], entry[key], f"{key} for {code[:8]}")
+            self.assertEqual(profile["expected_push_size"], entry["expected_push_size"])
+            self.assertEqual(profile["table_pc_base"], entry["table_pc_base"])
+            self.assertEqual(len(profile["surfaces"]), entry["surface_count"])
+            self.assertTrue((ROOT / entry["profile"]).is_file())
+            # Internal consistency enforced by tools/apply_cmk_mapping.convert.
+            for index, surface in enumerate(profile["surfaces"]):
+                self.assertEqual(surface["arg_index"], index)
+                self.assertEqual(surface["push_byte_offset"],
+                                 entry["table_pc_base"] + 4 * surface["table_index"])
 
     def test_generation_digest_is_stable_and_content_bound(self) -> None:
         first = registry_gen()
         self.assertEqual(first, registry_gen(load()))
         self.assertRegex(first, r"^[0-9a-f]{8}$")
+        # Promoting 4.1.2 changed the digest, invalidating cached kernels.
+        self.assertNotEqual(first, OLD_GEN)
         mutated = load()
         mutated["profiles"][0]["expected_push_size"] = 56
         self.assertNotEqual(registry_gen(mutated), first)
+        mutated_both = load()
+        mutated_both["profiles"][1]["expected_push_size"] = 56
+        self.assertNotEqual(registry_gen(mutated_both), first)
 
 
 @unittest.skipUnless((ROOT / "upstream/xess-xmx-linux/patches/0001-anv-cm-kernel-injection.patch").exists(),
@@ -74,6 +96,11 @@ class CacheIdentityTests(unittest.TestCase):
             updated = adapt(original)
             self.assertIn(expected, updated)
             self.assertIn("LOCAL profile generation", updated)
+
+    def test_old_generation_no_longer_embedded(self) -> None:
+        text = PATCH.read_text()
+        self.assertNotIn(f"0x{OLD_GEN}u", text)
+        self.assertIn(f"0x{registry_gen()}u", text)
 
     def test_checked_in_candidate_matches_generator(self) -> None:
         generated = subprocess.run(

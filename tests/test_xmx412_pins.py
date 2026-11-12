@@ -18,6 +18,9 @@ sys.path.insert(0, str(ROOT / "tools"))
 from pre_profile_registry import find_profile, load
 
 PINS = ROOT / "profiles/xmx412-pins.json"
+PROFILE_412 = ROOT / "profiles/fsr4-pre-412-native1080-bmg.json"
+KNOWN_CODE_402X = "2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f"
+KNOWN_CODE_412 = "68b962b5a01984d02b0bbe15bda0c8e3d04dd49ad8a58d93e5c16dbb28f8792c"
 ANALYSIS_MANIFEST = ROOT / "analysis/fsr-xmx-412/manifest.json"
 ANALYSIS_DIR = ROOT / "analysis/fsr-xmx-412"
 RESDIR = Path("/tmp/opencode/xmx-new/res412")
@@ -187,7 +190,27 @@ class TbdFailClosedTests(unittest.TestCase):
 
 
 class RegistryAcceptanceProbeTests(unittest.TestCase):
-    def test_no_412_code_in_registry_today(self):
+    def test_both_pre_codes_select_reviewed_profiles(self):
+        registry = load()
+        self.assertEqual(len(registry["profiles"]), 2)
+        old = find_profile(KNOWN_CODE_402X, registry)
+        new = find_profile(KNOWN_CODE_412, registry)
+        self.assertIsNotNone(old)
+        self.assertIsNotNone(new)
+        assert old is not None and new is not None
+        self.assertEqual(old["profile"], "profiles/fsr4-pre-native1080-bmg.json")
+        self.assertEqual(new["profile"], "profiles/fsr4-pre-412-native1080-bmg.json")
+        for entry in (old, new):
+            self.assertEqual(entry["kernel"], "fsr4_pre_xmx")
+            self.assertEqual((entry["table_pc_base"], entry["expected_push_size"]), (4, 52))
+            self.assertEqual(entry["surface_count"], 11)
+        self.assertNotEqual(old["code_sha256"], new["code_sha256"])
+        self.assertTrue(PROFILE_412.is_file())
+        profile = json.loads(PROFILE_412.read_text())
+        for key in ("code_sha256", "input_sha256", "zebin_sha256"):
+            self.assertEqual(profile[key], new[key])
+
+    def test_pack_digests_still_miss(self):
         pins = json.loads(PINS.read_text())
         registry = load()
         for pack in pins["packs"]:

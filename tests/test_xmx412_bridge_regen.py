@@ -153,12 +153,12 @@ class PatchApplyTests(unittest.TestCase):
 
 
 class RegistryTwoEntryTests(unittest.TestCase):
-    def test_real_registry_still_single_entry(self) -> None:
+    def test_real_registry_has_two_reviewed_entries(self) -> None:
         registry = load()
-        self.assertEqual(len(registry["profiles"]), 1)
-        self.assertEqual(registry_gen(), "912cda6a")
+        self.assertEqual(len(registry["profiles"]), 2)
+        self.assertEqual(registry_gen(), "3ddd809f")
 
-    def test_synthetic_second_entry_loads_without_code_change(self) -> None:
+    def test_synthetic_third_entry_loads_without_code_change(self) -> None:
         candidate = synthetic_two_entry_registry()
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as handle:
             path = Path(handle.name)
@@ -167,7 +167,7 @@ class RegistryTwoEntryTests(unittest.TestCase):
             loaded = load(path)
         finally:
             path.unlink(missing_ok=True)
-        self.assertEqual(len(loaded["profiles"]), 2)
+        self.assertEqual(len(loaded["profiles"]), 3)
         self.assertIsNotNone(find_profile(KNOWN_CODE, loaded))
         second = find_profile(SYN_CODE, loaded)
         self.assertIsNotNone(second)

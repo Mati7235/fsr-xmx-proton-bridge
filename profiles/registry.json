@@ -20,6 +20,18 @@
       "expected_push_size": 52,
       "surface_count": 11,
       "sampler": "heap-separated, not part of the 11 surfaces"
+    },
+    {
+      "kernel": "fsr4_pre_xmx",
+      "variant": "native_1080",
+      "code_sha256": "68b962b5a01984d02b0bbe15bda0c8e3d04dd49ad8a58d93e5c16dbb28f8792c",
+      "input_sha256": "ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab",
+      "zebin_sha256": "b1781bb45a675005a81fb6679ad5f0b02d1252987a0d1f49af38cd4cf13751c2",
+      "profile": "profiles/fsr4-pre-412-native1080-bmg.json",
+      "table_pc_base": 4,
+      "expected_push_size": 52,
+      "surface_count": 11,
+      "sampler": "heap-separated, not part of the 11 surfaces"
     }
   ]
 }
