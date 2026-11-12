@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "status": "staging-only-not-for-registry",
+  "purpose": "Staging pin collection for the XMX 4.1.2 DLL. This file is NOT profiles/registry.json and MUST NOT be consumed by tools/pre_profile_registry.py. It records every hash already fixed for 4.1.2 and marks everything still unknown as REQUIRED-TBD so a future registry entry can be built without inventing values. Promotion to the registry is blocked until all REQUIRED-TBD fields resolve (see docs/xmx412-pins.md).",
+  "source_dll_sha256": "fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732",
+  "loader": {
+    "function": "FUN_180029640",
+    "rva_range": "0x29640-0x29b9a",
+    "anchor_string_rva": "0x30E010",
+    "flow": "index clamp (i>5 -> 0); FindResourceW/LoadResource/LockResource on RCDATA id by index; Cabinet.dll ordinals 40/43/45 (LZMS, algorithm 5, 64 KiB blocks); exact-size match; one-shot BCryptHash SHA-256 (0x41) over decompressed bytes vs compiled-in hex digest",
+    "evidence": "docs/xmx412-pack-envelope.md (Ghidra, static only)"
+  },
+  "packs": [
+    {
+      "resource_id": 40101,
+      "index": 0,
+      "bucket": "18-variant DG2 (SIMD8 DPAS)",
+      "res_size": 6107632,
+      "res_sha256": "8e260219b64694f1d5aa6020632b0d107abff759f200a728b788aed454e9b9b5",
+      "loader_expected_size": 35346326,
+      "loader_expected_size_hex": "0x21B5796",
+      "raw_sha256": "4c63d10c83ed371b30a15ed563e560d0c977d473c7237b7f296e6d78aa88ab8d",
+      "cm_envelopes": 252
+    },
+    {
+      "resource_id": 40102,
+      "index": 1,
+      "bucket": "18-variant Xe2 (SIMD16 DPAS)",
+      "res_size": 3856836,
+      "res_sha256": "58557640463eeec42c0b9ea923d6b7462af2c38e97976be55c9e3501134d7651",
+      "loader_expected_size": 23682325,
+      "loader_expected_size_hex": "0x1695D15",
+      "raw_sha256": "d88aa9d67b3b039934927ce6dfea407bed0280370ed9170281533b62d995e491",
+      "cm_envelopes": 252
+    },
+    {
+      "resource_id": 40103,
+      "index": 2,
+      "bucket": "FSR 4.1.2 Lite (DG2)",
+      "res_size": 6960934,
+      "res_sha256": "48963849d7b456256fb4e238353be436d6bb17b8385e8cb7857bb901f929f458",
+      "loader_expected_size": 42034337,
+      "loader_expected_size_hex": "0x28164A1",
+      "raw_sha256": "a3731f5b65fb077e34a605e46931abb8988b9924989a1476fe29586ab70eb7d5",
+      "cm_envelopes": 378
+    },
+    {
+      "resource_id": 40104,
+      "index": 3,
+      "bucket": "DLSS K (DG2 + Xe2/Xe3)",
+      "res_size": 8031050,
+      "res_sha256": "2c93c489f21415d4e8505b466669d529f1e397a4d0c9e6790acef326d9d25fa1",
+      "loader_expected_size": 42477193,
+      "loader_expected_size_hex": "0x2882689",
+      "raw_sha256": "a9ea6724ebe4079a29c819564baeb15815cbd2df15cf7d9752be80ac4e7054ea",
+      "cm_envelopes": 716
+    },
+    {
+      "resource_id": 40105,
+      "index": 4,
+      "bucket": "DLSS E / F",
+      "res_size": 3421152,
+      "res_sha256": "4cff7b12f864d69abf851ae8e88883475116fe80f1ad7841b955d6f9e90acb2f",
+      "loader_expected_size": 19590261,
+      "loader_expected_size_hex": "0x12AEC75",
+      "raw_sha256": "7ac547ee7bc0fce49b55036cad6993d41a42b1077aa911e6acff91b357d246fa",
+      "cm_envelopes": 312
+    },
+    {
+      "resource_id": 40106,
+      "index": 5,
+      "bucket": "DLSS-MX (DG2)",
+      "res_size": 1001522,
+      "res_sha256": "579f610f8dba82752bdc130ed1de27b1abc4ff432f9963d419d038862d20b0de",
+      "loader_expected_size": 5443681,
+      "loader_expected_size_hex": "0x531061",
+      "raw_sha256": "03c188585417648a051d2b32258a0a6d554d58ab8969bdcc9c0919435a331ac3",
+      "cm_envelopes": 67
+    }
+  ],
+  "pin_provenance": "Loader digests fixed by commit 7059945 (tools/decompress_xmx412.py EXPECTED); cross-checked here against analysis/fsr-xmx-412/manifest.json and the read-only resource dir /tmp/opencode/xmx-new/res412/manifest.json plus recomputed SHA-256 of the files on disk. Total CM envelopes 1977.",
+  "non_pack_resources": [
+    {
+      "type": 16,
+      "id": 1,
+      "kind": "VERSIONINFO",
+      "file": "resource-0006.bin",
+      "size": 776,
+      "sha256": "20ba4d46d50e77c3ade40c878900b68cf33a1cb98a26166364a1b2d5e78bd072",
+      "note": "Reports FileVersion 4.0.2.1 / 'AMD FidelityFX Upscaler Library (FSR 4 and DLSS on Intel XMX)'"
+    },
+    {
+      "type": 24,
+      "id": 2,
+      "kind": "XML manifest",
+      "file": "resource-0007.bin",
+      "size": 145,
+      "sha256": "d2952e57023848a37fb0f21f0dfb38c9000f610ac2b00c2f128511dfd68bde04",
+      "note": "Trivial assembly manifest, no compatibility data"
+    }
+  ],
+  "disassembly_412": "REQUIRED-TBD",
+  "disassembly_note": "No pinned 4.1.2 disassembly artifact exists. analysis/fsr-xmx-disassembly.txt and analysis/fsr-xmx-static.json cover the OLD 4.0.2x DLL (3eb08656...), not this one. Loader behavior above is documented from Ghidra observations in docs/xmx412-pack-envelope.md, but no disassembly text hash is pinned yet.",
+  "pre_xe2_412": {
+    "kernel": "fsr4_pre_xmx",
+    "variant": "REQUIRED-TBD",
+    "variant_hint": "Xe2 SIMD16 full-chain bucket is pack 40102 (index 1); the exact 1080p/native Xe2 PRE envelope has not been isolated, so no variant name is pinned",
+    "code_sha256": "REQUIRED-TBD",
+    "input_sha256": "REQUIRED-TBD",
+    "zebin_sha256": "REQUIRED-TBD",
+    "table_pc_base": "REQUIRED-TBD",
+    "expected_push_size": "REQUIRED-TBD",
+    "surface_count": "REQUIRED-TBD",
+    "profile": "REQUIRED-TBD",
+    "note": "No offline compilation of a 4.1.2 PRE kernel has been run and no payload audit exists. The old PRE 4.0.2x pins (code 2e42d33c..., input 76942f6c..., zebin 3e974d57..., base 4, push 52) MUST NOT be reused for 4.1.2."
+  },
+  "future_registry_entry_fragment": {
+    "_comment": "Shape of the eventual profiles/registry.json entry. Every REQUIRED-TBD must resolve first; values below are placeholders, not pins.",
+    "kernel": "fsr4_pre_xmx",
+    "variant": "REQUIRED-TBD",
+    "code_sha256": "REQUIRED-TBD",
+    "input_sha256": "REQUIRED-TBD",
+    "zebin_sha256": "REQUIRED-TBD",
+    "profile": "REQUIRED-TBD",
+    "table_pc_base": "REQUIRED-TBD",
+    "expected_push_size": "REQUIRED-TBD",
+    "surface_count": "REQUIRED-TBD"
+  },
+  "registry_acceptance_probe": {
+    "required_keys": ["kernel", "code_sha256", "profile", "table_pc_base", "expected_push_size", "surface_count"],
+    "rules": "code_sha256 must be a unique 64-hex digest; table_pc_base/expected_push_size must satisfy 0 <= base < expected <= 256 with 4-byte alignment; the profile file must exist on disk",
+    "result_today": "No 4.1.2 code is listed in profiles/registry.json, so tools/pre_profile_registry.find_profile returns None for any 4.1.2 code (legacy CMK2 path). Correct: promotion is blocked and the global XeSS behavior is unchanged.",
+    "gate": "tests/test_xmx412_pins.py"
+  }
+}
