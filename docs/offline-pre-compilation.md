@@ -111,7 +111,9 @@ el nuevo header. El sampler no entra en las once superficies.
 aplicó a un driver instalado. Se comprobó que aplica al checkout fijado y que los
 parches Mesa internos mantienen sintaxis válida. El bloque C de validación insertado
 se compiló y ejecutó con estructuras sintéticas en CPU; no es una compilación del
-resto del driver. No se integró el perfil al helper runtime ni a su cache identity.
+resto del driver. La selección de perfil por hash y el bump de cache identity
+son candidatos offline (`profiles/registry.json`, `tools/pre_profile_registry.py`,
+`docs/profile-selection-cache-identity.md`); el helper runtime sigue sin leerlos.
 
 ## 4. Qué falta antes de una prueba GPU
 

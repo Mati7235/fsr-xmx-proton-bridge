@@ -9,6 +9,11 @@ import argparse
 import difflib
 from pathlib import Path
 import re
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+from pre_profile_registry import load as load_registry, registry_gen
 
 
 def once(text, old, new):
@@ -40,6 +45,16 @@ def recount(text):
 
 
 def adapt(text):
+    gen = registry_gen(load_registry())
+    text = once(text,
+        '+      if (stat(dir, &st) == 0)\n'
+        '+         h = (h ^ (uint32_t)st.st_size) * 16777619u;\n',
+        '+      if (stat(dir, &st) == 0)\n'
+        '+         h = (h ^ (uint32_t)st.st_size) * 16777619u;\n'
+        '+         /* LOCAL profile generation: the reviewed PRE profile registry\n'
+        '+          * selects which kernels may use the explicit CMK3 layout; any\n'
+        '+          * registry change must invalidate previously cached kernels. */\n'
+        f'+         h = (h ^ 0x{gen}u) * 16777619u;\n')
     text = once(text,
         '+   if (fread(&h, sizeof(h), 1, f) != 1 || memcmp(h.magic, "CMK2", 4) != 0 ||\n',
         '+   if (fread(&h, sizeof(h), 1, f) != 1 ||\n'

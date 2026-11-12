@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "status": "experimental-offline-only",
+  "purpose": "Offline profile-per-hash selector for the LOCAL CMK3 prototype. Only kernels whose reviewed native code hash is listed here may be converted to CMK3 with an explicit table base; every other kernel keeps the legacy CMK2 path, so the global XeSS behavior is unchanged. Any change to this file must invalidate previously cached kernels via the profile generation mixed into anv_cm_toolchain_gen (see tools/pre_profile_registry.py and tools/build_anv_mapping_patch.py).",
+  "toolchain": {
+    "igc": "2.10.10+18926",
+    "ocloc": "25.18.33578.6",
+    "device": "0xe20b",
+    "note": "B580/Battlesmage G21 offline compiler pinned in profiles/intel-toolchain.json"
+  },
+  "profiles": [
+    {
+      "kernel": "fsr4_pre_xmx",
+      "variant": "native_1080",
+      "code_sha256": "2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f",
+      "input_sha256": "76942f6cff52b09ea8fef63adfce8b4119fcd45c8c0586c913eedb9e35fe773b",
+      "zebin_sha256": "3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2",
+      "profile": "profiles/fsr4-pre-native1080-bmg.json",
+      "table_pc_base": 4,
+      "expected_push_size": 52,
+      "surface_count": 11,
+      "sampler": "heap-separated, not part of the 11 surfaces"
+    }
+  ]
+}

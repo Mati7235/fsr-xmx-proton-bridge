@@ -1,0 +1,95 @@
+--- a/shim/src/dll/IgdextApiDll.cpp
++++ b/shim/src/dll/IgdextApiDll.cpp
+@@ -411,7 +411,29 @@
+     }
+     else
+     {
+-        // We already seem to have a context
++        // Reused D3D12 half: never rebind a live context. Validate the caller
++        // against the granted contract, then refresh the outputs deterministically.
++        D3D12ExtensionContext* const liveHalf = pExtensionContext->m_pD3D12ExtensionContext;
++        if (liveHalf->m_pAppDevice.Get() != pDevice)
++        {
++            return E_INVALIDARG;
++        }
++        INTCExtensionVersionHelper grantedVersion(liveHalf->m_SupportedExtVersion);
++        if (!grantedVersion.IsSupported(pExtensionInfo->RequestedExtensionVersion))
++        {
++            return E_NOINTERFACE;
++        }
++        const INTCExtensionVersion agreedVersion = liveHalf->m_SupportedExtVersion;
++        INTCExtensionInfo1 reuseInfo1;
++        memset(&reuseInfo1, 0, sizeof(INTCExtensionInfo1));
++        reuseInfo1.RequestedExtensionVersion = pExtensionInfo->RequestedExtensionVersion;
++        if (FAILED(result = liveHalf->InitExtensions(pDevice, nullptr, 0, &reuseInfo1, &extensionAppInfo)))
++        {
++            liveHalf->m_SupportedExtVersion = agreedVersion;
++            return result;
++        }
++        liveHalf->m_SupportedExtVersion = agreedVersion;
++        CopyExtensionInfo1OutputsToOld(*pExtensionInfo, reuseInfo1);
+         return S_OK;
+     }
+ 
+@@ -486,7 +508,29 @@
+     }
+     else
+     {
+-        // We already seem to have a context
++        // Reused D3D12 half: never rebind a live context. Validate the caller
++        // against the granted contract, then refresh the outputs deterministically.
++        D3D12ExtensionContext* const liveHalf = pExtensionContext->m_pD3D12ExtensionContext;
++        if (liveHalf->m_pAppDevice.Get() != pDevice)
++        {
++            return E_INVALIDARG;
++        }
++        INTCExtensionVersionHelper grantedVersion(liveHalf->m_SupportedExtVersion);
++        if (!grantedVersion.IsSupported(pExtensionInfo->RequestedExtensionVersion))
++        {
++            return E_NOINTERFACE;
++        }
++        const INTCExtensionVersion agreedVersion = liveHalf->m_SupportedExtVersion;
++        INTCExtensionInfo1 reuseInfo1;
++        memset(&reuseInfo1, 0, sizeof(INTCExtensionInfo1));
++        reuseInfo1.RequestedExtensionVersion = pExtensionInfo->RequestedExtensionVersion;
++        if (FAILED(result = liveHalf->InitExtensions(pDevice, nullptr, 0, &reuseInfo1, pExtensionAppInfo)))
++        {
++            liveHalf->m_SupportedExtVersion = agreedVersion;
++            return result;
++        }
++        liveHalf->m_SupportedExtVersion = agreedVersion;
++        CopyExtensionInfo1OutputsToOld(*pExtensionInfo, reuseInfo1);
+         return S_OK;
+     }
+ 
+@@ -555,7 +599,29 @@
+     }
+     else
+     {
+-        // We already seem to have a context
++        // Reused D3D12 half: never rebind a live context. Validate the caller
++        // against the granted contract, then refresh the full-width outputs.
++        D3D12ExtensionContext* const liveHalf = pExtensionContext->m_pD3D12ExtensionContext;
++        if (liveHalf->m_pAppDevice.Get() != pDevice)
++        {
++            return E_INVALIDARG;
++        }
++        INTCExtensionVersionHelper grantedVersion(liveHalf->m_SupportedExtVersion);
++        if (!grantedVersion.IsSupported(pExtensionInfo->RequestedExtensionVersion))
++        {
++            return E_NOINTERFACE;
++        }
++        const INTCExtensionVersion agreedVersion = liveHalf->m_SupportedExtVersion;
++        INTCExtensionInfo1 reuseInfo1;
++        memset(&reuseInfo1, 0, sizeof(INTCExtensionInfo1));
++        reuseInfo1.RequestedExtensionVersion = pExtensionInfo->RequestedExtensionVersion;
++        if (FAILED(result = liveHalf->InitExtensions(pDevice, nullptr, 0, &reuseInfo1, pExtensionAppInfo)))
++        {
++            liveHalf->m_SupportedExtVersion = agreedVersion;
++            return result;
++        }
++        liveHalf->m_SupportedExtVersion = agreedVersion;
++        *pExtensionInfo = reuseInfo1;
+         return S_OK;
+     }
+ 
