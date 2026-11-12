@@ -230,6 +230,13 @@ implementación de referencia independiente (o CPU oracle validado contra ella)
 para afirmar corrección funcional; una captura de descriptores, inyección,
 no-corrupción de guards o ausencia de errores no lo sustituye.
 
+## Corroboración independiente con REA
+
+Ver [evidencia estática REA](rea-static-evidence.md): imports completos sin
+creación directa de recursos, 5 exports FFX y 5 recursos con hashes idénticos
+al manifiesto local. Sin desensamblador disponible en REA; no aporta
+pseudocódigo nuevo.
+
 ## Reproducción y evidencia fijada
 
 ```bash
