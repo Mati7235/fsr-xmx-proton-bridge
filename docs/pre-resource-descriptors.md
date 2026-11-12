@@ -234,8 +234,9 @@ no-corrupción de guards o ausencia de errores no lo sustituye.
 
 Ver [evidencia estática REA](rea-static-evidence.md): imports completos sin
 creación directa de recursos, 5 exports FFX y 5 recursos con hashes idénticos
-al manifiesto local. Sin desensamblador disponible en REA; no aporta
-pseudocódigo nuevo.
+al manifiesto local. Con Ghidra 12.2 disponible, el [dispatch quedó
+decompilado](pre-dispatch-ghidra.md): bindings stock por nombre, fórmula de
+grid, fail-stops y helper de copia.
 
 ## Reproducción y evidencia fijada
 

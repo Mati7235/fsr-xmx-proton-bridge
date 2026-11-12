@@ -117,11 +117,35 @@ static_assert(__builtin_offsetof(D3D12_SHADER_RESOURCE_VIEW_DESC, Buffer) == 16)
 static_assert(__builtin_offsetof(D3D12_BUFFER_SRV, NumElements) == 8);
 static_assert(__builtin_offsetof(D3D12_UNORDERED_ACCESS_VIEW_DESC, Buffer) == 8);
 static_assert(__builtin_offsetof(D3D12_BUFFER_UAV, NumElements) == 8);
+static_assert(__builtin_offsetof(ID3D12GraphicsCommandListVtbl, Dispatch) == 0x70);
+static_assert(__builtin_offsetof(ID3D12GraphicsCommandListVtbl, ResourceBarrier) == 0xd0);
+static_assert(__builtin_offsetof(ID3D12GraphicsCommandListVtbl, SetDescriptorHeaps) == 0xe0);
+static_assert(__builtin_offsetof(ID3D12GraphicsCommandListVtbl, SetPipelineState) == 0xc8);
+static_assert(__builtin_offsetof(ID3D12GraphicsCommandListVtbl, SetComputeRootDescriptorTable) == 0xf8);
+static_assert(__builtin_offsetof(ID3D12GraphicsCommandListVtbl, SetComputeRoot32BitConstant) == 0x108);
+static_assert(__builtin_offsetof(ID3D12DescriptorHeapVtbl, GetGPUDescriptorHandleForHeapStart) == 0x50);
 '''
         result = subprocess.run([str(COMPILER), '-std=c++17', '-fms-extensions',
                                  '-x', 'c++', '-fsyntax-only', '-'], input=source,
                                 text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(DLL.is_file(), 'Requires pinned local DLL')
+    def test_pinned_dll_carries_ghidra_stock_names_and_failstops(self):
+        data = DLL.read_bytes()
+        for name in ("MLSR_Optimized_Constants", "ScratchBuffer",
+                     "rw_reprojected_color", "r_history_color", "r_velocity",
+                     "r_input_color", "r_recurrent_0", "r_depth",
+                     "r_input_exposure", "r_auto_exposure_texture"):
+            self.assertGreaterEqual(data.count(name.encode('utf-16le')), 2, name)
+        for message in ("PRE runtime geometry is unavailable.",
+                        "[FSR4 XMX] PRE params are not ready",
+                        "[FSR4 XMX] PRE required stock binding missing",
+                        "[FSR4 XMX] PRE constants are incomplete",
+                        "[FSR4 XMX] PRE runtime-flag ABI mismatch",
+                        "[FSR4 XMX] PRE ScratchBuffer layout mismatch",
+                        "[FSR4 XMX PARITY] Ring full"):
+            self.assertEqual(data.count(message.encode('ascii')), 1, message)
 
 
 if __name__ == "__main__":

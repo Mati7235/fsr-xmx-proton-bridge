@@ -186,5 +186,8 @@ desaparición de magenta no bastan.
   12 sampler en la DLL. `docs/pre-resource-map.md` advierte que el layout Proton
   real aún no se contrastó.
 - La imagen sintética no es dato PRE real; los pesos/modelo y las entradas semánticas
-  del llamador no se reconstruyen en este contrato. Ningún resultado aquí demuestra
+  del llamador no se reconstruyen en este contrato. El [dispatch decompilado
+  con Ghidra](pre-dispatch-ghidra.md) fija fórmula de grid, procedencia por
+  bindings stock y fail-stops; no establece contenido inicial, local size,
+  máscara runtime ni oracle. Ningún resultado aquí demuestra
   PRE funcional, compatibilidad Proton ni salida visual correcta.
