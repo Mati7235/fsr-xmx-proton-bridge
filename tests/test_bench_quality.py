@@ -2,7 +2,7 @@ import unittest
 
 try:
     import numpy as np
-    from tools.bench_quality import longest_run, luma, psnr, sharpness, ssim
+    from tools.bench_quality import luma, psnr, sharpness, ssim
     HAVE_DEPS = True
 except ImportError:  # numpy/Pillow are optional analysis dependencies
     HAVE_DEPS = False
@@ -42,48 +42,6 @@ class MetricTests(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_DEPS, "numpy/Pillow not available")
-class LongestRunTests(unittest.TestCase):
-    def test_picks_the_longest_true_stretch(self):
-        mask = [True, True, False, True, True, True, False, True]
-        self.assertEqual(longest_run(mask), (3, 3))
-
-    def test_all_true(self):
-        self.assertEqual(longest_run([True] * 5), (0, 5))
-
-    def test_all_false(self):
-        self.assertEqual(longest_run([False] * 4), (0, 0))
-
-
-@unittest.skipUnless(HAVE_DEPS, "numpy/Pillow not available")
-class WindowTests(unittest.TestCase):
-    def test_motion_score_is_zero_for_static_frames(self):
-        from tools.bench_quality import motion_score
-        frames = np.full((5, 9, 16), 128, dtype=np.uint8)
-        self.assertTrue(np.allclose(motion_score(frames), 0.0))
-
-    def test_motion_score_grows_with_change(self):
-        from tools.bench_quality import motion_score
-        frames = np.zeros((5, 9, 16), dtype=np.uint8)
-        frames[1:] = 200
-        self.assertGreater(float(motion_score(frames).mean()), 0.0)
-
-    def test_best_window_prefers_the_moving_part(self):
-        from tools.bench_quality import best_window
-        mask = np.ones(20, dtype=bool)
-        motion = np.zeros(19, dtype=np.float32)
-        motion[10:17] = 5.0  # a moving stretch in the middle
-        score, start, length = best_window(mask, motion, 7)
-        self.assertEqual(length, 7)
-        self.assertEqual(start, 10)
-        self.assertAlmostEqual(score, 5.0, places=5)
-
-    def test_best_window_returns_none_when_too_dissimilar(self):
-        from tools.bench_quality import best_window
-        mask = np.zeros(20, dtype=bool)
-        motion = np.zeros(19, dtype=np.float32)
-        self.assertIsNone(best_window(mask, motion, 5))
-
-
 @unittest.skipUnless(HAVE_DEPS, "numpy/Pillow not available")
 class AlignWindowTests(unittest.TestCase):
     def _frames(self, n, seed=0):
@@ -105,6 +63,57 @@ class AlignWindowTests(unittest.TestCase):
         shift, err = align_windows(ref, 10, alt, 13, 20)
         self.assertEqual(shift, -3)
         self.assertAlmostEqual(err, 0.0, places=6)
+
+    def test_common_window_ignores_a_different_prefix(self):
+        from tools.bench_quality import best_common_window
+        ref = self._frames(100, seed=1)
+        alt = np.concatenate([self._frames(20, seed=2), ref[10:60]])
+        value, ref_start, offset = best_common_window(ref, alt, 40)
+        self.assertEqual(ref_start, 10)
+        # alt has 20 frames of menu before the same footage: alt index = ref index + 10
+        self.assertEqual(offset, 10)
+        self.assertAlmostEqual(value, 0.0, places=6)
+
+    def test_common_window_ignores_a_different_suffix(self):
+        from tools.bench_quality import best_common_window
+        ref = self._frames(100, seed=4)
+        alt = np.concatenate([ref[20:70], self._frames(30, seed=5)])
+        value, ref_start, offset = best_common_window(ref, alt, 40)
+        self.assertEqual(ref_start, 20)
+        self.assertEqual(offset, -20)
+        self.assertAlmostEqual(value, 0.0, places=6)
+
+    def test_best_offset_is_zero_when_the_window_centers_on_the_frame(self):
+        from tools.bench_quality import best_offset
+        seq = (np.arange(21 * 9 * 16, dtype=np.uint8) % 251).reshape(21, 9, 16)
+        radius = 10 / 60
+        self.assertAlmostEqual(best_offset(seq[10], seq, 60, radius), 0.0, places=6)
+
+    def test_best_offset_reports_a_lagging_alt(self):
+        from tools.bench_quality import best_offset
+        seq = (np.arange(21 * 9 * 16, dtype=np.uint8) % 251).reshape(21, 9, 16)
+        radius = 10 / 60
+        # alt window starts 8 frames before the reference frame: best k = 2
+        self.assertAlmostEqual(best_offset(seq[10], seq[8:19], 60, radius),
+                               2 / 60 - radius, places=6)
+
+    def test_best_offset_is_positive_when_the_match_is_after_the_center(self):
+        from tools.bench_quality import best_offset
+        seq = (np.arange(21 * 9 * 16, dtype=np.uint8) % 251).reshape(21, 9, 16)
+        radius = 5 / 60
+        # the match sits at k = 10, after a 5-frame radius: positive offset
+        self.assertAlmostEqual(best_offset(seq[10], seq[0:11], 60, radius),
+                               10 / 60 - radius, places=6)
+
+    def test_common_window_prefers_the_matching_stretch(self):
+        from tools.bench_quality import best_common_window
+        ref = self._frames(120, seed=6)
+        # same footage, but alt is dark for a while, as the menu is
+        alt = (ref[30:110] // 3).astype(np.uint8)
+        value, ref_start, offset = best_common_window(ref, alt, 40)
+        self.assertEqual(offset, -30)
+        self.assertGreaterEqual(ref_start, 30)
+        self.assertLessEqual(ref_start + 40, 110)
 
 
 if __name__ == "__main__":

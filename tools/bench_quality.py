@@ -38,6 +38,38 @@ def thumbnails(path, fps=1):
     return np.frombuffer(raw[:n * size], dtype=np.uint8).reshape(n, THUMB_H, THUMB_W)
 
 
+def best_common_window(ref, alt, length):
+    """Find the ref window and offset where both recordings match best.
+
+    The benchmark is the same camera path in every run, so it is the segment
+    that matches across recordings. Menus have animated backgrounds that are
+    not synchronized, and loading screens differ, so they match worse even
+    when they move more.
+
+    Returns (mean_mse, ref_start, offset) with alt index = ref index + offset.
+    """
+    n1, n2 = len(ref), len(alt)
+    length = min(length, n1, n2)
+    R = ref.reshape(n1, -1).astype(np.float32)
+    A = alt.reshape(n2, -1).astype(np.float32)
+    best = None
+    for offset in range(-(n1 - length), n2 - length + 1):
+        i0 = max(0, -offset)
+        i1 = min(n1 - length, n2 - length - offset)
+        if i1 < i0:
+            continue
+        idx = np.arange(i0, i1 + length)
+        diff = R[idx] - A[idx + offset]
+        diag = (diff * diff).mean(axis=1)
+        c = np.concatenate(([0.0], np.cumsum(diag, dtype=np.float64)))
+        sums = c[length:] - c[:-length]
+        k = int(np.argmin(sums))
+        value = float(sums[k] / length)
+        if best is None or value < best[0]:
+            best = (value, i0 + k, offset)
+    return best
+
+
 def align_windows(ref, ref_start, alt, alt_start, length, search=20):
     """Offset (seconds) that best matches alt's window onto the reference's window."""
     best_shift, best_err = 0, None
@@ -73,67 +105,58 @@ def align(ref, alt, max_shift=240):
     return best, (best_err if best_err is not None else float("nan"))
 
 
-def similarity_mask(ref, alt, shift, threshold):
-    a0 = max(0, shift)
-    b0 = max(0, -shift)
-    n = min(len(ref) - a0, len(alt) - b0)
-    err = np.mean((ref[a0:a0 + n].astype(np.float32) -
-                   alt[b0:b0 + n].astype(np.float32)) ** 2, axis=(1, 2))
-    return a0, err < threshold
-
-
-def longest_run(mask):
-    best_start = best_len = cur_start = cur_len = 0
-    for i, v in enumerate(mask):
-        if v:
-            if cur_len == 0:
-                cur_start = i
-            cur_len += 1
-            if cur_len > best_len:
-                best_start, best_len = cur_start, cur_len
-        else:
-            cur_len = 0
-    return best_start, best_len
-
-
-def motion_score(thumbs):
-    """Mean absolute difference between consecutive thumbnails: high while the camera moves."""
-    if len(thumbs) < 2:
-        return np.zeros(0, dtype=np.float32)
-    diff = np.abs(np.diff(thumbs.astype(np.int16), axis=0)).mean(axis=(1, 2))
-    return diff.astype(np.float32)
-
-
-def best_window(mask, motion, length, min_similar=0.9):
-    """Window of `length` frames with the most moving seconds among similar frames.
-
-    The benchmark moves the camera for its whole duration; menus and loading
-    screens are static even when they look the same across runs. Counting
-    moving seconds beats averaging, because a single hard cut would otherwise
-    inflate the score of a window that includes the menu.
-    """
-    n = len(mask)
-    length = min(length, n)
-    threshold = max(1e-3, 0.2 * float(motion.max())) if len(motion) else 1.0
-    best = None
-    for start in range(0, n - length + 1):
-        if mask[start:start + length].mean() < min_similar:
-            continue
-        seg = motion[start:start + length - 1]
-        moving = float((seg > threshold).mean()) if len(seg) else 0.0
-        mean = float(seg.mean()) if len(seg) else 0.0
-        key = (moving, mean)
-        if best is None or key > best[0]:
-            best = (key, start, length)
-    if best is None:
-        return None
-    return best[0][1], best[1], best[2]
-
-
 def extract_frame(path, t, out_png):
-    run(["ffmpeg", "-v", "error", "-y", "-i", path, "-ss", f"{t:.3f}",
+    # Input seeking jumps to the keyframe and decodes only up to t; output
+    # seeking would decode the whole recording for every sample.
+    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", path,
          "-frames:v", "1", out_png])
     return np.asarray(Image.open(out_png).convert("RGB"))
+
+
+MATCH_W, MATCH_H = 320, 180
+
+
+def raw_frames(path, t, count, fps=60):
+    """`count` RGB frames from t, downscaled for matching."""
+    raw = run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", path,
+               "-vf", f"fps={fps},scale={MATCH_W}:{MATCH_H}:flags=area,format=rgb24",
+               "-frames:v", str(count), "-f", "rawvideo", "-"]).stdout
+    size = MATCH_W * MATCH_H * 3
+    n = len(raw) // size
+    return np.frombuffer(raw[:n * size], dtype=np.uint8).reshape(n, MATCH_H, MATCH_W, 3)
+
+
+def best_offset(ref_frame, alt_frames, fps, radius):
+    """Seconds to add to the alt time so it matches ref_frame.
+
+    alt_frames[0] is assumed to be at (t - radius); the returned offset is
+    k/fps - radius for the best matching frame k.
+    """
+    diff = alt_frames.astype(np.float32) - ref_frame.astype(np.float32)
+    mse = (diff * diff).mean(axis=tuple(range(1, diff.ndim)))
+    k = int(np.argmin(mse))
+    return k / fps - radius
+
+
+def fine_offset(ref_path, alt_path, times, base_shift=0.0, radius=0.3, fps=60):
+    """Median sub-second offset of alt against ref at the given ref times.
+
+    A one-second alignment leaves up to half a second of error, which on a
+    moving camera is a completely different frame. This measures at 60 fps
+    around the coarse shift and returns the median.
+    """
+    count = int(round(2 * radius * fps)) + 1
+    offsets = []
+    for t in times:
+        start = t + base_shift - radius
+        if t < 0 or start < 0:
+            continue
+        ref_frame = raw_frames(ref_path, t, 1, fps)[0]
+        alt_frames = raw_frames(alt_path, start, count, fps)
+        if len(alt_frames) < 3:
+            continue
+        offsets.append(best_offset(ref_frame, alt_frames, fps, radius))
+    return float(np.median(offsets)) if offsets else 0.0
 
 
 def luma(img):
@@ -222,34 +245,36 @@ def main():
     length = int(round(args.length)) if args.length > 0 else 64
     print(f"ref: {os.path.basename(args.ref)} ({len(ref_thumbs)} s)")
 
-    # 1. Cada video: su propio bench es el tramo de `length` con mas movimiento.
-    ref_move = motion_score(ref_thumbs)
-    ref_win = best_window(np.ones(len(ref_thumbs), dtype=bool), ref_move, length)
-    if ref_win is None:
-        print("reference is too short for that --length", file=sys.stderr)
-        return 2
-    _, ref_start, ref_len = ref_win
-    print(f"ref bench window: {ref_start}s .. {ref_start + ref_len}s")
-
-    # 2. Alinear cada ventana contra la del referencia (solo dentro del bench).
-    aligned = []
+    # 1. Para cada video, el bench es el tramo que mejor coincide entre
+    #    corridas: la camara hace el mismo recorrido. Menus y cargas no
+    #    coinciden aunque tengan mas movimiento.
+    found = []
     for label, path in alts:
         thumbs = thumbnails(path)
-        move = motion_score(thumbs)
-        win = best_window(np.ones(len(thumbs), dtype=bool), move, length)
-        if win is None:
-            print(f"{label}: video too short for that --length", file=sys.stderr)
-            return 2
-        _, start, n = win
-        shift, err = align_windows(ref_thumbs, ref_start, thumbs, start, min(ref_len, n))
-        print(f"{label}: bench at {start}s, offset {shift:+d} s, window mse {err:.1f}")
-        aligned.append((label, path, shift))
+        value, ref_start, offset = best_common_window(ref_thumbs, thumbs, length)
+        print(f"{label}: match mse {value:.1f}, ref start {ref_start}s, offset {offset:+d} s")
+        found.append((label, path, thumbs, value, ref_start, offset))
 
     if args.cmd == "align":
         return 0
 
+    # Ventana de referencia: la mediana de las detectadas, para que un video
+    # raro no la arrastre. Se avisa si no coinciden.
+    starts = sorted(f[4] for f in found)
+    ref_start = starts[len(starts) // 2]
+    if starts[-1] - starts[0] > 5:
+        print(f"aviso: las ventanas detectadas no coinciden ({starts}); uso {ref_start}s")
+
+    aligned = []
+    samples = [ref_start + q * length for q in (0.25, 0.5, 0.75)]
+    for label, path, thumbs, value, alt_start, offset in found:
+        shift, err = align_windows(ref_thumbs, ref_start, thumbs, ref_start + offset, length)
+        fine = fine_offset(args.ref, path, samples, base_shift=shift)
+        print(f"{label}: offset {shift:+d} s, ajuste fino {fine:+.3f} s, window mse {err:.1f}")
+        aligned.append((label, path, shift + fine))
+
     os.makedirs(args.out, exist_ok=True)
-    start, run_len = ref_start, ref_len
+    start, run_len = ref_start, length
     print(f"common window: {start}s .. {start + run_len}s ({run_len}s)")
 
     positions = [float(x) for x in args.positions.split(",") if x.strip()]
@@ -259,13 +284,22 @@ def main():
     for p in positions:
         t = start + p * run_len
         frame_ref = extract_frame(args.ref, t, os.path.join(args.out, f"ref_{p:.2f}.png"))
-        metrics = [("ref", None, None, sharpness(frame_ref))]
+        metrics = [("ref", None, None, sharpness(frame_ref), None, None)]
         images = [frame_ref]
         labels = ["reference (native)"]
         for label, path, shift in aligned:
             tt = t + shift
             frame = extract_frame(path, tt, os.path.join(args.out, f"{label}_{p:.2f}.png"))
-            metrics.append((label, psnr(frame_ref, frame), ssim(frame_ref, frame), sharpness(frame)))
+            # Full-frame PSNR/SSIM pay for pedestrians and vehicles that are
+            # not in the same place across runs; the crop is usually static and
+            # is where the detail being judged actually lives.
+            cps = css = None
+            if crop:
+                x, y, w, h = crop
+                cps = psnr(frame_ref[y:y + h, x:x + w], frame[y:y + h, x:x + w])
+                css = ssim(frame_ref[y:y + h, x:x + w], frame[y:y + h, x:x + w])
+            metrics.append((label, psnr(frame_ref, frame), ssim(frame_ref, frame),
+                            sharpness(frame), cps, css))
             images.append(frame)
             labels.append(label)
         if crop:
@@ -275,15 +309,19 @@ def main():
     report = ["# Calidad por frame", "",
               f"Referencia: `{os.path.basename(args.ref)}`",
               f"Ventana comun: {start}s a {start + run_len}s", "",
-              "| Posicion | t (s) | Muestra | PSNR vs ref | SSIM vs ref | Nitidez |",
-              "|---|---:|---|---:|---:|---:|"]
+              "| Posicion | t (s) | Muestra | PSNR vs ref | SSIM vs ref | PSNR crop | SSIM crop | Nitidez |",
+              "|---|---:|---|---:|---:|---:|---:|---:|"]
     for p, t, metrics in rows:
-        for label, ps, ss, sh in metrics:
+        for label, ps, ss, sh, cps, css in metrics:
             ps_txt = "-" if ps is None else f"{ps:.2f}"
             ss_txt = "-" if ss is None else f"{ss:.4f}"
-            report.append(f"| {p:.2f} | {t:.1f} | {label} | {ps_txt} | {ss_txt} | {sh:.1f} |")
+            cps_txt = "-" if cps is None else f"{cps:.2f}"
+            css_txt = "-" if css is None else f"{css:.4f}"
+            report.append(f"| {p:.2f} | {t:.1f} | {label} | {ps_txt} | {ss_txt} | "
+                          f"{cps_txt} | {css_txt} | {sh:.1f} |")
     report += ["", "Nitidez = varianza del Laplaciano sobre luma. Mas alto = mas detalle de alta frecuencia.",
-               "PSNR/SSIM se calculan contra la referencia nativa, no entre upscalers."]
+               "PSNR/SSIM se calculan contra la referencia nativa, no entre upscalers.",
+               "PSNR/SSIM crop usan solo la region del crop, sin peatones ni vehiculos en movimiento."]
     path = os.path.join(args.out, "report.md")
     with open(path, "w") as f:
         f.write("\n".join(report) + "\n")
