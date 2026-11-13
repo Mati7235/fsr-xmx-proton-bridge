@@ -1,119 +1,80 @@
-# FSR XMX / Proton bridge lab
+# Puente FSR4 XMX sobre Intel Linux
 
-Laboratorio para investigar la compatibilidad entre el mod FSR4 XMX de nitec y
-[xess-xmx-linux](https://github.com/HHHHanasak1/xess-xmx-linux).
+Puente experimental para correr el mod FSR4 XMX de nitec sobre Intel Linux
+usando `xess-xmx-linux`: su driver Mesa ANV parcheado compila los kernels
+CM del mod y los ejecuta en las unidades XMX en vez de la ruta DP4a de
+Wine/Proton. Investigación de compatibilidad, no un producto.
 
-**Estado: primera ejecución funcional de FSR 4 sobre XMX en Spider-Man (2026-11-13) con un paquete candidato side-by-side (Mesa 26.3.0 + shim + registry 4.1.2); ver [resultado](docs/first-fsr-xmx-success.md). Sigue sin oracle independiente y el paquete no está instalado system-wide; la traza runtime y la validación matemática siguen pendientes.**
-Equipo objetivo informado: Intel Arc B580 (Xe2), CachyOS, Steam nativo, Cyberpunk 2077.
+## Estado actual
 
-## Hipótesis
+Primera ejecución funcional de FSR 4 sobre XMX en Marvel's Spider-Man
+Remastered (2026-11-13) con el paquete candidato side-by-side
+(`xess-xmx-linux-20261113-cmk3`, Mesa 26.3.0 + shim + registry 4.1.2).
+Ver: `docs/first-fsr-xmx-success.md` y `docs/rebuild-20261113.md`.
 
-El mod envía kernels CM-SPIR-V mediante las extensiones D3D12 de Intel.
-xess-xmx-linux implementa un shim IGDEXT y Mesa ANV modificado que pueden servir
-como base. Compartir APIs no garantiza compartir la ABI de recursos y argumentos.
+- Probado en Spider-Man: 4.0.2X (ruta base, evidencia funcional completa) y
+  4.1.2X INT8 (corrida con `FSR4_XMX_INT8=1` y 4.1.2 elegido en OptiScaler:
+  a nivel kernel despacha sus propios passes de red, distinto del baseline;
+  no se capturó la línea `INT8 model:` del mod, así que el modelo ejecutado
+  queda inferido del conjunto de kernels).
+- No probado todavía: 4.1.2X Lite (`FSR4_XMX_LITE=1`) y el camino DLSS.
+  Los pesos Lite/INT8 sí están verificados a nivel archivo.
+- Verificado a nivel kernel: inyección, sampler heap, 11 recursos FSR4,
+  0 device lost. Sin oracle independiente ni readback determinista.
+- No instalado system-wide: el paquete activo del usuario sigue intacto;
+  el candidato corre solo por proceso. Rollback en `backup-20261113/`.
 
-## Contenido
+Guía de instalación y setup real: `docs/install-setup.md`.
 
-- `docs/compatibility.md`: hallazgos, limitaciones y plan de trabajo.
-- `tools/inspect_dll.py`: inventario estático reproducible de cadenas y SHA-256.
-- `tools/extract_resources.py`: extracción de recursos PE sin cargar la DLL.
-- `tools/decompress_mscf.py`: descompresión LZMS con libwim local.
-- `tools/carve_spirv.py`: recuperación heurística inicial (histórica).
-- `tools/parse_cm_payloads.py`: extracción por pies y longitudes de los bloques CM.
-- `tools/reconstruct_pre.py`: tablas del PRE y modelo de layout para la DLL fijada.
-- `tools/inspect_zebin.py`, `tools/build_pre_profile.py`: inspección y perfil del PRE compilado.
-- `tools/audit_pre_payload.py`: auditoría restringida del uso de bytes cross-thread en el PRE.
-- `tools/apply_cmk_mapping.py`: adaptador offline experimental CMK2 → CMK3.
-- `tools/build_anv_mapping_patch.py`: generador del lector candidato, sin aplicar cambios.
-- `profiles/`, `patches/`: metadata revisada y parche experimental (no binarios).
-- `tests/`: pruebas de CPU; algunas usan artefactos/checkouts locales opcionales.
-- `artifacts/original/`: copias locales de los dos archivos descargados (ignoradas por Git).
-- `artifacts/extracted/fsr-xmx/`: DLL del mod extraída sin ejecución.
-- `upstream/xess-xmx-linux/`: clon independiente de upstream (ignorado por Git).
-- `analysis/fsr-xmx-static.json`: reporte generado localmente.
+## Arquitectura
 
-```bash
-python tools/inspect_dll.py \
-  artifacts/extracted/fsr-xmx/amd_fidelityfx_upscaler_dx12.dll \
-  > analysis/fsr-xmx-static.json
-```
+1. Driver ANV parcheado: inyecta y compila kernels CM con ocloc en runtime.
+2. Shim `igdext64.dll`: responde queries Intel y entrega placeholders CM.
+3. Helper `tools/cm-compile.sh` del paquete: compila cada kernel al primer uso.
+4. Mod FSR4 XMX + `fsr-original.dll` + `cabinet.dll` juego-local: el mod
+   emite el PRE y los packs; OptiScaler lo enchufa como `Dx12Upscaler = ffx`.
 
-El script no carga la DLL. Las cadenas son indicios de implementación, no una
-prueba de funcionamiento ni una especificación completa.
+## Docs clave
 
-## Investigación actual
+| Doc | Qué fija |
+|---|---|
+| `docs/install-setup.md` | Instalación side-by-side y system-wide, rollback, prueba en juego |
+| `docs/first-fsr-xmx-success.md` | Setup exacto y evidencia de la primera ejecución funcional |
+| `docs/rebuild-20261113.md` | Qué se construyó en el paquete candidato y qué falta |
+| `docs/xmx412-model-selection.md` | Selección INT8/Lite/Hybrid, contrato de `fsr-original.dll`, receta |
+| `docs/cabinet-shim.md` | Shim juego-local de Cabinet para los packs LZMS del mod |
+| `docs/spiderman-trace-runbook.md` | Runbook de traza manual en Spider-Man con Proton Experimental |
 
-Ver [reconstrucción del PRE](docs/pre-resource-map.md): **690 bloques CM**
-recuperados por sus longitudes y desensamblados, opciones embebidas preservadas y
-mapa de once recursos más sampler. La comparación estática encuentra un posible
-desfase de un DWORD en el mapeo automático del puente para el layout de referencia.
-Se confirmó la compilación del PRE Xe2 native_1080 para B580 y su orden de BTIs.
-Ver [compilación offline y prototipo](docs/offline-pre-compilation.md): opciones
-embebidas consumidas, perfil fijado por hashes y lector CMK3 candidato.
-La [auditoría del payload](docs/pre-payload-audit.md) no encuentra lecturas de los
-cuatro campos extra antes de sobrescribirlos o terminar, bajo una máscara de
-ejecución completa y constante, solo para este binario fijado.
-Ese hito quedó verificado con 68 pruebas (algunas requieren artefactos opcionales).
-No equivale a corrección GPU; la compilación posterior de Mesa se detalla abajo.
+## Herramientas (`tools/`)
 
-La [primera investigación](docs/investigation-2026-10-22.md) se conserva como
-registro histórico; su hipótesis de opciones perdidas en PRE fue corregida.
+- `tools/inspect_dll.py`: inventario estático de DLLs (cadenas, SHA-256).
+- `tools/parse_cm_payloads.py`: extracción de bloques CM por pies y longitudes.
+- `tools/decompress_mscf.py`, `tools/decompress_xmx412.py`: descompresión
+  LZMS de packs con wimlib local.
+- `tools/xmx_kernel_set.py`: fingerprint y diff de kernels entre corridas.
+- `tools/build_cabinet_shim.py`: construye el `cabinet.dll` juego-local.
+- `tools/prepare_trace_capture_412.py`: andamiaje CPU-only del run de traza.
 
-## Laboratorio aislado
+## Licencia y procedencia
 
-La [build local de Mesa](docs/lab-mesa-build.md) terminó con LLVM 23, sin instalar
-el driver. La revisión estática deriva máscara completa para el CMK `1x1x1`;
-no demuestra la máscara durante la ejecución del kernel.
-El [preflight CPU](docs/lab-first-test.md) inventaría artefactos y hashes, detecta
-faltantes y no declara el runtime listo. El [probe sintético](docs/lab-probe.md)
-compila con DPAS real, auditoría restringida del payload y heap explícito.
-El [harness](lab/README.md) compila con `-Wall -Wextra -Werror`, exige canary,
-evidencia de layout DIRECT e inyección, y comprueba resultados deterministas.
-El usuario ejecutó el probe: [primer resultado GPU](docs/first-synthetic-gpu-result.md)
-con inyección y 1.408 valores correctos; esto no valida FSR completo.
-La suite actual pasa **150 pruebas CPU** (incluye modelos y
-comprobaciones estáticas; no son pruebas GPU).
-
-## Prueba de imagen y sampler
-
-La [prueba de imagen y sampler](docs/manual-image-test.md) ya está preparada en
-`build/image-test-v01` con el kernel v16, auditoría propia, hashes y referencia CPU.
-El usuario ya ejecutó esta segunda prueba y se revisó el volcado binario:
-[64 valores con error máximo 0 y 1.984 words centinela intactos](docs/first-image-gpu-result.md).
-
-## Próximo hito
-
-La [primera prueba manual](docs/manual-synthetic-test.md) ya está preparada en
-`build/lab-test-v02`, con ICD local, hashes y lanzador opt-in. Se reprodujo la
-auditoría del probe v10 y se verificó el paquete CMK3 completo, sin ejecutar GPU.
-La primera ejecución manual ya pasó y su evidencia fue revisada. El lector no
-está instalado en el sistema. La evidencia del test de imagen/sampler también
-pasó su revisión independiente. El [contrato estático del PRE](docs/pre-controlled-test-contract.md)
-aclara buffers, bindings y guards, pero sus formatos/entradas y oracle siguen
-pendientes. No se despacha el PRE con recursos arbitrarios ni se declara validado
-FSR completo, Proton u OptiScaler. La investigación continúa con formatos/tamaños
-de recursos del PRE y el defecto de devolución del contexto del shim.
-
-El [parche candidato del contexto](docs/context-output-fix.md) ya devuelve los
-campos compatibles al inicializar las dos APIs D3D12 heredadas, con tests CPU y
-[compilación completa desde Linux](docs/shim-cross-build.md), sin ejecutar DLL.
-La reutilización de un contexto D3D12 existente conserva una limitación conocida;
-el parche no está instalado en upstream ni en ningún prefijo.
-La [inspección fijada de dimensiones](docs/pre-dispatch-dimensions.md) mantiene
-abiertos los gates del tamaño local y de la máscara del PRE real.
-La [reconstrucción de vistas del host](docs/pre-resource-descriptors.md) ya fija
-los buffers `R8_UINT`: vistas SRV de 2.112 y 128 bytes, y UAV de arg 0 con mínimo
-de 8.294.400 bytes para native_1080. No son tamaños exactos de asignación.
-Los formatos/contenidos de las imágenes y la [referencia de salida](docs/pre-reference-options.md)
-siguen pendientes; todavía no hay un launcher PRE autorizado para GPU.
-
-No se instalaron drivers ni se modificaron Steam, Cyberpunk o prefijos Proton.
-No ejecutar los instaladores de upstream como parte del análisis.
+Los binarios de terceros no se redistribuyen y este repo no concede derechos
+sobre modelos, DLLs o código upstream; consultar sus licencias respectivas
+(`THIRD_PARTY.md` del paquete, licencias de AMD/Intel/nitec/Valve).
 
 ## Procedencia
 
-Fecha de preparación: 2026-10-22.
-Upstream inicial: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
-Base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
-Los binarios de terceros no se redistribuyen. Este repositorio no concede derechos
-sobre los modelos, DLLs o el código upstream; consultar sus licencias respectivas.
+- Upstream `xess-xmx-linux`: `662dc6e` (178 commits desde `ef39559`).
+- Parches del paquete: `0001` inyección CM (CMK3, magia corregida),
+  `0002` debug, `0003` Large GRF para Xe2, `0005` tabla de descriptores
+  sampler, más serie `patches/mesa-26.3/` (`0004` Jay, `0006` cmat).
+- Este repo ignora `artifacts/original/`, `artifacts/extracted/` y
+  `upstream/` (checkouts locales, no redistribuidos).
+
+## Límites
+
+- Solo Spider-Man, una sesión funcional. Nada aquí acredita otros juegos.
+- Sin oracle: no hay equivalencia matemática con la referencia ni captura
+  RenderDoc de formatos reales.
+- S_OK, overlay o shaders creados no prueban el modelo; el log manda.
+- Nunca tocar Steam, prefijos reales, drivers o sistema sin aprobación
+  explícita; los experimentos runtime usan prefijo descartable.
