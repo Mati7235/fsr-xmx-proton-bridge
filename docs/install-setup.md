@@ -250,6 +250,12 @@ Fuentes: `docs/xmx412-model-selection.md` §5, `docs/cabinet-shim.md` §6,
    oficial 4.1.2, y el `cabinet.dll` construido por
    `tools/build_cabinet_shim.py`. No copiar `cabinet.dll` a ningún
    `system32` de prefijos.
+1b. Copiar también `<paquete>/igdext64.dll` junto al mod. El prefijo de
+   Spider-Man ya lo tenía en el DriverStore, pero un prefijo nuevo no, y sin
+   el shim el mod aborta con `Intel extension igdext64.dll with required DX12
+   exports was not found beside DLL, system search, or DriverStore` y muestra
+   magenta. Sin shim tampoco puede consultar la GPU y elige kernels
+   `DG2 SIMD8` en vez de `Xe2 SIMD16`.
 2. Lanzar con override nativo de Cabinet más el entorno del run:
 
 ```bash
