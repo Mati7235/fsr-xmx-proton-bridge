@@ -3,7 +3,7 @@
 Laboratorio para investigar la compatibilidad entre el mod FSR4 XMX de nitec y
 [xess-xmx-linux](https://github.com/HHHHanasak1/xess-xmx-linux).
 
-**Estado: probes sintéticos de DPAS/recursos e imagen/sampler validados en GPU por el usuario. Serie 4.1.2 cerrada en estático (LZMS, censo/dispatch/variantes PRE, offline native_1080, auditoría macl/acc0 limpia solo-estática, registry 2 entradas digest 0x3ddd809f, puente re-verificado); traza runtime, oracle y dispatch real siguen pendientes. FSR completo y el puente para juegos todavía no están validados.**
+**Estado: primera ejecución funcional de FSR 4 sobre XMX en Spider-Man (2026-11-13) con un paquete candidato side-by-side (Mesa 26.3.0 + shim + registry 4.1.2); ver [resultado](docs/first-fsr-xmx-success.md). Sigue sin oracle independiente y el paquete no está instalado system-wide; la traza runtime y la validación matemática siguen pendientes.**
 Equipo objetivo informado: Intel Arc B580 (Xe2), CachyOS, Steam nativo, Cyberpunk 2077.
 
 ## Hipótesis
