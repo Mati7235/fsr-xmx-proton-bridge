@@ -13,12 +13,14 @@ Remastered (2026-11-13) con el paquete candidato side-by-side
 Ver: `docs/first-fsr-xmx-success.md` y `docs/rebuild-20261113.md`.
 
 - Probado en Spider-Man: 4.0.2X (ruta base, evidencia funcional completa) y
-  4.1.2X INT8 (corrida con `FSR4_XMX_INT8=1` y 4.1.2 elegido en OptiScaler:
-  a nivel kernel despacha sus propios passes de red, distinto del baseline;
-  no se capturó la línea `INT8 model:` del mod, así que el modelo ejecutado
-  queda inferido del conjunto de kernels).
-- No probado todavía: 4.1.2X Lite (`FSR4_XMX_LITE=1`) y el camino DLSS.
-  Los pesos Lite/INT8 sí están verificados a nivel archivo.
+  4.1.2X INT8 (corrida con `FSR4_XMX_INT8=1` y 4.1.2 en OptiScaler: despacha
+  sus propios passes de red; el modelo quedó inferido del set de kernels).
+- Probado en Cyberpunk 2077 (bench integrado): 4.1.2X INT8 y Lite,
+  confirmados por log (`INT8 model:` y `Lite model: 2`) y por sets de kernels
+  distintos. FPS en `docs/cyberpunk-bench-20261113.md`; calidad en
+  `docs/cyberpunk-quality-20261113.md`.
+- No probado todavía: el camino DLSS. Los pesos Lite/INT8 están verificados a
+  nivel archivo.
 - Verificado a nivel kernel: inyección, sampler heap, 11 recursos FSR4,
   0 device lost. Sin oracle independiente ni readback determinista.
 - No instalado system-wide: el paquete activo del usuario sigue intacto;
@@ -48,6 +50,29 @@ bloqueo técnico. Ver `docs/upstream-fsr4-status.md`.
 | `docs/xmx412-model-selection.md` | Selección INT8/Lite/Hybrid, contrato de `fsr-original.dll`, receta |
 | `docs/cabinet-shim.md` | Shim juego-local de Cabinet para los packs LZMS del mod |
 | `docs/spiderman-trace-runbook.md` | Runbook de traza manual en Spider-Man con Proton Experimental |
+| `docs/bench-quality.md` | Grabación lossless, recorte del bench y métricas de calidad |
+| `docs/cyberpunk-bench-20261113.md` | FPS en Cyberpunk: nativo, XeSS, FSR INT8 y Lite |
+| `docs/cyberpunk-quality-20261113.md` | Calidad medida, clips y límites del método |
+
+## Comparar calidad de imagen
+
+Los recortes del bench y los proxies están en `analysis/quality-cp77/` (local,
+ignorado por Git). Para comparar dos variantes con slider:
+
+1. Abrir `https://hallo.io/tools/video/video-compare`.
+2. Cargar `analysis/quality-cp77/proxies/ref-native.mp4` como A y uno de
+   `xess.mp4`, `fsr4-int8.mp4` o `fsr4-lite.mp4` del mismo directorio como B.
+3. Elegir `Slider`, dar play y arrastrar el divisor. La herramienta sincroniza
+   la línea de tiempo y corrige la deriva.
+
+No se sube nada: la comparación corre en el navegador. Usar los proxies
+H.264 4:2:0; los clips lossless son 4:4:4 y el navegador puede no
+decodificarlos.
+
+Para stills, `analysis/quality-cp77/pairs/` tiene el mismo crop a 800x450 por
+escena y variante (`0.80-native.png` contra `0.80-fsr4-lite.png`, etc.),
+listo para un slider de imágenes (imgico, DualView). El 2x2 de los cuatro
+está en `analysis/quality-cp77/compare-crop.mp4`.
 
 ## Herramientas (`tools/`)
 
@@ -56,6 +81,7 @@ bloqueo técnico. Ver `docs/upstream-fsr4-status.md`.
 - `tools/decompress_mscf.py`, `tools/decompress_xmx412.py`: descompresión
   LZMS de packs con wimlib local.
 - `tools/xmx_kernel_set.py`: fingerprint y diff de kernels entre corridas.
+- `tools/bench_quality.py`: alineación de grabaciones, PSNR/SSIM/nitidez y crops.
 - `tools/build_cabinet_shim.py`: construye el `cabinet.dll` juego-local.
 - `tools/prepare_trace_capture_412.py`: andamiaje CPU-only del run de traza.
 
