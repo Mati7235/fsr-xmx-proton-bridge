@@ -87,9 +87,12 @@ correcto (desfase documentado), sampler fallback vs dinámico, LWS.
 Nuestros parches (0002/0003/0001+registry `3ddd809f`) atacan exactamente
 esto y no están instalados.
 
+## Pendiente (actualizado)
+
 1. RenderDoc frame con el upscaler activo (formatos reales).
 2. Confirmar destino del PRE en ANV (compilado / rechazado / no-op).
 3. `evidence/versions/` del run (checklist sin llenar).
 4. Decidir instalación de nuestros parches (0002/0003/0001+registry
   `3ddd809f`) sobre el stack del usuario: requiere reconstruir su
-  Mesa/shim; no tocar sin aprobación explícita.
+  Mesa/shim; no tocar sin aprobación explícita. Paso 1 del plan original
+  (destino del PRE) queda cerrado por la sección anterior.
