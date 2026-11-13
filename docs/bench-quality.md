@@ -78,6 +78,10 @@ un clip tenga 60 fps y otro no. Verificado: a los 30 s el offset óptimo entre
 XeSS y Lite es 0, y correrse un frame empeora el MSE 2 a 4 veces. Contra la
 nativa queda un residuo de 2 o 3 frames, que el tool corrige solo.
 
+Las versiones publicadas para comparar son los MP4 H.264 4:2:0 de
+`media/quality-cp77/`. Los clips lossless se usan solo para medir y quedan
+locales.
+
 Qué hace:
 
 1. Saca miniaturas a 1 fps de cada video.

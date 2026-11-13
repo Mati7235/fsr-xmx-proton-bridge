@@ -56,23 +56,22 @@ bloqueo técnico. Ver `docs/upstream-fsr4-status.md`.
 
 ## Comparar calidad de imagen
 
-Los recortes del bench y los proxies están en `analysis/quality-cp77/` (local,
-ignorado por Git). Para comparar dos variantes con slider:
+Los cuatro MP4 están versionados en `media/quality-cp77/`. Los recortes
+lossless y los frames a resolución completa quedan en
+`analysis/quality-cp77/` (local, ignorado por Git por tamaño).
 
 1. Abrir `https://hallo.io/tools/video/video-compare`.
-2. Cargar `analysis/quality-cp77/proxies/ref-native.mp4` como A y uno de
-   `xess.mp4`, `fsr4-int8.mp4` o `fsr4-lite.mp4` del mismo directorio como B.
+2. Cargar `media/quality-cp77/ref-native.mp4` como A y uno de `xess.mp4`,
+   `fsr4-int8.mp4` o `fsr4-lite.mp4` del mismo directorio como B.
 3. Elegir `Slider`, dar play y arrastrar el divisor. La herramienta sincroniza
    la línea de tiempo y corrige la deriva.
 
-No se sube nada: la comparación corre en el navegador. Usar los proxies
-H.264 4:2:0; los clips lossless son 4:4:4 y el navegador puede no
-decodificarlos.
+No se sube nada: la comparación corre en el navegador. Los MP4 son H.264
+4:2:0 para que los abra cualquier navegador o editor.
 
-Para stills, `analysis/quality-cp77/pairs/` tiene el mismo crop a 800x450 por
+Para stills, `media/quality-cp77/stills/` tiene el mismo crop a 800x450 por
 escena y variante (`0.80-native.png` contra `0.80-fsr4-lite.png`, etc.),
-listo para un slider de imágenes (imgico, DualView). El 2x2 de los cuatro
-está en `analysis/quality-cp77/compare-crop.mp4`.
+listo para un slider de imágenes (imgico, DualView).
 
 ## Herramientas (`tools/`)
 

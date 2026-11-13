@@ -29,9 +29,9 @@ carga y termina justo antes del panel de resultados.
 | `fsr4-int8.mkv` | 64,800 s | 134,117 s | 69,32 s | 5,7 GB |
 | `fsr4-lite.mkv` | 80,367 s | 149,833 s | 69,47 s | 4,3 GB |
 
-Los clips están en `analysis/quality-cp77/clips/` (lossless, para medir) y
-los proxies H.264 4:2:0 en `analysis/quality-cp77/proxies/` (para editar o
-ver). Ambos directorios están fuera de Git.
+Los MP4 H.264 4:2:0 para comparar están versionados en
+`media/quality-cp77/`. Los clips lossless (4:4:4) y los frames a resolución
+completa quedan en `analysis/quality-cp77/`, fuera de Git por tamaño.
 
 ## Métricas
 
@@ -85,9 +85,9 @@ están en `analysis/quality-cp77/report/crop_*.png`.
 ## Reproducir
 
 ```bash
-mpv analysis/quality-cp77/proxies/ref-native.mp4
-mpv analysis/quality-cp77/compare-crop.mp4
+mpv media/quality-cp77/ref-native.mp4
 ```
 
-El comparativo muestra el mismo crop de 400x225 al doble, en 2x2: nativo,
-XeSS, FSR INT8 y FSR Lite.
+El 2x2 de los cuatro, con el mismo crop de 400x225 al doble, está en
+`analysis/quality-cp77/compare-crop.mp4` (local): nativo, XeSS, FSR INT8 y
+FSR Lite.
