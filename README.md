@@ -40,10 +40,18 @@ bloqueo técnico. Ver `docs/upstream-fsr4-status.md`.
 | FSR 4.1.2 INT8 | [`fsr4-int8.mp4`](media/quality-cp77/fsr4-int8.mp4) |
 | FSR 4.1.2 Lite | [`fsr4-lite.mp4`](media/quality-cp77/fsr4-lite.mp4) |
 
-Cargá el nativo como A y una variante como B en
-[hallo.io](https://hallo.io/tools/video/video-compare), elegí `Slider` y
-arrastrá el divisor. Los stills de 800x450 están en
-[`media/quality-cp77/stills/`](media/quality-cp77/stills/).
+Recortes del benchmark de Cyberpunk 2077, mismo preset y misma cámara. Los
+MP4 están versionados acá; los clips lossless para medir quedan en
+`analysis/quality-cp77/` (local, ignorado por Git por tamaño).
+
+1. Abrir [hallo.io](https://hallo.io/tools/video/video-compare).
+2. Cargar el nativo como A y una variante como B.
+3. Elegir `Slider`, dar play y arrastrar el divisor. La herramienta sincroniza
+   la línea de tiempo y corrige la deriva.
+
+No se sube nada: la comparación corre en el navegador. Los MP4 son H.264
+4:2:0 para que los abra cualquier navegador o editor. Los stills de 800x450
+están en [`media/quality-cp77/stills/`](media/quality-cp77/stills/).
 
 ## Arquitectura
 
@@ -66,26 +74,7 @@ arrastrá el divisor. Los stills de 800x450 están en
 | `docs/spiderman-trace-runbook.md` | Runbook de traza manual en Spider-Man con Proton Experimental |
 | `docs/bench-quality.md` | Grabación lossless, recorte del bench y métricas de calidad |
 | `docs/cyberpunk-bench-20261113.md` | FPS en Cyberpunk: nativo, XeSS, FSR INT8 y Lite |
-| `docs/cyberpunk-quality-20261113.md` | Calidad medida, clips y límites del método |
-
-## Comparar calidad de imagen
-
-Los cuatro MP4 están versionados en `media/quality-cp77/`. Los recortes
-lossless y los frames a resolución completa quedan en
-`analysis/quality-cp77/` (local, ignorado por Git por tamaño).
-
-1. Abrir `https://hallo.io/tools/video/video-compare`.
-2. Cargar `media/quality-cp77/ref-native.mp4` como A y uno de `xess.mp4`,
-   `fsr4-int8.mp4` o `fsr4-lite.mp4` del mismo directorio como B.
-3. Elegir `Slider`, dar play y arrastrar el divisor. La herramienta sincroniza
-   la línea de tiempo y corrige la deriva.
-
-No se sube nada: la comparación corre en el navegador. Los MP4 son H.264
-4:2:0 para que los abra cualquier navegador o editor.
-
-Para stills, `media/quality-cp77/stills/` tiene el mismo crop a 800x450 por
-escena y variante (`0.80-native.png` contra `0.80-fsr4-lite.png`, etc.),
-listo para un slider de imágenes (imgico, DualView).
+| `docs/cyberpunk-quality-20261113.md` | Calidad medida en Cyberpunk y límites del método |
 
 ## Herramientas (`tools/`)
 
@@ -110,12 +99,13 @@ sobre modelos, DLLs o código upstream; consultar sus licencias respectivas
 - Parches del paquete: `0001` inyección CM (CMK3, magia corregida),
   `0002` debug, `0003` Large GRF para Xe2, `0005` tabla de descriptores
   sampler, más serie `patches/mesa-26.3/` (`0004` Jay, `0006` cmat).
-- Este repo ignora `artifacts/original/`, `artifacts/extracted/` y
-  `upstream/` (checkouts locales, no redistribuidos).
+- Este repo ignora `artifacts/original/`, `artifacts/extracted/`, `upstream/`,
+  `analysis/` y `build/` (artefactos locales, no redistribuidos).
 
 ## Límites
 
-- Solo Spider-Man, una sesión funcional. Nada aquí acredita otros juegos.
+- Probado en Spider-Man y en el bench de Cyberpunk 2077. Nada aquí acredita
+  otros juegos ni otras escenas.
 - Sin oracle: no hay equivalencia matemática con la referencia ni captura
   RenderDoc de formatos reales.
 - S_OK, overlay o shaders creados no prueban el modelo; el log manda.
