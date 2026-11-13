@@ -38,6 +38,23 @@ def thumbnails(path, fps=1):
     return np.frombuffer(raw[:n * size], dtype=np.uint8).reshape(n, THUMB_H, THUMB_W)
 
 
+def align_windows(ref, ref_start, alt, alt_start, length, search=20):
+    """Offset (seconds) that best matches alt's window onto the reference's window."""
+    best_shift, best_err = 0, None
+    for shift in range(-search, search + 1):
+        b0 = alt_start + shift
+        if b0 < 0:
+            continue
+        n = min(length, len(ref) - ref_start, len(alt) - b0)
+        if n < max(5, length // 2):
+            continue
+        err = np.mean((ref[ref_start:ref_start + n].astype(np.float32) -
+                       alt[b0:b0 + n].astype(np.float32)) ** 2)
+        if best_err is None or err < best_err:
+            best_shift, best_err = shift, err
+    return best_shift, (best_err if best_err is not None else float("nan"))
+
+
 def align(ref, alt, max_shift=240):
     """Shift (in thumbnail frames) that best matches alt onto ref."""
     min_overlap = max(5, min(len(ref), len(alt)) // 2)
@@ -179,6 +196,8 @@ def main():
     p_align = sub.add_parser("align", help="print the time offset of each video against the reference")
     p_align.add_argument("--ref", required=True)
     p_align.add_argument("--alt", action="append", required=True, help="label=path")
+    p_align.add_argument("--length", type=float, default=64.0,
+                         help="seconds of benchmark to look for (default 64)")
 
     p_rep = sub.add_parser("report", help="align, extract frames and compare")
     p_rep.add_argument("--ref", required=True, help="native reference recording")
@@ -200,47 +219,37 @@ def main():
         alts.append((label, path))
 
     ref_thumbs = thumbnails(args.ref)
+    length = int(round(args.length)) if args.length > 0 else 64
     print(f"ref: {os.path.basename(args.ref)} ({len(ref_thumbs)} s)")
 
+    # 1. Cada video: su propio bench es el tramo de `length` con mas movimiento.
+    ref_move = motion_score(ref_thumbs)
+    ref_win = best_window(np.ones(len(ref_thumbs), dtype=bool), ref_move, length)
+    if ref_win is None:
+        print("reference is too short for that --length", file=sys.stderr)
+        return 2
+    _, ref_start, ref_len = ref_win
+    print(f"ref bench window: {ref_start}s .. {ref_start + ref_len}s")
+
+    # 2. Alinear cada ventana contra la del referencia (solo dentro del bench).
     aligned = []
     for label, path in alts:
         thumbs = thumbnails(path)
-        shift, err = align(ref_thumbs, thumbs)
-        print(f"{label}: offset {shift:+d} s, thumbnail mse {err:.1f}")
-        aligned.append((label, path, thumbs, shift))
+        move = motion_score(thumbs)
+        win = best_window(np.ones(len(thumbs), dtype=bool), move, length)
+        if win is None:
+            print(f"{label}: video too short for that --length", file=sys.stderr)
+            return 2
+        _, start, n = win
+        shift, err = align_windows(ref_thumbs, ref_start, thumbs, start, min(ref_len, n))
+        print(f"{label}: bench at {start}s, offset {shift:+d} s, window mse {err:.1f}")
+        aligned.append((label, path, shift))
 
     if args.cmd == "align":
         return 0
 
     os.makedirs(args.out, exist_ok=True)
-
-    # Common gameplay window: longest stretch where every alternative matches the reference.
-    masks = []
-    base = 0
-    for label, path, thumbs, shift in aligned:
-        a0, mask = similarity_mask(ref_thumbs, thumbs, shift, args.similarity)
-        base = max(base, a0)
-        masks.append((a0, mask))
-    common_len = min(len(m) for _, m in masks)
-    combined = np.ones(common_len, dtype=bool)
-    for a0, mask in masks:
-        combined &= mask[:common_len]
-    motion = motion_score(ref_thumbs[base:base + common_len])
-    if args.length > 0:
-        found = best_window(combined, motion, int(round(args.length)))
-        if found is None:
-            print("no common window of that length; lower --length or raise --similarity",
-                  file=sys.stderr)
-            return 2
-        score, run_start, run_len = found
-        print(f"window chosen by motion: {score:.2f} mean thumbnail difference")
-    else:
-        run_start, run_len = longest_run(combined)
-    if run_len < 10:
-        print("no common gameplay window found; lower --similarity or check the recordings",
-              file=sys.stderr)
-        return 2
-    start = base + run_start
+    start, run_len = ref_start, ref_len
     print(f"common window: {start}s .. {start + run_len}s ({run_len}s)")
 
     positions = [float(x) for x in args.positions.split(",") if x.strip()]
@@ -253,7 +262,7 @@ def main():
         metrics = [("ref", None, None, sharpness(frame_ref))]
         images = [frame_ref]
         labels = ["reference (native)"]
-        for label, path, thumbs, shift in aligned:
+        for label, path, shift in aligned:
             tt = t + shift
             frame = extract_frame(path, tt, os.path.join(args.out, f"{label}_{p:.2f}.png"))
             metrics.append((label, psnr(frame_ref, frame), ssim(frame_ref, frame), sharpness(frame)))

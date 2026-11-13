@@ -84,5 +84,28 @@ class WindowTests(unittest.TestCase):
         self.assertIsNone(best_window(mask, motion, 5))
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/Pillow not available")
+class AlignWindowTests(unittest.TestCase):
+    def _frames(self, n, seed=0):
+        rng = np.random.default_rng(seed)
+        return rng.integers(0, 255, (n, 9, 16), dtype=np.uint8)
+
+    def test_finds_zero_offset_for_identical_windows(self):
+        from tools.bench_quality import align_windows
+        ref = self._frames(30)
+        alt = ref.copy()
+        shift, err = align_windows(ref, 5, alt, 5, 20)
+        self.assertEqual(shift, 0)
+        self.assertAlmostEqual(err, 0.0, places=6)
+
+    def test_finds_a_known_shift(self):
+        from tools.bench_quality import align_windows
+        ref = self._frames(40, seed=3)
+        alt = ref.copy()
+        shift, err = align_windows(ref, 10, alt, 13, 20)
+        self.assertEqual(shift, -3)
+        self.assertAlmostEqual(err, 0.0, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()
