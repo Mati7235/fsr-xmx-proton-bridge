@@ -25,6 +25,9 @@ Ver: `docs/first-fsr-xmx-success.md` y `docs/rebuild-20261113.md`.
   el candidato corre solo por proceso. Rollback en `backup-20261113/`.
 
 Guía de instalación y setup real: `docs/install-setup.md`.
+Contexto de upstream: FSR 4 sobre XMX ya estaba soportado en `xess-xmx-linux`
+y se abandonó como dirección de producto en noviembre de 2026, no por un
+bloqueo técnico. Ver `docs/upstream-fsr4-status.md`.
 
 ## Arquitectura
 
@@ -39,6 +42,7 @@ Guía de instalación y setup real: `docs/install-setup.md`.
 | Doc | Qué fija |
 |---|---|
 | `docs/install-setup.md` | Instalación side-by-side y system-wide, rollback, prueba en juego |
+| `docs/upstream-fsr4-status.md` | Qué encontró y por qué abandonó upstream el camino FSR 4 XMX |
 | `docs/first-fsr-xmx-success.md` | Setup exacto y evidencia de la primera ejecución funcional |
 | `docs/rebuild-20261113.md` | Qué se construyó en el paquete candidato y qué falta |
 | `docs/xmx412-model-selection.md` | Selección INT8/Lite/Hybrid, contrato de `fsr-original.dll`, receta |
