@@ -100,3 +100,43 @@ descarta una clase distinta de falso positivo:
 Ninguna de estas patas por separado, ni siquiera las cuatro juntas, prueba
 equivalencia con FSR 4 en hardware AMD. Prueban que el puente hace un
 upscaling repetible y visualmente plausible bajo control del test.
+
+## 5. Cómo se obtienen los volcados
+
+El mod ya trae readback GPU propio, así que no hace falta RenderDoc para
+esto. `run-full-test.sh` (en el run descartable, ignorado por Git) arma el
+entorno y resume los resultados.
+
+```bash
+cd build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
+./run-full-test.sh int8 oracle1 --oracle-all --proton-log --dry-run   # revisar primero
+./run-full-test.sh int8 oracle1 --oracle-all --proton-log
+./run-full-test.sh int8 oracle2 --oracle-all --proton-log
+```
+
+Las dos corridas deben ser la misma zona, resolución y preset: el volcado
+es one-shot en el primer frame útil, así que escenas distintas dan tensores
+distintos por contenido, no por el modelo.
+
+Variables que usa, verificadas en el binario del mod:
+
+| Variable | Efecto |
+|---|---|
+| `FSR4_XMX_P1..P12_OracleCaptureReadback=1` | arma el volcado one-shot del pase |
+| `MLSR-XMX-PASSn-ORACLE-DUMP=<ruta Windows>` | directorio de `pN_input.bin` / `pN_output.bin` |
+| `MLSR-XMX-PRE-PARITY=1` y `MLSR-XMX-PRE-PARITY-DIR` | paridad del tensor PRE contra el camino stock |
+| `MLSR-XMX-PRE-HOSTPARITY=1`, `MLSR-XMX-PRE-POSTSTORE-PARITY=1` | verificaciones de hash adicionales |
+
+Los nombres con guiones no se pueden pasar con `export`: el script los
+inyecta con `env` al lanzar Proton.
+
+El `summary.txt` de cada corrida informa `oracle-armed`, `oracle-captured`,
+`oracle-files`, `pre-parity-exact` y `pre-parity-mismatch`. Después:
+
+```bash
+python3 tools/fsr_readback_compare.py inspect results/oracle1-*/oracle/p9_output.bin --format rgba32f --width 1920 --height 1080
+python3 tools/fsr_readback_compare.py diff results/oracle1-*/oracle/p9_output.bin results/oracle2-*/oracle/p9_output.bin
+```
+
+Si el formato y las dimensiones del tensor no coinciden con lo supuesto,
+`inspect` falla con exit 2 en vez de inventar una interpretación.
