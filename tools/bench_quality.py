@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Compare upscalers frame by frame against a native reference recording.
+
+Takes lossless recordings of the same deterministic benchmark (Cyberpunk's
+built-in one), aligns them by content, extracts matching frames, and reports
+sharpness plus PSNR/SSIM against the reference, with side-by-side crops.
+
+Requires ffmpeg, numpy and Pillow. Read-only on the recordings.
+"""
+import argparse
+import os
+import subprocess
+import sys
+
+import numpy as np
+from PIL import Image, ImageDraw
+
+THUMB_W, THUMB_H = 48, 27
+
+
+def run(cmd, **kw):
+    return subprocess.run(cmd, check=True, capture_output=True, **kw)
+
+
+def video_duration(path):
+    out = run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+               "-of", "default=nw=1:nk=1", path]).stdout.decode().strip()
+    return float(out)
+
+
+def thumbnails(path, fps=1):
+    """Grayscale thumbnails, one per second, as uint8 [n, H, W]."""
+    raw = run(["ffmpeg", "-v", "error", "-i", path,
+               "-vf", f"fps={fps},scale={THUMB_W}:{THUMB_H},format=gray",
+               "-f", "rawvideo", "-"]).stdout
+    size = THUMB_W * THUMB_H
+    n = len(raw) // size
+    return np.frombuffer(raw[:n * size], dtype=np.uint8).reshape(n, THUMB_H, THUMB_W)
+
+
+def align(ref, alt, max_shift=240):
+    """Shift (in thumbnail frames) that best matches alt onto ref."""
+    min_overlap = max(5, min(len(ref), len(alt)) // 2)
+    limit = min(max_shift, len(ref) - min_overlap, len(alt) - min_overlap)
+    best, best_err = 0, None
+    for shift in range(-limit, limit + 1):
+        a0 = max(0, shift)
+        b0 = max(0, -shift)
+        n = min(len(ref) - a0, len(alt) - b0)
+        if n < min_overlap:
+            continue
+        err = np.mean((ref[a0:a0 + n].astype(np.float32) -
+                       alt[b0:b0 + n].astype(np.float32)) ** 2)
+        if best_err is None or err < best_err:
+            best, best_err = shift, err
+    return best, (best_err if best_err is not None else float("nan"))
+
+
+def similarity_mask(ref, alt, shift, threshold):
+    a0 = max(0, shift)
+    b0 = max(0, -shift)
+    n = min(len(ref) - a0, len(alt) - b0)
+    err = np.mean((ref[a0:a0 + n].astype(np.float32) -
+                   alt[b0:b0 + n].astype(np.float32)) ** 2, axis=(1, 2))
+    return a0, err < threshold
+
+
+def longest_run(mask):
+    best_start = best_len = cur_start = cur_len = 0
+    for i, v in enumerate(mask):
+        if v:
+            if cur_len == 0:
+                cur_start = i
+            cur_len += 1
+            if cur_len > best_len:
+                best_start, best_len = cur_start, cur_len
+        else:
+            cur_len = 0
+    return best_start, best_len
+
+
+def extract_frame(path, t, out_png):
+    run(["ffmpeg", "-v", "error", "-y", "-i", path, "-ss", f"{t:.3f}",
+         "-frames:v", "1", out_png])
+    return np.asarray(Image.open(out_png).convert("RGB"))
+
+
+def luma(img):
+    return (0.2126 * img[:, :, 0] + 0.7152 * img[:, :, 1] + 0.0722 * img[:, :, 2])
+
+
+def sharpness(img):
+    """Variance of the Laplacian on luma: higher means more high-frequency detail."""
+    y = luma(img).astype(np.float32)
+    lap = (4 * y[1:-1, 1:-1] - y[:-2, 1:-1] - y[2:, 1:-1] - y[1:-1, :-2] - y[1:-1, 2:])
+    return float(lap.var())
+
+
+def psnr(a, b):
+    mse = np.mean((a.astype(np.float64) - b.astype(np.float64)) ** 2)
+    if mse == 0:
+        return float("inf")
+    return float(10 * np.log10((255.0 ** 2) / mse))
+
+
+def ssim(a, b):
+    """Global SSIM on luma (not windowed), enough for a relative comparison."""
+    x = luma(a).astype(np.float64)
+    y = luma(b).astype(np.float64)
+    ux, uy = x.mean(), y.mean()
+    vx, vy = x.var(), y.var()
+    cxy = ((x - ux) * (y - uy)).mean()
+    c1, c2 = (0.01 * 255) ** 2, (0.03 * 255) ** 2
+    return float(((2 * ux * uy + c1) * (2 * cxy + c2)) /
+                 ((ux ** 2 + uy ** 2 + c1) * (vx + vy + c2)))
+
+
+def side_by_side(images, labels, out_png, crop=None, zoom=2):
+    tiles = []
+    for img, label in zip(images, labels):
+        if crop:
+            x, y, w, h = crop
+            img = img[y:y + h, x:x + w]
+        im = Image.fromarray(img)
+        if zoom != 1:
+            im = im.resize((im.width * zoom, im.height * zoom), Image.NEAREST)
+        canvas = Image.new("RGB", (im.width, im.height + 28), (16, 16, 16))
+        canvas.paste(im, (0, 28))
+        ImageDraw.Draw(canvas).text((8, 8), label, fill=(255, 255, 255))
+        tiles.append(canvas)
+    total_w = sum(t.width for t in tiles)
+    out = Image.new("RGB", (total_w, max(t.height for t in tiles)), (16, 16, 16))
+    x = 0
+    for t in tiles:
+        out.paste(t, (x, 0))
+        x += t.width
+    out.save(out_png)
+    return out_png
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p_align = sub.add_parser("align", help="print the time offset of each video against the reference")
+    p_align.add_argument("--ref", required=True)
+    p_align.add_argument("--alt", action="append", required=True, help="label=path")
+
+    p_rep = sub.add_parser("report", help="align, extract frames and compare")
+    p_rep.add_argument("--ref", required=True, help="native reference recording")
+    p_rep.add_argument("--alt", action="append", required=True, help="label=path")
+    p_rep.add_argument("--out", required=True, help="output directory")
+    p_rep.add_argument("--positions", default="0.15,0.35,0.55,0.75,0.9")
+    p_rep.add_argument("--crop", default="", help="x,y,w,h in source pixels")
+    p_rep.add_argument("--similarity", type=float, default=120.0,
+                       help="max mean squared error on thumbnails to consider the same scene")
+    args = ap.parse_args()
+
+    alts = []
+    for spec in args.alt:
+        if "=" not in spec:
+            ap.error("--alt needs label=path")
+        label, path = spec.split("=", 1)
+        alts.append((label, path))
+
+    ref_thumbs = thumbnails(args.ref)
+    print(f"ref: {os.path.basename(args.ref)} ({len(ref_thumbs)} s)")
+
+    aligned = []
+    for label, path in alts:
+        thumbs = thumbnails(path)
+        shift, err = align(ref_thumbs, thumbs)
+        print(f"{label}: offset {shift:+d} s, thumbnail mse {err:.1f}")
+        aligned.append((label, path, thumbs, shift))
+
+    if args.cmd == "align":
+        return 0
+
+    os.makedirs(args.out, exist_ok=True)
+
+    # Common gameplay window: longest stretch where every alternative matches the reference.
+    masks = []
+    base = 0
+    for label, path, thumbs, shift in aligned:
+        a0, mask = similarity_mask(ref_thumbs, thumbs, shift, args.similarity)
+        base = max(base, a0)
+        masks.append((a0, mask))
+    common_len = min(len(m) for _, m in masks)
+    combined = np.ones(common_len, dtype=bool)
+    for a0, mask in masks:
+        combined &= mask[:common_len]
+    run_start, run_len = longest_run(combined)
+    if run_len < 10:
+        print("no common gameplay window found; lower --similarity or check the recordings",
+              file=sys.stderr)
+        return 2
+    start = base + run_start
+    print(f"common window: {start}s .. {start + run_len}s ({run_len}s)")
+
+    positions = [float(x) for x in args.positions.split(",") if x.strip()]
+    crop = tuple(int(v) for v in args.crop.split(",")) if args.crop else None
+
+    rows = []
+    for p in positions:
+        t = start + p * run_len
+        frame_ref = extract_frame(args.ref, t, os.path.join(args.out, f"ref_{p:.2f}.png"))
+        metrics = [("ref", None, None, sharpness(frame_ref))]
+        images = [frame_ref]
+        labels = ["reference (native)"]
+        for label, path, thumbs, shift in aligned:
+            tt = t + shift
+            frame = extract_frame(path, tt, os.path.join(args.out, f"{label}_{p:.2f}.png"))
+            metrics.append((label, psnr(frame_ref, frame), ssim(frame_ref, frame), sharpness(frame)))
+            images.append(frame)
+            labels.append(label)
+        if crop:
+            side_by_side(images, labels, os.path.join(args.out, f"crop_{p:.2f}.png"), crop, zoom=2)
+        rows.append((p, t, metrics))
+
+    report = ["# Calidad por frame", "",
+              f"Referencia: `{os.path.basename(args.ref)}`",
+              f"Ventana comun: {start}s a {start + run_len}s", "",
+              "| Posicion | t (s) | Muestra | PSNR vs ref | SSIM vs ref | Nitidez |",
+              "|---|---:|---|---:|---:|---:|"]
+    for p, t, metrics in rows:
+        for label, ps, ss, sh in metrics:
+            ps_txt = "-" if ps is None else f"{ps:.2f}"
+            ss_txt = "-" if ss is None else f"{ss:.4f}"
+            report.append(f"| {p:.2f} | {t:.1f} | {label} | {ps_txt} | {ss_txt} | {sh:.1f} |")
+    report += ["", "Nitidez = varianza del Laplaciano sobre luma. Mas alto = mas detalle de alta frecuencia.",
+               "PSNR/SSIM se calculan contra la referencia nativa, no entre upscalers."]
+    path = os.path.join(args.out, "report.md")
+    with open(path, "w") as f:
+        f.write("\n".join(report) + "\n")
+    print(f"reporte: {path}")
+    for r in report[6:]:
+        print(r)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
