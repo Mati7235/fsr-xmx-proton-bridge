@@ -101,13 +101,3 @@ sobre modelos, DLLs o código upstream; consultar sus licencias respectivas
   sampler, más serie `patches/mesa-26.3/` (`0004` Jay, `0006` cmat).
 - Este repo ignora `artifacts/original/`, `artifacts/extracted/`, `upstream/`,
   `analysis/` y `build/` (artefactos locales, no redistribuidos).
-
-## Límites
-
-- Probado en Spider-Man y en el bench de Cyberpunk 2077. Nada aquí acredita
-  otros juegos ni otras escenas.
-- Sin oracle: no hay equivalencia matemática con la referencia ni captura
-  RenderDoc de formatos reales.
-- S_OK, overlay o shaders creados no prueban el modelo; el log manda.
-- Nunca tocar Steam, prefijos reales, drivers o sistema sin aprobación
-  explícita; los experimentos runtime usan prefijo descartable.
