@@ -114,5 +114,6 @@ No ejecutar los instaladores de upstream como parte del análisis.
 
 Fecha de preparación: 2026-10-22.
 Upstream inicial: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+Base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
 Los binarios de terceros no se redistribuyen. Este repositorio no concede derechos
 sobre los modelos, DLLs o el código upstream; consultar sus licencias respectivas.

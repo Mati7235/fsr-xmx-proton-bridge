@@ -128,7 +128,8 @@ class ReaderPatchTests(unittest.TestCase):
                          'patches/mesa-26.3/0001-anv-cm-kernel-injection.patch']:
             original = (ROOT/'upstream/xess-xmx-linux'/relative).read_text()
             updated = adapt(original)
-            self.assertIn('memcmp(h.magic, "CMK2", 4) != 0 && memcmp(h.magic, "CMK3", 4) != 0', updated)
+            self.assertIn('memcmp(h->magic, "CMK2", 4) != 0', updated)
+            self.assertIn('memcmp(h->magic, "CMK3", 4) != 0, "magic"', updated)
             self.assertIn('if (auto_heap && !explicit_table_base)', updated)
             self.assertIn('push_size == mapping[1]', updated)
             self.assertIn('off + 4 <= push_size', updated)

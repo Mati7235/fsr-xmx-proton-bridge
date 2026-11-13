@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Build the context-output ABI candidate for the pinned upstream source."""
+"""Build the context-output ABI candidate for the pinned upstream source.
+
+Upstream 662dc6e made the same output copy inline in both legacy D3D12 exports.
+This builder emits the shared helper and replaces those inline copies with it,
+so 0003 has one copy routine to reuse. The behavior stays equivalent.
+"""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +14,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RELATIVE = Path("shim/src/dll/IgdextApiDll.cpp")
-SOURCE_SHA256 = "aed09d4fc616721216a46654b1501a6a2f7b93c0c198523f41fdba327c80ca96"
+SOURCE_SHA256 = "6d32d93487df60300de9e708b22c687ac8e58eba2dd1db1ef0f833d3dc252696"
+
+# Upstream 662dc6e copies the shared outputs itself. Keep our helper as the
+# single implementation (0003 reuses it) by replacing these inline copies.
+UPSTREAM_COPY = """    // Hand the device and driver description back through the caller's (older, smaller) INTCExtensionInfo:
+    // XeSS and XeLL use these entry points and read GTGeneration and the driver version string from it.
+    pExtensionInfo->IntelDeviceInfo        = static_cast<const INTCDeviceInfo&>(extensionInfo1.IntelDeviceInfo);
+    pExtensionInfo->pDeviceDriverDesc      = extensionInfo1.pDeviceDriverDesc;
+    pExtensionInfo->pDeviceDriverVersion   = extensionInfo1.pDeviceDriverVersion;
+    pExtensionInfo->DeviceDriverBuildNumber = extensionInfo1.DeviceDriverBuildNumber;
+"""
+
+UPSTREAM_COPY_NO_COMMENT = """    pExtensionInfo->IntelDeviceInfo        = static_cast<const INTCDeviceInfo&>(extensionInfo1.IntelDeviceInfo);
+    pExtensionInfo->pDeviceDriverDesc      = extensionInfo1.pDeviceDriverDesc;
+    pExtensionInfo->pDeviceDriverVersion   = extensionInfo1.pDeviceDriverVersion;
+    pExtensionInfo->DeviceDriverBuildNumber = extensionInfo1.DeviceDriverBuildNumber;
+"""
+
+HELPER_CALL = "    CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1);\n"
 
 
 def once(text: str, old: str, new: str) -> str:
@@ -44,11 +67,16 @@ def build(source: str) -> str:
         start = source.index("HRESULT " + name)
         end = source.index("\n}\n", start)
         body = source[start:end]
-        body = once(body,
-                    "    // only RequestedExtensionVersion is meaningful since the stub never writes device info back.",
-                    "    // Preserve the requested input; copy the compatible outputs back only on success.")
-        body = once(body, "    *ppExtensionContext = pExtensionContext;\n\n    return result;",
-                    "    CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1);\n    *ppExtensionContext = pExtensionContext;\n\n    return result;")
+        if UPSTREAM_COPY in body:
+            body = once(body, UPSTREAM_COPY, HELPER_CALL)
+        elif UPSTREAM_COPY_NO_COMMENT in body:
+            body = once(body, UPSTREAM_COPY_NO_COMMENT, HELPER_CALL)
+        else:
+            body = once(body,
+                        "    // only RequestedExtensionVersion is meaningful since the stub never writes device info back.",
+                        "    // Preserve the requested input; copy the compatible outputs back only on success.")
+            body = once(body, "    *ppExtensionContext = pExtensionContext;\n\n    return result;",
+                        HELPER_CALL + "    *ppExtensionContext = pExtensionContext;\n\n    return result;")
         source = source[:start] + body + source[end:]
 
     return source

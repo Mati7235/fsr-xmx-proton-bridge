@@ -2,7 +2,9 @@
 
 `0001-anv-cmk3-explicit-mapping.patch` modifica **los archivos de parche Mesa** de
 xess-xmx-linux, no directamente un driver instalado. Es un parche de segundo nivel
-para upstream `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+para upstream `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3` (2026-11-13). El lector
+CMK3 se inserta en el `anv_cm.c` nuevo de upstream; la ruta CMK2 y el lector del
+layer (`layer/src/cmk.c`) quedan intactos.
 
 Generación y comprobación sin modificar upstream:
 
@@ -35,9 +37,12 @@ probado en GPU.** La selección de perfil por hash y el bump de cache identity
 son candidatos offline (`profiles/registry.json`,
 `tools/pre_profile_registry.py`); el helper runtime sigue sin leerlos.
 
-`0003-shim-context-reuse.patch` extiende la copia de outputs al path de
-reutilización D3D12 (valida device y versión contra el contrato otorgado;
-apilado **después** de 0002, generado por
+`0002-shim-context-output.patch` conserva el helper compartido de copia de
+outputs. Upstream `662dc6e` ya incorporó esa copia inline en los dos exports
+legacy; el parche reemplaza esas copias por el helper para que 0003 lo reutilice
+(el comportamiento es equivalente). `0003-shim-context-reuse.patch` extiende la
+copia de outputs al path de reutilización D3D12 (valida device y versión contra
+el contrato otorgado; apilado **después** de 0002, generado por
 `tools/build_context_reuse_patch.py`, CPU-probado en
 `tests/test_context_reuse.py`). Ver `docs/context-reuse-fix.md`.
 

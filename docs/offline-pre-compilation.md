@@ -19,7 +19,8 @@ Steam. Que compile no demuestra que procese correctamente una imagen.
 - Target explícito `0xe20b`, identificado localmente como B580/Battlemage G21.
 - Se usó el compilador offline, sin carga de la DLL, lanzamiento del juego ni dispatch GPU.
 - Input: primer PRE del pack Xe2 40102, variante native_1080, con su pie CM completo.
-- Upstream shim/ANV de referencia: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+- Upstream shim/ANV de referencia original: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`;
+  base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
 - Layout VKD3D de referencia: `ef9a02e873715c9e2da0d6db8a236aca8380b303`.
 
 ## 1. Compilación y control de opciones

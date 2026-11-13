@@ -2,14 +2,22 @@
 
 ## Finding
 
-At upstream revision `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`, both
-`_INTC_D3D12_CreateDeviceExtensionContext` and
+At the original pinned revision `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`,
+both `_INTC_D3D12_CreateDeviceExtensionContext` and
 `_INTC_D3D12_CreateDeviceExtensionContext1` accept `INTCExtensionInfo` (192 bytes
 in the 64-bit Windows ABI), adapt its requested version into
 `INTCExtensionInfo1` (200 bytes), and pass the latter to
 `D3D12ExtensionContext::InitExtensions`. That initializer fills the device
 information and three driver outputs in `INTCExtensionInfo1`. Before this fix,
 neither API copied any output back to the caller.
+
+Upstream `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3` (commit `8f45d12`) now
+copies exactly those fields inline in both legacy exports. The candidate is
+therefore no longer a behavioral addition on this base: it keeps the same copy
+in the shared `CopyExtensionInfo1OutputsToOld` helper and replaces the two
+inline copies with calls to it, so `0003` has one routine to reuse. The
+copy-back still happens only after successful initialization; failure and ABI
+behavior are unchanged.
 
 The base device-info member has a compatible prefix. However, the driver output
 members are eight bytes later in `INTCExtensionInfo1` because
@@ -40,7 +48,8 @@ actual generated helper and both generated D3D12 function bodies with small
 stubs. It checks requested-version forwarding, output values, success/failure
 paths, and surrounding canaries.
 The CPU test also checks that the entire caller output remains unchanged after
-failure, and that the same harness detects the original missing-copy regression.
+failure, and keeps a negative control that removes the (now upstream) inline
+copy so the harness still detects the original missing-copy regression.
 
 These are ABI/layout and deterministic CPU tests only. They do not compile the
 complete shim against the Windows SDK, run a DLL, or demonstrate driver,

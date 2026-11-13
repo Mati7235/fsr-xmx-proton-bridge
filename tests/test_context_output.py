@@ -14,8 +14,8 @@ SOURCE = ROOT / "upstream/xess-xmx-linux/shim/src/dll/IgdextApiDll.cpp"
 PATCH = ROOT / "patches/0002-shim-context-output.patch"
 BUILDER = ROOT / "tools/build_context_output_patch.py"
 HEADER = ROOT / "upstream/xess-xmx-linux/shim/d3dext-sdk/include/public"
-REVISION = "ef39559d26e083ce1bd1353b2e8c86f33c3c264c"
-SOURCE_SHA256 = "aed09d4fc616721216a46654b1501a6a2f7b93c0c198523f41fdba327c80ca96"
+REVISION = "662dc6e8787c1e9ed43e09ef73733046bc1b8dc3"
+SOURCE_SHA256 = "6d32d93487df60300de9e708b22c687ac8e58eba2dd1db1ef0f833d3dc252696"
 
 
 def extract_function(source: str, signature: str) -> str:
@@ -228,8 +228,16 @@ int main() {
                 "_INTC_D3D12_CreateDeviceExtensionContext",
                 "_INTC_D3D12_CreateDeviceExtensionContext1",
             ))
+            # Upstream 662dc6e already copies the outputs inline. Keep a
+            # negative control by deleting that copy: otherwise the control
+            # would pass and stop proving that this harness detects the bug.
+            output_builder = runpy.run_path(str(BUILDER))
+            regression_bodies = original_bodies
+            for block in (output_builder["UPSTREAM_COPY"],
+                          output_builder["UPSTREAM_COPY_NO_COMMENT"]):
+                regression_bodies = regression_bodies.replace(block, "")
             for name, tested_bodies, expected_exit in (
-                ("patched", bodies, 0), ("original-regression", original_bodies, 2),
+                ("patched", bodies, 0), ("missing-copy-control", regression_bodies, 2),
             ):
                 with self.subTest(implementation=name):
                     test_source = root / (name + ".cpp")

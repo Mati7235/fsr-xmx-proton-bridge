@@ -116,7 +116,8 @@ class CacheIdentityTests(unittest.TestCase):
         updated = adapt(original)
         # Legacy magic still accepted first; the tail heuristic is only
         # bypassed for explicit CMK3 files, so global XeSS behavior is kept.
-        self.assertIn('memcmp(h.magic, "CMK2", 4) != 0 && memcmp(h.magic, "CMK3", 4) != 0', updated)
+        self.assertIn('memcmp(h->magic, "CMK2", 4) != 0', updated)
+        self.assertIn('memcmp(h->magic, "CMK3", 4) != 0, "magic"', updated)
         self.assertIn("if (auto_heap && !explicit_table_base)", updated)
 
 

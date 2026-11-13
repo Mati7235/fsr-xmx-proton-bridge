@@ -6,7 +6,9 @@ No se instaló el toolchain, no se ejecutó la DLL y no se alteró ningún prefi
 
 ## Procedencia
 
-- Upstream: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+- Upstream: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3` (revalidación
+  2026-11-13); la baseline histórica de este documento se tomó sobre
+  `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
 - Toolchain: LLVM-MinGW `20261020`, UCRT, Ubuntu 22.04 x86-64, Clang 23.1.4.
 - Archivo original local:
   `artifacts/original/llvm-mingw-20261020-ucrt-ubuntu-22.04-x86_64.tar.xz`.
@@ -66,6 +68,43 @@ Los 75 exports (nombre y ordinal) y la lista de DLLs importadas coinciden con el
 baseline. No se afirma que las direcciones o todo el PE sean idénticos.
 El reporte y la inspección están en `build/shim-cross-context-v01/report.json`
 y `pe-inspection.txt`. Ver [corrección y tests CPU](context-output-fix.md).
+
+### Revalidación sobre 662dc6e (stack 0002→0003)
+
+La copia aislada debe incluir `common/`, porque el shim nuevo incluye
+`../../../common/lowlat_check.h`. Se copiaron `shim/` y `common/` a
+`/tmp/opencode/xmx662-shim-stack/tree/`, se aplicaron los parches nuevos con
+`patch -p2` desde `tree/shim`, y se configuró/compiló con el mismo LLVM-MinGW
+`20261020` UCRT y `-fms-extensions`.
+
+```sh
+cp -a upstream/xess-xmx-linux/shim /tmp/opencode/xmx662-shim-stack/tree/shim
+cp -a upstream/xess-xmx-linux/common /tmp/opencode/xmx662-shim-stack/tree/common
+patch -p2 --batch --forward -d /tmp/opencode/xmx662-shim-stack/tree/shim \
+  -i "$PWD/patches/0002-shim-context-output.patch"
+patch -p2 --batch --forward -d /tmp/opencode/xmx662-shim-stack/tree/shim \
+  -i "$PWD/patches/0003-shim-context-reuse.patch"
+cmake -S /tmp/opencode/xmx662-shim-stack/tree/shim \
+  -B /tmp/opencode/xmx662-shim-stack/obj -G Ninja \
+  -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_SYSTEM_PROCESSOR=x86_64 \
+  -DCMAKE_CXX_COMPILER="$TC/x86_64-w64-mingw32-clang++" \
+  -DCMAKE_RC_COMPILER="$TC/x86_64-w64-mingw32-windres" \
+  -DCMAKE_CXX_FLAGS=-fms-extensions -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/opencode/xmx662-shim-stack/obj -j 4
+```
+
+Resultado: **14/14 objetos + enlace, 0 errores, 0 warnings**. DLL
+`igdext64.dll` de 861.184 bytes, SHA-256
+`0a0b54623be219a7a809eb1b628ebfcc4583bff472c097500be840f69bca8cf8`,
+PE32+ AMD64, **79 exports con nombre**, imports `KERNEL32.dll`,
+`ADVAPI32.dll` y familia UCRT `api-ms-win-crt-*`. La DLL es más pequeña que la
+baseline de `ef39559` porque upstream eliminó las tablas de kernels estáticos y
+movió el empaquetado CMK2 al driver. Los parches usados son 0002
+(`fc00a77dd81b9efc6ef3bd61affaa594752c50ebbb27f5a95bad13d39f93f263`) y 0003
+(`ef8112d46f70f6242de9509926a35e66c6fe417a50947adff86c5caf855f054c`).
+No se ejecutó la DLL. El reporte local queda en
+`build/shim-cross-662dc6e/report.json` (ignorado por Git), junto con los logs y
+la inspección PE.
 
 ### Validación pendiente
 

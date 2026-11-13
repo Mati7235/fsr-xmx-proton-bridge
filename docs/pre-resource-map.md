@@ -22,7 +22,8 @@ este documento describen el estado previo a esa compilación.
 ## Alcance y revisiones
 
 - DLL SHA-256: `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`.
-- xess-xmx-linux: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+- xess-xmx-linux (análisis original): `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`;
+  base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
 - VKD3D de referencia: `ef9a02e873715c9e2da0d6db8a236aca8380b303`, clonado localmente
   en `upstream/vkd3d-proton`. **No es identificación del Proton instalado**.
 - Solo se reconstruyó el PRE normal. Las otras etapas requieren su propio análisis.

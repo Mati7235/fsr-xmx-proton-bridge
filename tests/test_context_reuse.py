@@ -17,8 +17,8 @@ SOURCE = ROOT / "upstream/xess-xmx-linux/shim/src/dll/IgdextApiDll.cpp"
 PATCH2 = ROOT / "patches/0002-shim-context-output.patch"
 PATCH3 = ROOT / "patches/0003-shim-context-reuse.patch"
 HEADER = ROOT / "upstream/xess-xmx-linux/shim/d3dext-sdk/include/public"
-REVISION = "ef39559d26e083ce1bd1353b2e8c86f33c3c264c"
-SOURCE_SHA256 = "aed09d4fc616721216a46654b1501a6a2f7b93c0c198523f41fdba327c80ca96"
+REVISION = "662dc6e8787c1e9ed43e09ef73733046bc1b8dc3"
+SOURCE_SHA256 = "6d32d93487df60300de9e708b22c687ac8e58eba2dd1db1ef0f833d3dc252696"
 
 
 def extract_function(source: str, signature: str) -> str:

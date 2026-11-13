@@ -1,34 +1,39 @@
 --- a/patches/0001-anv-cm-kernel-injection.patch
 +++ b/patches/0001-anv-cm-kernel-injection.patch
-@@ -141,7 +141,7 @@
- index 7f2c77b..43adc98 100644
- --- a/src/intel/vulkan/anv_shader_compile.c
- +++ b/src/intel/vulkan/anv_shader_compile.c
--@@ -1204,6 +1204,598 @@ anv_shader_compile_fs(struct anv_device *device,
-+@@ -1204,6 +1204,640 @@ anv_shader_compile_fs(struct anv_device *device,
-     }
-  }
-  
-@@ -340,6 +340,10 @@
- +      struct stat st;
- +      if (stat(dir, &st) == 0)
- +         h = (h ^ (uint32_t)st.st_size) * 16777619u;
-++         /* LOCAL profile generation: the reviewed PRE profile registry
-++          * selects which kernels may use the explicit CMK3 layout; any
-++          * registry change must invalidate previously cached kernels. */
-++         h = (h ^ 0x3ddd809fu) * 16777619u;
- +   }
- +   gen = h;
- +   done = true;
-@@ -628,9 +632,22 @@
- +      return ANV_CM_FAILED;
- +   }
- +   struct cmk_header h;
--+   if (fread(&h, sizeof(h), 1, f) != 1 || memcmp(h.magic, "CMK2", 4) != 0 ||
-++   if (fread(&h, sizeof(h), 1, f) != 1 ||
-++       (memcmp(h.magic, "CMK2", 4) != 0 && memcmp(h.magic, "CMK3", 4) != 0) ||
- +       h.code_size == 0 || h.code_size > (16u << 20)) {
- +      fprintf(stderr, "ANV CM: bad header in %s\n", path);
+@@ -61,7 +61,7 @@
+ index 0000000..d685456
+ --- /dev/null
+ +++ b/src/intel/vulkan/anv_cm.c
+-@@ -0,0 +1,1794 @@
++@@ -0,0 +1,1836 @@
+ +/*
+ + * Copyright © 2026 xess-xmx-linux contributors
+ + * SPDX-License-Identifier: MIT
+@@ -374,6 +374,10 @@
+ +   const char *cmdev = getenv("CM_DEVICE");
+ +   for (const char *c = cmdev ? cmdev : ""; *c; c++)
+ +      h = (h ^ (uint8_t)*c) * 16777619u;
+++   /* LOCAL profile generation: the reviewed PRE profile registry
+++    * selects which kernels may use the explicit CMK3 layout; any
+++    * registry change must invalidate previously cached kernels. */
+++   h = (h ^ 0x3ddd809fu) * 16777619u;
+ +   anv_cm_toolchain_gen_value = h;
+ +}
+ +
+@@ -1610,7 +1614,8 @@
+ +anv_cm_header_ok(const struct anv_device *device, const struct cmk_header *h, const char **why)
+ +{
+ +#define CMK_CHECK(cond, what) do { if (!(cond)) { *why = what; return false; } } while (0)
+-+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0, "magic");
+++   CMK_CHECK(memcmp(h->magic, "CMK2", 4) != 0 &&
+++             memcmp(h->magic, "CMK3", 4) != 0, "magic");
+ +   CMK_CHECK(h->code_size > 0 && h->code_size <= (16u << 20), "code size");
+ +   CMK_CHECK(h->grf_count >= 1 && h->grf_count <= 256, "GRF count");
+ +   CMK_CHECK(h->slm_size <= intel_device_info_get_max_slm_size(device->info), "SLM size");
+@@ -1732,6 +1737,18 @@
+ +   if (fread(&h, sizeof(h), 1, f) != 1 || !anv_cm_header_ok(device, &h, &why)) {
+ +      fprintf(stderr, "ANV CM: bad header in %s (%s; lws %u,%u,%u cross %u per-thread %u surfaces %u)\n",
+ +              path, why, h.lws[0], h.lws[1], h.lws[2], h.cross_size, h.per_thread_size, h.nsurf);
 ++      fclose(f);
 ++      return ANV_CM_FAILED;
 ++   }
@@ -44,7 +49,7 @@
  +      fclose(f);
  +      return ANV_CM_FAILED;
  +   }
-@@ -665,6 +682,31 @@
+@@ -1773,6 +1790,31 @@
  +   memcpy(cs->cm_cross_thread_data, h.cross_data, sizeof(h.cross_data));
  +
  +   const struct vk_shader_compile_info *ci = shader_data->info;
@@ -76,7 +81,7 @@
  +   if (cs->cm_has_sampler) {
  +      const unsigned ns = anv_cm_layout_sampler(ci, cs->cm_sampler_state);
  +      cs->cm_sampler_from_layout = ns > 0;
-@@ -696,7 +738,7 @@
+@@ -1804,7 +1846,7 @@
  +      } else if (h.heap_set < ci->set_layout_count && ci->set_layouts[h.heap_set]) {
  +         l = (const struct anv_descriptor_set_layout *)ci->set_layouts[h.heap_set];
  +      }
@@ -85,55 +90,132 @@
  +         /* vkd3d push constants end with one u32 per descriptor-table root parameter; the kernel's surfaces are
  +          * the last h.nsurf tables (table_idx counts from the first of those) */
  +         uint32_t push_size = 0;
-@@ -740,7 +782,7 @@
-  static void
-  anv_shader_compile_cs(struct anv_device *device,
-                        void *mem_ctx,
--@@ -1214,6 +1806,12 @@ anv_shader_compile_cs(struct anv_device *device,
-+@@ -1214,6 +1848,12 @@ anv_shader_compile_cs(struct anv_device *device,
+@@ -1943,7 +1985,7 @@
+  #include "anv_slab_bo.h"
+  #include "util/u_debug.h"
+  #include "util/os_file.h"
+-@@ -1115,6 +1116,9 @@ VkResult anv_CreateDevice(
++@@ -1115,6 +1117,9 @@ VkResult anv_CreateDevice(
+  
+     simple_mtx_init(&device->accel_struct_build.mutex, mtx_plain);
+  
+@@ -1970,7 +2012,7 @@
+  struct anv_shader {
+     struct vk_shader vk;
+  
+-@@ -1340,6 +1346,9 @@ struct anv_shader {
++@@ -1340,6 +1352,9 @@ struct anv_shader {
+  
+     struct anv_pipeline_bind_map bind_map;
+  
+@@ -1993,7 +2035,7 @@
+     anv_shader_heap_free(&device->shader_heap, shader->kernel);
+     if (shader->replay_kernel.alloc_size != 0)
+        anv_shader_heap_free(&device->shader_heap, shader->replay_kernel);
+-@@ -757,6 +759,9 @@ anv_shader_create(struct anv_device *device,
++@@ -757,6 +761,9 @@ anv_shader_create(struct anv_device *device,
+     }
+     shader->vk.scratch_size = shader->prog_data->total_scratch;
+     shader->vk.ray_queries = shader->prog_data->ray_queries;
+@@ -2015,7 +2057,7 @@
+  
+  #include "vk_nir_convert_ycbcr.h"
+  #include "vk_pipeline.h"
+-@@ -1214,6 +1215,12 @@ anv_shader_compile_cs(struct anv_device *device,
++@@ -1214,6 +1216,12 @@ anv_shader_compile_cs(struct anv_device *device,
      const struct intel_device_info *devinfo = compiler->devinfo;
      nir_shader *nir = shader_data->info->nir;
   
-@@ -753,7 +795,7 @@
+@@ -2028,7 +2070,7 @@
      shader_data->num_stats = 1;
   
      struct brw_compile_cs_params params = {
--@@ -1245,6 +1843,9 @@ anv_shader_compile_cs(struct anv_device *device,
-+@@ -1245,6 +1885,9 @@ anv_shader_compile_cs(struct anv_device *device,
+-@@ -1245,6 +1252,9 @@ anv_shader_compile_cs(struct anv_device *device,
++@@ -1245,6 +1259,9 @@ anv_shader_compile_cs(struct anv_device *device,
      }
   
      *error_str = params.base.error_str;
+@@ -2234,7 +2276,7 @@
+  #include "ds/intel_tracepoints.h"
+  
+  #include "genX_mi_builder.h"
+-@@ -2694,6 +2696,10 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
++@@ -2694,6 +2698,10 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
+  {
+     uint32_t state_offset;
+  
+@@ -2257,7 +2299,7 @@
+  #include "common/intel_genX_state_brw.h"
+  
+  #include "ds/intel_tracepoints.h"
+-@@ -174,6 +175,10 @@ cmd_buffer_flush_compute_state(struct anv_cmd_buffer *cmd_buffer)
++@@ -174,6 +176,10 @@ cmd_buffer_flush_compute_state(struct anv_cmd_buffer *cmd_buffer)
+                                                &cmd_buffer->state.compute.base),
+        "dirty compute descriptor");
+  
+@@ -2268,7 +2310,7 @@
+     if (cmd_buffer->state.descriptors_dirty & VK_SHADER_STAGE_COMPUTE_BIT) {
+        cmd_buffer->state.descriptors_pointers_dirty |=
+           genX(cmd_buffer_flush_descriptor_sets)(
+-@@ -552,6 +557,9 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
++@@ -552,6 +562,9 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
+  
+     compute_update_async_threads_limit(cmd_buffer, prog_data, &dispatch);
+  
+@@ -2291,7 +2333,7 @@
+  #include "common/intel_compute_slm.h"
+  
+  #include "nir/nir_xfb_info.h"
+-@@ -1212,6 +1214,9 @@ emit_cs_shader(struct anv_batch *batch,
++@@ -1212,6 +1216,9 @@ emit_cs_shader(struct anv_batch *batch,
+        .EmitInlineParameter            = cs_prog_data->uses_inline_push_addr,
+     };
+  
+@@ -2313,7 +2355,7 @@
+    'genX_cmd_buffer.c',
+    'genX_cmd_compute.c',
+    'genX_cmd_draw.c',
+-@@ -157,6 +158,8 @@ libanv_files = files(
++@@ -157,6 +159,8 @@ libanv_files = files(
+    'anv_blorp.c',
+    'anv_buffer.c',
+    'anv_buffer_view.c',
 --- a/patches/mesa-26.3/0001-anv-cm-kernel-injection.patch
 +++ b/patches/mesa-26.3/0001-anv-cm-kernel-injection.patch
-@@ -186,7 +186,7 @@
- index 50731c78..d44525d5 100644
- --- a/src/intel/vulkan/anv_shader_compile.c
- +++ b/src/intel/vulkan/anv_shader_compile.c
--@@ -1069,6 +1069,598 @@ wa_18019110168_load_per_primitive_remap_table(nir_builder *b, void *data)
-+@@ -1069,6 +1069,640 @@ wa_18019110168_load_per_primitive_remap_table(nir_builder *b, void *data)
-     return nir_iand_imm(b, val, ANV_WA_18019110168_PER_PRIMITIVE_REMAP_TABLE_OFFSET_MASK);
-  }
-  
-@@ -385,6 +385,10 @@
- +      struct stat st;
- +      if (stat(dir, &st) == 0)
- +         h = (h ^ (uint32_t)st.st_size) * 16777619u;
-++         /* LOCAL profile generation: the reviewed PRE profile registry
-++          * selects which kernels may use the explicit CMK3 layout; any
-++          * registry change must invalidate previously cached kernels. */
-++         h = (h ^ 0x3ddd809fu) * 16777619u;
- +   }
- +   gen = h;
- +   done = true;
-@@ -673,9 +677,22 @@
- +      return ANV_CM_FAILED;
- +   }
- +   struct cmk_header h;
--+   if (fread(&h, sizeof(h), 1, f) != 1 || memcmp(h.magic, "CMK2", 4) != 0 ||
-++   if (fread(&h, sizeof(h), 1, f) != 1 ||
-++       (memcmp(h.magic, "CMK2", 4) != 0 && memcmp(h.magic, "CMK3", 4) != 0) ||
- +       h.code_size == 0 || h.code_size > (16u << 20)) {
- +      fprintf(stderr, "ANV CM: bad header in %s\n", path);
+@@ -62,7 +62,7 @@
+ index 0000000..d685456
+ --- /dev/null
+ +++ b/src/intel/vulkan/anv_cm.c
+-@@ -0,0 +1,1794 @@
++@@ -0,0 +1,1836 @@
+ +/*
+ + * Copyright © 2026 xess-xmx-linux contributors
+ + * SPDX-License-Identifier: MIT
+@@ -375,6 +375,10 @@
+ +   const char *cmdev = getenv("CM_DEVICE");
+ +   for (const char *c = cmdev ? cmdev : ""; *c; c++)
+ +      h = (h ^ (uint8_t)*c) * 16777619u;
+++   /* LOCAL profile generation: the reviewed PRE profile registry
+++    * selects which kernels may use the explicit CMK3 layout; any
+++    * registry change must invalidate previously cached kernels. */
+++   h = (h ^ 0x3ddd809fu) * 16777619u;
+ +   anv_cm_toolchain_gen_value = h;
+ +}
+ +
+@@ -1611,7 +1615,8 @@
+ +anv_cm_header_ok(const struct anv_device *device, const struct cmk_header *h, const char **why)
+ +{
+ +#define CMK_CHECK(cond, what) do { if (!(cond)) { *why = what; return false; } } while (0)
+-+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0, "magic");
+++   CMK_CHECK(memcmp(h->magic, "CMK2", 4) != 0 &&
+++             memcmp(h->magic, "CMK3", 4) != 0, "magic");
+ +   CMK_CHECK(h->code_size > 0 && h->code_size <= (16u << 20), "code size");
+ +   CMK_CHECK(h->grf_count >= 1 && h->grf_count <= 256, "GRF count");
+ +   CMK_CHECK(h->slm_size <= intel_device_info_get_max_slm_size(device->info), "SLM size");
+@@ -1733,6 +1738,18 @@
+ +   if (fread(&h, sizeof(h), 1, f) != 1 || !anv_cm_header_ok(device, &h, &why)) {
+ +      fprintf(stderr, "ANV CM: bad header in %s (%s; lws %u,%u,%u cross %u per-thread %u surfaces %u)\n",
+ +              path, why, h.lws[0], h.lws[1], h.lws[2], h.cross_size, h.per_thread_size, h.nsurf);
 ++      fclose(f);
 ++      return ANV_CM_FAILED;
 ++   }
@@ -149,7 +231,7 @@
  +      fclose(f);
  +      return ANV_CM_FAILED;
  +   }
-@@ -710,6 +727,31 @@
+@@ -1774,6 +1791,31 @@
  +   memcpy(cs->cm_cross_thread_data, h.cross_data, sizeof(h.cross_data));
  +
  +   const struct vk_shader_compile_info *ci = shader_data->info;
@@ -181,7 +263,7 @@
  +   if (cs->cm_has_sampler) {
  +      const unsigned ns = anv_cm_layout_sampler(ci, cs->cm_sampler_state);
  +      cs->cm_sampler_from_layout = ns > 0;
-@@ -741,7 +783,7 @@
+@@ -1805,7 +1847,7 @@
  +      } else if (h.heap_set < ci->set_layout_count && ci->set_layouts[h.heap_set]) {
  +         l = (const struct anv_descriptor_set_layout *)ci->set_layouts[h.heap_set];
  +      }
@@ -190,21 +272,147 @@
  +         /* vkd3d push constants end with one u32 per descriptor-table root parameter; the kernel's surfaces are
  +          * the last h.nsurf tables (table_idx counts from the first of those) */
  +         uint32_t push_size = 0;
-@@ -785,7 +827,7 @@
-  static void
-  populate_compile_params_mesh(struct brw_compile_params *params,
-                               struct anv_shader_data *shader_data,
--@@ -2472,7 +3064,14 @@ anv_shader_compile(struct vk_device *vk_device,
-+@@ -2472,7 +3106,14 @@ anv_shader_compile(struct vk_device *vk_device,
+@@ -1944,7 +1986,7 @@
+  #include "anv_slab_bo.h"
+  #include "util/u_debug.h"
+  #include "util/os_file.h"
+-@@ -514,6 +515,17 @@ anv_state_pools_init_direct_descriptors(struct anv_device *device)
++@@ -514,6 +516,17 @@ anv_state_pools_init_direct_descriptors(struct anv_device *device)
+  {
+     VkResult result;
+  
+@@ -1962,7 +2004,7 @@
+     result = anv_state_pool_init(&device->dynamic_state_pool, device,
+                                  &(struct anv_state_pool_params) {
+                                     .name         = "dynamic pool",
+-@@ -522,7 +534,7 @@ anv_state_pools_init_direct_descriptors(struct anv_device *device)
++@@ -522,7 +546,7 @@ anv_state_pools_init_direct_descriptors(struct anv_device *device)
+                                     .max_size     = anv_physical_device_get_dynamic_state_pool_va(device->physical)->size,
+                                  });
+     if (result != VK_SUCCESS)
+@@ -1971,7 +2013,7 @@
+  
+     /* The border color pointer is limited to 24 bits, so we need to make
+      * sure that any such color used at any point in the program doesn't
+-@@ -617,6 +629,8 @@ fail_custom_border_color_pool:
++@@ -617,6 +641,8 @@ fail_custom_border_color_pool:
+     anv_state_reserved_array_pool_finish(&device->custom_border_colors);
+  fail_dynamic_state_pool:
+     anv_state_pool_finish(&device->dynamic_state_pool);
+@@ -1980,7 +2022,7 @@
+  fail:
+     return result;
+  }
+-@@ -633,6 +647,7 @@ anv_state_pool_finish_direct_descriptors(struct anv_device *device)
++@@ -633,6 +661,7 @@ anv_state_pool_finish_direct_descriptors(struct anv_device *device)
+     anv_state_pool_finish(&device->scratch_surface_state_pool);
+     anv_state_pool_finish(&device->internal_surface_state_pool);
+     anv_state_pool_finish(&device->dynamic_state_pool);
+@@ -1988,7 +2030,7 @@
+  }
+  
+  static VkResult
+-@@ -1375,6 +1390,9 @@ VkResult anv_CreateDevice(
++@@ -1375,6 +1405,9 @@ VkResult anv_CreateDevice(
+     simple_mtx_init(&device->accel_struct_build.mutex, mtx_plain);
+     simple_mtx_init(&device->fp64_mutex, mtx_plain);
+  
+@@ -2015,7 +2057,7 @@
+  struct anv_shader {
+     struct vk_shader vk;
+  
+-@@ -1294,6 +1300,9 @@ struct anv_shader {
++@@ -1294,6 +1306,9 @@ struct anv_shader {
+  
+     struct anv_pipeline_bind_map bind_map;
+  
+@@ -2038,7 +2080,7 @@
+     anv_shader_heap_free(&device->shader_heap, shader->kernel);
+     if (shader->replay_kernel.alloc_size != 0)
+        anv_shader_heap_free(&device->shader_heap, shader->replay_kernel);
+-@@ -931,6 +933,9 @@ anv_shader_create(struct anv_device *device,
++@@ -931,6 +935,9 @@ anv_shader_create(struct anv_device *device,
+     }
+     shader->vk.scratch_size = shader->prog_data->total_scratch;
+     shader->vk.ray_queries = shader->prog_data->ray_queries;
+@@ -2060,7 +2102,7 @@
+  
+  #include "vk_nir_convert_ycbcr.h"
+  #include "vk_pipeline.h"
+-@@ -2472,7 +2473,14 @@ anv_shader_compile(struct vk_device *vk_device,
++@@ -2472,7 +2474,14 @@ anv_shader_compile(struct vk_device *vk_device,
   
         shader_data->prog_data.base.source_hash = shader_data->source_hash;
   
-@@ -801,7 +843,7 @@
+@@ -2076,7 +2118,7 @@
            struct jay_shader_bin *bin =
               anv_shader_compile_jay(devinfo, mem_ctx, nir, &params, shader_data);
   
--@@ -2497,6 +3096,10 @@ anv_shader_compile(struct vk_device *vk_device,
-+@@ -2497,6 +3138,10 @@ anv_shader_compile(struct vk_device *vk_device,
+-@@ -2497,6 +2505,10 @@ anv_shader_compile(struct vk_device *vk_device,
++@@ -2497,6 +2513,10 @@ anv_shader_compile(struct vk_device *vk_device,
            shader_data->code = brw_compile(compiler, &params);
         }
   
+@@ -2283,7 +2325,7 @@
+  #include "ds/intel_tracepoints.h"
+  
+  #include "genX_mi_builder.h"
+-@@ -2870,6 +2872,20 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
++@@ -2870,6 +2874,20 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
+     return VK_SUCCESS;
+  }
+  
+@@ -2304,7 +2346,7 @@
+  static VkResult
+  emit_samplers(struct anv_cmd_buffer *cmd_buffer,
+                struct anv_bind_point_state *bind_state,
+-@@ -2941,10 +2957,8 @@ genX(cmd_buffer_flush_descriptor_sets)(struct anv_cmd_buffer *cmd_buffer,
++@@ -2941,10 +2973,8 @@ genX(cmd_buffer_flush_descriptor_sets)(struct anv_cmd_buffer *cmd_buffer,
+           break;
+  
+        assert(stage < ARRAY_SIZE(cmd_buffer->state.binding_tables));
+@@ -2317,7 +2359,7 @@
+        if (result != VK_SUCCESS)
+           break;
+  
+-@@ -2978,10 +2992,8 @@ genX(cmd_buffer_flush_descriptor_sets)(struct anv_cmd_buffer *cmd_buffer,
++@@ -2978,10 +3006,8 @@ genX(cmd_buffer_flush_descriptor_sets)(struct anv_cmd_buffer *cmd_buffer,
+              anv_batch_set_error(&cmd_buffer->batch, result);
+              return 0;
+           }
+@@ -2342,7 +2384,7 @@
+  #include "common/intel_genX_state_brw.h"
+  
+  #include "ds/intel_tracepoints.h"
+-@@ -195,6 +196,10 @@ cmd_buffer_flush_compute_state(struct anv_cmd_buffer *cmd_buffer,
++@@ -195,6 +197,10 @@ cmd_buffer_flush_compute_state(struct anv_cmd_buffer *cmd_buffer,
+        genX(cmd_buffer_flush_push_descriptors)(cmd_buffer, bind_state),
+        "dirty compute descriptor");
+  
+@@ -2353,7 +2395,7 @@
+     if (!cmd_buffer->device->physical->uses_efficient_64bit &&
+         (cmd_buffer->state.descriptors_dirty & VK_SHADER_STAGE_COMPUTE_BIT)) {
+        if (indirect_set != NULL) {
+-@@ -665,6 +670,9 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
++@@ -665,6 +675,9 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
+  
+     compute_update_async_threads_limit(cmd_buffer, prog_data, &dispatch);
+  
+@@ -2376,7 +2418,7 @@
+  #include "common/intel_common.h"
+  #include "common/intel_compute_slm.h"
+  
+-@@ -1253,6 +1255,9 @@ emit_cs_shader(struct anv_batch *batch,
++@@ -1253,6 +1257,9 @@ emit_cs_shader(struct anv_batch *batch,
+           .EmitInlineParameter            = shader->bind_map.inline_dwords_count > 0,
+        };
+  
+@@ -2413,7 +2455,7 @@
+    'genX_cmd_buffer.c',
+    'genX_cmd_compute.c',
+    'genX_cmd_dgc.c',
+-@@ -194,6 +195,8 @@ libanv_files = files(
++@@ -194,6 +196,8 @@ libanv_files = files(
+    'anv_blorp.c',
+    'anv_buffer.c',
+    'anv_buffer_view.c',

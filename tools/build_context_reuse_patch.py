@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Build the context-reuse candidate on top of the context-output candidate.
 
-Pinned upstream source: ef39559d26e083ce1bd1353b2e8c86f33c3c264c (SHA-256 below).
+Pinned upstream source: 662dc6e8787c1e9ed43e09ef73733046bc1b8dc3 (SHA-256 below).
+Upstream now copies the legacy context outputs itself; 0002 keeps that copy in
+the shared helper below and 0003 reuses it for the early-return reuse paths.
 Does NOT modify the upstream checkout. Output applies with `patch -p1` AFTER
 patches/0002-shim-context-output.patch (stack order 0002 -> 0003).
 

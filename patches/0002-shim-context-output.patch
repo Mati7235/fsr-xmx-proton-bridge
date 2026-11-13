@@ -24,36 +24,28 @@
  HRESULT _INTC_D3D12_CreateDeviceExtensionContext(
      const ID3D12Device*    pDevice,
      INTCExtensionContext** ppExtensionContext,
-@@ -349,7 +366,7 @@
-     }
- 
-     // D3D12ExtensionContext::InitExtensions expects the extended INTCExtensionInfo1 layout;
--    // only RequestedExtensionVersion is meaningful since the stub never writes device info back.
-+    // Preserve the requested input; copy the compatible outputs back only on success.
-     INTCExtensionInfo1 extensionInfo1;
-     memset(&extensionInfo1, 0, sizeof(INTCExtensionInfo1));
-     extensionInfo1.RequestedExtensionVersion = pExtensionInfo->RequestedExtensionVersion;
-@@ -415,6 +432,7 @@
+@@ -415,12 +432,7 @@
          return result;
      }
  
+-    // Hand the device and driver description back through the caller's (older, smaller) INTCExtensionInfo:
+-    // XeSS and XeLL use these entry points and read GTGeneration and the driver version string from it.
+-    pExtensionInfo->IntelDeviceInfo        = static_cast<const INTCDeviceInfo&>(extensionInfo1.IntelDeviceInfo);
+-    pExtensionInfo->pDeviceDriverDesc      = extensionInfo1.pDeviceDriverDesc;
+-    pExtensionInfo->pDeviceDriverVersion   = extensionInfo1.pDeviceDriverVersion;
+-    pExtensionInfo->DeviceDriverBuildNumber = extensionInfo1.DeviceDriverBuildNumber;
 +    CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1);
      *ppExtensionContext = pExtensionContext;
  
      return result;
-@@ -432,7 +450,7 @@
-     }
- 
-     // D3D12ExtensionContext::InitExtensions expects the extended INTCExtensionInfo1 layout;
--    // only RequestedExtensionVersion is meaningful since the stub never writes device info back.
-+    // Preserve the requested input; copy the compatible outputs back only on success.
-     INTCExtensionInfo1 extensionInfo1;
-     memset(&extensionInfo1, 0, sizeof(INTCExtensionInfo1));
-     extensionInfo1.RequestedExtensionVersion = pExtensionInfo->RequestedExtensionVersion;
-@@ -489,6 +507,7 @@
+@@ -495,10 +507,7 @@
          return result;
      }
  
+-    pExtensionInfo->IntelDeviceInfo        = static_cast<const INTCDeviceInfo&>(extensionInfo1.IntelDeviceInfo);
+-    pExtensionInfo->pDeviceDriverDesc      = extensionInfo1.pDeviceDriverDesc;
+-    pExtensionInfo->pDeviceDriverVersion   = extensionInfo1.pDeviceDriverVersion;
+-    pExtensionInfo->DeviceDriverBuildNumber = extensionInfo1.DeviceDriverBuildNumber;
 +    CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1);
      *ppExtensionContext = pExtensionContext;
  

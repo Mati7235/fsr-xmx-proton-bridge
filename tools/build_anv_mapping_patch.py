@@ -28,7 +28,7 @@ def recount(text):
     for i, line in enumerate(lines):
         if line.startswith('diff --git '):
             delta = 0
-        match = re.match(r'@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@(.*)', line)
+        match = re.match(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)', line)
         if not match:
             continue
         end = i+1
@@ -38,8 +38,8 @@ def recount(text):
             end += 1
         old = sum(l.startswith((' ', '-')) for l in lines[i+1:end])
         new = sum(l.startswith((' ', '+')) for l in lines[i+1:end])
-        start = int(match.group(1))
-        lines[i] = f'@@ -{start},{old} +{start+delta},{new} @@{match.group(2)}\n'
+        old_start, new_start = int(match.group(1)), int(match.group(2))
+        lines[i] = f'@@ -{old_start},{old} +{new_start+delta},{new} @@{match.group(3)}\n'
         delta += new-old
     return ''.join(lines)
 
@@ -47,20 +47,18 @@ def recount(text):
 def adapt(text):
     gen = registry_gen(load_registry())
     text = once(text,
-        '+      if (stat(dir, &st) == 0)\n'
-        '+         h = (h ^ (uint32_t)st.st_size) * 16777619u;\n',
-        '+      if (stat(dir, &st) == 0)\n'
-        '+         h = (h ^ (uint32_t)st.st_size) * 16777619u;\n'
-        '+         /* LOCAL profile generation: the reviewed PRE profile registry\n'
-        '+          * selects which kernels may use the explicit CMK3 layout; any\n'
-        '+          * registry change must invalidate previously cached kernels. */\n'
-        f'+         h = (h ^ 0x{gen}u) * 16777619u;\n')
+        '+   anv_cm_toolchain_gen_value = h;\n',
+        '+   /* LOCAL profile generation: the reviewed PRE profile registry\n'
+        '+    * selects which kernels may use the explicit CMK3 layout; any\n'
+        '+    * registry change must invalidate previously cached kernels. */\n'
+        f'+   h = (h ^ 0x{gen}u) * 16777619u;\n'
+        '+   anv_cm_toolchain_gen_value = h;\n')
     text = once(text,
-        '+   if (fread(&h, sizeof(h), 1, f) != 1 || memcmp(h.magic, "CMK2", 4) != 0 ||\n',
-        '+   if (fread(&h, sizeof(h), 1, f) != 1 ||\n'
-        '+       (memcmp(h.magic, "CMK2", 4) != 0 && memcmp(h.magic, "CMK3", 4) != 0) ||\n')
+        '+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0, "magic");\n',
+        '+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) != 0 &&\n'
+        '+             memcmp(h->magic, "CMK3", 4) != 0, "magic");\n')
     text = once(text,
-        '+   void *code = ralloc_size(mem_ctx, h.code_size);\n',
+        '+   /* the binding table is built from the direct descriptor layout */\n',
         '+   /* LOCAL CMK3 prototype: two extra u32 fields precede native code.\n'
         '+    * Old CMK2 readers reject its magic; CMK2 behavior remains unchanged. */\n'
         '+   const bool explicit_table_base = memcmp(h.magic, "CMK3", 4) == 0;\n'
@@ -73,7 +71,7 @@ def adapt(text):
         '+      fclose(f);\n'
         '+      return ANV_CM_FAILED;\n'
         '+   }\n'
-        '+   void *code = ralloc_size(mem_ctx, h.code_size);\n')
+        '+   /* the binding table is built from the direct descriptor layout */\n')
     marker = '+   const struct vk_shader_compile_info *ci = shader_data->info;\n+   if (cs->cm_has_sampler) {'
     validation = '''+   const struct vk_shader_compile_info *ci = shader_data->info;
 +   if (explicit_table_base) {

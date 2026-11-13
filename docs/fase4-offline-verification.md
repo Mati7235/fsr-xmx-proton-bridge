@@ -4,6 +4,12 @@ Objetivo cumplido: el puente queda en estado candidato, compilado y
 CPU-probado, a la espera de que la traza Fase 1 confirme el layout real.
 No se instaló nada, no se tocó Steam/prefijos, no se ejecutó DLL/GPU/Wine.
 
+> Actualización 2026-11-13: los parches se regeneraron contra `662dc6e`.
+> El registry sigue con 2 entradas y `registry_gen()=0x3ddd809f`; la suite
+> completa pasa 415 tests (3 skips) y el cross-build nuevo está en
+> `docs/shim-cross-build.md`. Las cifras de la tabla siguiente son la
+> corrida histórica sobre `ef39559`.
+
 ## Verificado en esta fase
 
 | Pieza | Evidencia |

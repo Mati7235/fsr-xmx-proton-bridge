@@ -1,21 +1,60 @@
 # Regeneración del puente XMX 4.1.2 (CPU-only, sin commit)
 
 Alcance: re-correr los 3 builders y confirmar determinismo + `apply --check`
-contra upstream `ef39559`, cross-compilar el shim con el stack 0002→0003,
-probar que el registry aceptará una segunda entrada sin cambios de código,
-y fijar la secuencia exacta para regenerar 0001 cuando exista el perfil 4.1.2.
+contra upstream, cross-compilar el shim con el stack 0002→0003, probar que el
+registry aceptará una segunda entrada sin cambios de código, y fijar la
+secuencia exacta para regenerar 0001 cuando exista el perfil 4.1.2.
+
+La corrida original (2026-11-12) se hizo contra `ef39559`. La sección de
+actualización siguiente revalida todo contra `662dc6e`; las secciones (a)–(d)
+se conservan como registro histórico de la corrida anterior.
 
 Límites respetados: sin ejecutar DLLs, sin GPU/Wine, sin instalar nada, sin
 tocar `artifacts/original`, `upstream/`, juegos ni prefijos. Compilación
 offline del shim con LLVM-MinGW permitida (precedente
-`docs/shim-cross-build.md`). Parches regenerados solo a `/tmp`; no se
-sobrescribió ningún archivo versionado. Sin commit.
+`docs/shim-cross-build.md`). En la corrida histórica los parches se
+regeneraron solo a `/tmp`; la actualización 2026-11-13 sí reemplazó los tres
+parches versionados tras adaptar los builders. Sin commit.
 
-Verdictos de `docs/xmx412-bridge-recheck.md` vigentes: mantener
-0002/0003/0001, registry con 1 entrada, `registry_gen=0x912cda6a`,
-`GetCachedBlob` en `E_NOTIMPL`, `rootParameters==13` esperado por DIAG.
+## Actualización 2026-11-13: base `662dc6e`
 
-## (a) Determinismo de builders + `apply --check` (sin deriva)
+Drift `ef39559..662dc6e`: 178 commits, 150 archivos, +27.845/−6.289 líneas.
+El listado completo de commits/archivos queda en
+`analysis/upstream-drift-662dc6e.md` (ignorado por Git). Solapes con nuestros
+contextos:
+
+- `shim/src/dll/IgdextApiDll.cpp`: commit `8f45d12` ya copia los outputs de
+  contexto en ambos exports legacy. 0002 ahora conserva el helper compartido y
+  reemplaza esas copias inline; 0003 sigue reutilizando el helper.
+- `tools/cmk_pack.py`, `tools/cm-compile.sh`: nuevos límites de scratch/private
+  memory, opción `CM_OUT_DIR`, empaquetado CMK2 movido al driver y nombres
+  temporales por proceso. Nuestro formato CMK3 y `registry_gen` no cambian.
+- `patches/0001-anv-cm-kernel-injection.patch` (ambas variantes): reescritura
+  del lector/empaquetador en `anv_cm.c` nuevo, con `anv_cm_header_ok` y
+  `ANV_CM_HEADER_SIZE=472`. El builder se adaptó a esos anclajes; la validación
+  CMK3 (base explícita, tamaño push exacto, cobertura por rango) se conserva.
+- `layer/`: lector/empaquetador CMK2 nuevo para ANV sin parchear. Es una ruta
+  paralela y **no** entiende CMK3; fuera del alcance de estos parches.
+- `docs/`: reescritura y reorganización (`docs/dev/`). Los pines de este repo
+  se actualizaron por separado.
+
+Resultado de la revalidación:
+
+| Pieza | Determinismo | `apply --check` | SHA-256 checked-in |
+|---|---|---|---|
+| 0002 | idéntico al builder | OK | `fc00a77d…93f263` |
+| 0003 | idéntico al builder | OK solo; orden 0002→0003 | `ef8112d4…554f0c` |
+| 0001 | idéntico al builder | OK | `88e134a0…d9f2e4` |
+
+- Fuente shim: SHA-256 `6d32d934…252696`, revisión
+  `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
+- `registry_gen()` sigue en **`3ddd809f`** (registry de 2 entradas sin cambios).
+- Cross-build del shim: 14/14, DLL 861.184 B
+  `0a0b5462…ca8cf8`, 79 exports, imports KERNEL32/ADVAPI32/UCRT.
+- Suite completa: **415 tests OK, 3 skips** (`python3 -m unittest discover -s tests`).
+- Sin commit; cambios dejados en el árbol de trabajo.
+
+## (a) Determinismo de builders + `apply --check` (corrida histórica ef39559)
 
 Comandos (solo lectura/escritura a `/tmp`, sin modificar el repo):
 

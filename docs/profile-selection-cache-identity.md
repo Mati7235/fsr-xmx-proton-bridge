@@ -26,7 +26,8 @@ heap). Two gaps remained (`docs/offline-pre-compilation.md:114`):
   kernel therefore behave exactly as before.
 - **Cache identity bump.** `tools/build_anv_mapping_patch.py` now mixes a
   stable digest of the canonical registry content
-  (`registry_gen()`, FNV-1a 32-bit, currently `0x912cda6a`) into
+  (`registry_gen()`, FNV-1a 32-bit, currently `0x3ddd809f` for the two-entry
+  registry) into
   `anv_cm_toolchain_gen` in **both** inner Mesa patches. Any registry change
   changes the per-user cache file names, so stale `.cmk` files compiled
   under an older profile are never reused. The regenerated candidate is

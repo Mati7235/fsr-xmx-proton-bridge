@@ -10,7 +10,8 @@ Análisis estático del 2026-10-22. No se ejecutó código de los paquetes.
 | OptiScaler_v10.0.0-pre_20261022.7z | `df1380aa37fc17b26524e783f12ccb2f59cb67f966af13240bca3d4cd608a25a` |
 | DLL extraída del mod XMX | `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53` |
 
-Upstream analizado: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+Upstream analizado originalmente: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+Base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
 Las líneas siguientes son relativas a `upstream/xess-xmx-linux/`;
 para parches se refieren al archivo del parche, no al archivo final de Mesa.
 
