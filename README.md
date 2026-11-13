@@ -31,6 +31,20 @@ Contexto de upstream: FSR 4 sobre XMX ya estaba soportado en `xess-xmx-linux`
 y se abandonó como dirección de producto en noviembre de 2026, no por un
 bloqueo técnico. Ver `docs/upstream-fsr4-status.md`.
 
+## Videos de comparación
+
+| Variante | Video |
+|---|---|
+| Nativo | [`ref-native.mp4`](media/quality-cp77/ref-native.mp4) |
+| XeSS | [`xess.mp4`](media/quality-cp77/xess.mp4) |
+| FSR 4.1.2 INT8 | [`fsr4-int8.mp4`](media/quality-cp77/fsr4-int8.mp4) |
+| FSR 4.1.2 Lite | [`fsr4-lite.mp4`](media/quality-cp77/fsr4-lite.mp4) |
+
+Cargá el nativo como A y una variante como B en
+[hallo.io](https://hallo.io/tools/video/video-compare), elegí `Slider` y
+arrastrá el divisor. Los stills de 800x450 están en
+[`media/quality-cp77/stills/`](media/quality-cp77/stills/).
+
 ## Arquitectura
 
 1. Driver ANV parcheado: inyecta y compila kernels CM con ocloc en runtime.
