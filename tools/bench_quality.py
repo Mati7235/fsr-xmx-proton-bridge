@@ -79,6 +79,40 @@ def longest_run(mask):
     return best_start, best_len
 
 
+def motion_score(thumbs):
+    """Mean absolute difference between consecutive thumbnails: high while the camera moves."""
+    if len(thumbs) < 2:
+        return np.zeros(0, dtype=np.float32)
+    diff = np.abs(np.diff(thumbs.astype(np.int16), axis=0)).mean(axis=(1, 2))
+    return diff.astype(np.float32)
+
+
+def best_window(mask, motion, length, min_similar=0.9):
+    """Window of `length` frames with the most moving seconds among similar frames.
+
+    The benchmark moves the camera for its whole duration; menus and loading
+    screens are static even when they look the same across runs. Counting
+    moving seconds beats averaging, because a single hard cut would otherwise
+    inflate the score of a window that includes the menu.
+    """
+    n = len(mask)
+    length = min(length, n)
+    threshold = max(1e-3, 0.2 * float(motion.max())) if len(motion) else 1.0
+    best = None
+    for start in range(0, n - length + 1):
+        if mask[start:start + length].mean() < min_similar:
+            continue
+        seg = motion[start:start + length - 1]
+        moving = float((seg > threshold).mean()) if len(seg) else 0.0
+        mean = float(seg.mean()) if len(seg) else 0.0
+        key = (moving, mean)
+        if best is None or key > best[0]:
+            best = (key, start, length)
+    if best is None:
+        return None
+    return best[0][1], best[1], best[2]
+
+
 def extract_frame(path, t, out_png):
     run(["ffmpeg", "-v", "error", "-y", "-i", path, "-ss", f"{t:.3f}",
          "-frames:v", "1", out_png])
@@ -151,6 +185,8 @@ def main():
     p_rep.add_argument("--alt", action="append", required=True, help="label=path")
     p_rep.add_argument("--out", required=True, help="output directory")
     p_rep.add_argument("--positions", default="0.15,0.35,0.55,0.75,0.9")
+    p_rep.add_argument("--length", type=float, default=64.0,
+                       help="seconds of benchmark to look for (default 64, Cyberpunk's is 64.2); 0 disables")
     p_rep.add_argument("--crop", default="", help="x,y,w,h in source pixels")
     p_rep.add_argument("--similarity", type=float, default=120.0,
                        help="max mean squared error on thumbnails to consider the same scene")
@@ -189,7 +225,17 @@ def main():
     combined = np.ones(common_len, dtype=bool)
     for a0, mask in masks:
         combined &= mask[:common_len]
-    run_start, run_len = longest_run(combined)
+    motion = motion_score(ref_thumbs[base:base + common_len])
+    if args.length > 0:
+        found = best_window(combined, motion, int(round(args.length)))
+        if found is None:
+            print("no common window of that length; lower --length or raise --similarity",
+                  file=sys.stderr)
+            return 2
+        score, run_start, run_len = found
+        print(f"window chosen by motion: {score:.2f} mean thumbnail difference")
+    else:
+        run_start, run_len = longest_run(combined)
     if run_len < 10:
         print("no common gameplay window found; lower --similarity or check the recordings",
               file=sys.stderr)

@@ -50,7 +50,11 @@ Qué hace:
 1. Saca miniaturas a 1 fps de cada video y alinea cada una contra la
    referencia por correlación de contenido (el bench tiene cámara fija, así
    que el offset es estable).
-2. Detecta la ventana común de gameplay, ignorando menús y carga.
+2. Detecta la ventana de gameplay: ignora menú y carga buscando el tramo de
+   64 segundos (duración del bench de Cyberpunk) con más segundos en
+   movimiento y contenido similar entre corridas. Un menú estático no compite
+   con una cámara que se mueve todo el tiempo. Si tu bench dura otra cosa,
+   pasá `--length`.
 3. Extrae el mismo frame de cada video en posiciones normalizadas.
 4. Calcula por frame:
    - **PSNR y SSIM** contra la referencia nativa.

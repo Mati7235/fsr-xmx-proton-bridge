@@ -54,5 +54,35 @@ class LongestRunTests(unittest.TestCase):
         self.assertEqual(longest_run([False] * 4), (0, 0))
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/Pillow not available")
+class WindowTests(unittest.TestCase):
+    def test_motion_score_is_zero_for_static_frames(self):
+        from tools.bench_quality import motion_score
+        frames = np.full((5, 9, 16), 128, dtype=np.uint8)
+        self.assertTrue(np.allclose(motion_score(frames), 0.0))
+
+    def test_motion_score_grows_with_change(self):
+        from tools.bench_quality import motion_score
+        frames = np.zeros((5, 9, 16), dtype=np.uint8)
+        frames[1:] = 200
+        self.assertGreater(float(motion_score(frames).mean()), 0.0)
+
+    def test_best_window_prefers_the_moving_part(self):
+        from tools.bench_quality import best_window
+        mask = np.ones(20, dtype=bool)
+        motion = np.zeros(19, dtype=np.float32)
+        motion[10:17] = 5.0  # a moving stretch in the middle
+        score, start, length = best_window(mask, motion, 7)
+        self.assertEqual(length, 7)
+        self.assertEqual(start, 10)
+        self.assertAlmostEqual(score, 5.0, places=5)
+
+    def test_best_window_returns_none_when_too_dissimilar(self):
+        from tools.bench_quality import best_window
+        mask = np.zeros(20, dtype=bool)
+        motion = np.zeros(19, dtype=np.float32)
+        self.assertIsNone(best_window(mask, motion, 5))
+
+
 if __name__ == "__main__":
     unittest.main()
