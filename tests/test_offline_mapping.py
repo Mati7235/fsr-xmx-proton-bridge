@@ -128,11 +128,59 @@ class ReaderPatchTests(unittest.TestCase):
                          'patches/mesa-26.3/0001-anv-cm-kernel-injection.patch']:
             original = (ROOT/'upstream/xess-xmx-linux'/relative).read_text()
             updated = adapt(original)
-            self.assertIn('memcmp(h->magic, "CMK2", 4) != 0', updated)
-            self.assertIn('memcmp(h->magic, "CMK3", 4) != 0, "magic"', updated)
+            self.assertIn('memcmp(h->magic, "CMK2", 4) == 0 ||', updated)
+            self.assertIn('memcmp(h->magic, "CMK3", 4) == 0, "magic"', updated)
             self.assertIn('if (auto_heap && !explicit_table_base)', updated)
             self.assertIn('push_size == mapping[1]', updated)
             self.assertIn('off + 4 <= push_size', updated)
+
+    @unittest.skipUnless(shutil.which('cc'), 'C compiler absent')
+    def test_magic_gate_accepts_cmk2_and_cmk3_and_rejects_unknown(self):
+        """The generated magic gate must run: CMK2 and CMK3 pass, garbage fails.
+
+        Extracting only the text would not catch an inverted comparison, which
+        would reject every real kernel at runtime (XeSS falls back to DP4a).
+        """
+        original = (ROOT/'upstream/xess-xmx-linux/patches/0001-anv-cm-kernel-injection.patch').read_text()
+        added = '\n'.join(l[1:] for l in adapt(original).splitlines() if l.startswith('+') and not l.startswith('+++'))
+        macro = added[added.index('#define CMK_CHECK'):]
+        macro = macro[:macro.index('\n') + 1]
+        gate = [l for l in added.splitlines()
+                if l.strip().startswith('CMK_CHECK(memcmp(h->magic') or l.strip().startswith('memcmp(h->magic')]
+        self.assertTrue(gate, 'magic gate not found in generated reader')
+        harness = '''#include <string.h>
+#include <stdbool.h>
+#include <stdio.h>
+struct header { char magic[4]; };
+static bool header_ok(const struct header *h, const char **why)
+{
+''' + macro + '   ' + '\n   '.join(l.strip() for l in gate) + '''
+   return true;
+}
+static int check(const char *magic) {
+   const char *why = NULL;
+   struct header h;
+   memcpy(h.magic, magic, 4);
+   return header_ok(&h, &why) ? 0 : 1;
+}
+int main(void) {
+   int failures = 0;
+   if (check("CMK2") != 0) { fputs("CMK2 rejected\\n", stderr); failures++; }
+   if (check("CMK3") != 0) { fputs("CMK3 rejected\\n", stderr); failures++; }
+   if (check("BAD!") != 1) { fputs("garbage accepted\\n", stderr); failures++; }
+   if (check("CMK1") != 1) { fputs("CMK1 accepted\\n", stderr); failures++; }
+   return failures ? 1 : 0;
+}
+'''
+        with tempfile.TemporaryDirectory(prefix='cmk-magic-test-') as temp:
+            source = Path(temp)/'test.c'
+            binary = Path(temp)/'test'
+            source.write_text(harness)
+            result = subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     @unittest.skipUnless(shutil.which('cc'), 'C compiler absent')
     def test_actual_inserted_c_validation_with_synthetic_layouts(self):

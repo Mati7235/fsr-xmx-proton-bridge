@@ -25,8 +25,8 @@
  +{
  +#define CMK_CHECK(cond, what) do { if (!(cond)) { *why = what; return false; } } while (0)
 -+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0, "magic");
-++   CMK_CHECK(memcmp(h->magic, "CMK2", 4) != 0 &&
-++             memcmp(h->magic, "CMK3", 4) != 0, "magic");
+++   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0 ||
+++             memcmp(h->magic, "CMK3", 4) == 0, "magic");
  +   CMK_CHECK(h->code_size > 0 && h->code_size <= (16u << 20), "code size");
  +   CMK_CHECK(h->grf_count >= 1 && h->grf_count <= 256, "GRF count");
  +   CMK_CHECK(h->slm_size <= intel_device_info_get_max_slm_size(device->info), "SLM size");
@@ -207,8 +207,8 @@
  +{
  +#define CMK_CHECK(cond, what) do { if (!(cond)) { *why = what; return false; } } while (0)
 -+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0, "magic");
-++   CMK_CHECK(memcmp(h->magic, "CMK2", 4) != 0 &&
-++             memcmp(h->magic, "CMK3", 4) != 0, "magic");
+++   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0 ||
+++             memcmp(h->magic, "CMK3", 4) == 0, "magic");
  +   CMK_CHECK(h->code_size > 0 && h->code_size <= (16u << 20), "code size");
  +   CMK_CHECK(h->grf_count >= 1 && h->grf_count <= 256, "GRF count");
  +   CMK_CHECK(h->slm_size <= intel_device_info_get_max_slm_size(device->info), "SLM size");

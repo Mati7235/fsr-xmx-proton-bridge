@@ -55,8 +55,8 @@ def adapt(text):
         '+   anv_cm_toolchain_gen_value = h;\n')
     text = once(text,
         '+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0, "magic");\n',
-        '+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) != 0 &&\n'
-        '+             memcmp(h->magic, "CMK3", 4) != 0, "magic");\n')
+        '+   CMK_CHECK(memcmp(h->magic, "CMK2", 4) == 0 ||\n'
+        '+             memcmp(h->magic, "CMK3", 4) == 0, "magic");\n')
     text = once(text,
         '+   /* the binding table is built from the direct descriptor layout */\n',
         '+   /* LOCAL CMK3 prototype: two extra u32 fields precede native code.\n'
