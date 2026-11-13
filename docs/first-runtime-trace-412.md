@@ -70,7 +70,22 @@ Ningún dispatch PRE fue autorizado ni ejecutado por el agente.
   fallback de sampler sea la causa del ruido. El overlay y el timing
   no son veredicto.
 
-## Pendiente
+## Paso 1 cerrado (2026-11-12, post-sesión)
+
+Correlación `map.txt`→caché: `dyn_60.spv` (PRE, 358.873 B) = kernel id
+`e8fca351200197b3` = `.cmk` de 30.936 B con magia `CMK2` (formato:
+header + binario compilado del zebin, según `cmk_pack.py` del upstream).
+ANV compiló el PRE (`cm-compile ok ... from dyn_60.spv`) y lo inyectó:
+las 4 líneas `samples but the pipeline layout has 0 static samplers
+(using linear/clamp)` SON el log de inyección del PRE.
+
+ANV no lo rechazó explícitamente: el puente falla abierto (fallback).
+El PRE corrió en GPU con: LWS del shim, sampler fallback linear/clamp
+y layout auto-inferido (gen `0913d3f4` del bridge instalado, sin gate
+de perfil). Sospechosos del ruido, en orden: layout base auto (8) vs 4
+correcto (desfase documentado), sampler fallback vs dinámico, LWS.
+Nuestros parches (0002/0003/0001+registry `3ddd809f`) atacan exactamente
+esto y no están instalados.
 
 1. RenderDoc frame con el upscaler activo (formatos reales).
 2. Confirmar destino del PRE en ANV (compilado / rechazado / no-op).
