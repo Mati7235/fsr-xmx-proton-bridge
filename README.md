@@ -19,6 +19,9 @@ Ver: `docs/first-fsr-xmx-success.md` y `docs/rebuild-20261113.md`.
   confirmados por log (`INT8 model:` y `Lite model: 2`) y por sets de kernels
   distintos. FPS en `docs/cyberpunk-bench-20261113.md`; calidad en
   `docs/cyberpunk-quality-20261113.md`.
+- Probado en SCP: 5K (UE4.27.2, DX12): 4.1.2X INT8 y Lite, con inyección
+  XMX confirmada por log y render en partida; ver
+  `docs/scp5k-fsr4xmx-20261114.md`.
 - No probado todavía: el camino DLSS. Los pesos Lite/INT8 están verificados a
   nivel archivo.
 - Verificado a nivel kernel: inyección, sampler heap, 11 recursos FSR4,
@@ -75,6 +78,7 @@ están en [`media/quality-cp77/stills/`](media/quality-cp77/stills/).
 | `docs/bench-quality.md` | Grabación lossless, recorte del bench y métricas de calidad |
 | `docs/cyberpunk-bench-20261113.md` | FPS en Cyberpunk: nativo, XeSS, FSR INT8 y Lite |
 | `docs/cyberpunk-quality-20261113.md` | Calidad medida en Cyberpunk y límites del método |
+| `docs/scp5k-fsr4xmx-20261114.md` | Setup y evidencia de SCP: 5K con FSR 4.1.2 XMX |
 
 ## Herramientas (`tools/`)
 
