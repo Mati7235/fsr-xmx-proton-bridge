@@ -91,3 +91,19 @@ version-string) y encima el mismo `0005` **sin cambios: aplicó limpio
 (`apply --check` OK antes y después de los parches de GE), así que no hay
 `0005-...-ge.patch` separado**. Build en `build/vkd3d-coopmat-ge/` con el
 mismo cross file y `.venv`; ver `build/vkd3d-coopmat-ge/BUILD.md`.
+
+`0006-vkd3d-load-amdxc-env.patch` (P0 probe, 2026-11-22) agrega una rama
+opt-in en `d3d12_device_init_vendor_hacks`: con `VKD3D_LOAD_AMDXC=1` hace
+`LoadLibraryA("amdxc64.dll")` sin mirar el `vendorID`, para que el shim
+local del prefijo descartable quede cargado antes de que
+`amd_fidelityfx_framegeneration_dx12.dll` lo busque con
+`GetModuleHandleA/W` (el hack original sólo lo carga para `0x1002`). Sólo
+carga la DLL: todas las respuestas siguen viniendo del shim. Sin la
+variable el comportamiento es idéntico.
+
+sha256: `f628e19829ada97a6cb02a4980184de2a71440c34b0d642ec05c019db0b8f63f`.
+Aplicado sobre `upstream/vkd3d-proton-ge` (después de GE 0001–0003 y
+0005), `git apply --check` OK. Build en
+`build/vkd3d-coopmat-ge-0006/` (mismo cross file y `.venv`, `-j6`);
+DLLs en `dist/`, hashes en su `BUILD.md`. **No instalado en ningún
+Proton/prefijo.** Runbook: `analysis/fg-401-static/p0-gate-probe.md`.
