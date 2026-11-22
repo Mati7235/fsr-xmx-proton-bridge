@@ -344,6 +344,7 @@ static void write_log_line(const char *line, shim_u32 len)
     if (h == INVALID_HANDLE_VALUE)
         return;
     WriteFile(h, line, len, &written, NULL);
+    WriteFile(h, "\r\n", 2, &written, NULL);
     CloseHandle(h);
 }
 
@@ -524,7 +525,8 @@ static shim_i32 SHIM_CALL factory_create_interface(shim_object *self,
     line_guid(&line, (const shim_guid *)iid);
     line_str(&line, " (");
     line_str(&line, iid_name(iid));
-    line_str(&line, ")");
+    line_str(&line, ") dev=0x");
+    line_hex(&line, (shim_u64)outer, 16);
     log_end(&line, hr);
     return hr;
 }
@@ -585,7 +587,7 @@ SHIM_EXPORT shim_i32 SHIM_CALL AmdExtD3DCreateInterface(void *outer,
     shim_line line;
     shim_i32 hr = E_NOINTERFACE_;
 
-    if (out == NULL)
+    if (out == NULL || iid == NULL)
         return E_POINTER_;
     *out = NULL;
 
@@ -606,7 +608,8 @@ SHIM_EXPORT shim_i32 SHIM_CALL AmdExtD3DCreateInterface(void *outer,
     line_guid(&line, (const shim_guid *)iid);
     line_str(&line, " (");
     line_str(&line, iid_name(iid));
-    line_str(&line, ")");
+    line_str(&line, ") dev=0x");
+    line_hex(&line, (shim_u64)outer, 16);
     log_end(&line, hr);
     return hr;
 }
