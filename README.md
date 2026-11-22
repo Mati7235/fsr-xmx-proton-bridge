@@ -14,49 +14,31 @@ explains which parts belong to other authors.
 
 ## How to install it
 
-Two steps. The driver runs once per machine; the game step runs once per game.
-Both come as folders that carry the `fsr-xmx` command, so a player never needs
-this repository. `python3 tools/build_release.py` produces them under
-`build/release/`.
-
-The driver step needs root because it writes to `/usr`, `/opt` and `/etc`, and it
-changes the Vulkan driver for every account on the machine. Put the driver bundle
-into the driver folder (`fsr-xmx-driver`), then:
+Run the driver step once per machine. It needs root because it writes to `/usr`,
+`/opt` and `/etc`, and it changes the Vulkan driver for every account:
 
 ```bash
 cd fsr-xmx-driver
-sudo ./install.sh --from <bundle folder>
+sudo ./install.sh
 ```
 
-It takes a `snapper` snapshot first when `snapper` is installed, adds a second Vulkan
-ICD next to Mesa's own file instead of replacing it, and writes
-`/etc/environment.d/fsr-xmx.conf`. Log out and back in afterwards; the script also
-prints the one-line `export` for the session you are in.
+It takes a `snapper` snapshot when installed and adds a Vulkan ICD next to
+Mesa's own file instead of replacing it, plus `/etc/environment.d/fsr-xmx.conf`,
+which sessions read at login. Log out and back in afterwards.
 
-The game step is per game. Copy the game folder (`fsr-xmx-game`) into the folder
-with the game's `.exe` (for Cyberpunk 2077 that is `.../bin/x64`), put the files
-from `PUT-THE-FILES-HERE.txt` there, and run:
+The game step runs once per game, where the game's `.exe` is (for Cyberpunk
+2077, `.../bin/x64`), after you copy the files from `PUT-THE-FILES-HERE.txt`:
 
 ```bash
 cd ".../bin/x64"
 ./install.sh
 ```
 
-It checks the game's `.exe`, the third-party files and their sha256 before copying
-anything, backs up what it overwrites into `.fsr-xmx-backup/<timestamp>/`, and prints
-the single line to paste into the Steam launch options. The mod has to sit next to
-the `.exe` because Wine looks for it there, not in the system.
-
-To undo, run `./uninstall.sh` in the game folder, then `sudo ./uninstall.sh` in the
-driver folder. The game script restores every file from the backup and compares
-sha256, so the folder ends byte-identical to before. If a restore fails it names the
-file, keeps the backup pending and exits non-zero; run it again to retry.
-
-Three of the files cannot ship with the download. nitec's FSR 4 XMX mod, AMD's FSR 4.1.2
-DLL and OptiScaler belong to their authors (NexusMods, AMD and GitHub), and their licenses
-do not allow us to redistribute them. The OptiScaler release ships `OptiScaler.dll`, so
-rename it to `dxgi.dll` in the game folder before you run the game step. The game script
-checks the pinned hashes, so only the right versions pass.
+It checks the `.exe` and hashes first, backs up what it overwrites, and prints
+the Steam launch line. The mod goes next to the `.exe`, where Wine looks. Undo
+with `./uninstall.sh` per game, then `sudo ./uninstall.sh`. nitec's mod, AMD's
+FSR 4.1.2 DLL and OptiScaler cannot ship; their authors do not allow it, so
+rename `OptiScaler.dll` to `dxgi.dll` in the game folder.
 
 ## What works today
 

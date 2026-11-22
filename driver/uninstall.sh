@@ -33,14 +33,16 @@ SELF_DIR="$(dirname "$SELF")"
 case "${1-}" in
   -h|--help)
     cat <<'EOF'
-Usage: sudo ./uninstall.sh [--test-root <folder>]
+Usage: sudo ./uninstall.sh
 
 Removes the files that install.sh wrote, using the list and the checksums in
 /opt/fsr-xmx/created.tsv. It refuses when a file changed since the install, and
 it never deletes a path that is not in that list.
 
-It also undoes the per-user part with the fsr-xmx command, which refuses while a
-game is still set up. Run game/uninstall.sh in each game folder first.
+It also undoes the per-user part, which refuses while a game is still set up. Run
+./uninstall.sh inside each game folder first.
+
+Log out and back in afterwards, so the removed settings stop applying.
 EOF
     exit 0
     ;;

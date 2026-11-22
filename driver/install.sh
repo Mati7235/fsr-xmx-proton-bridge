@@ -32,30 +32,26 @@ SELF_DIR="$(dirname "$SELF")"
 
 usage() {
   cat <<'EOF'
-Usage: sudo ./install.sh [--from <bundle folder>] [--no-snapshot]
+Usage: sudo ./install.sh
 
-Installs the fsr-xmx driver bundle once for the whole machine. Without --from
-it looks in the bundle folder next to this script.
+Installs the driver once for the whole machine. The bundle folder sits inside
+this download, next to the script, so there is nothing else to pass.
 
 It takes a snapper snapshot of the root config when snapper is installed, then
 writes the driver to /usr/lib/fsr-xmx, an ICD file next to Mesa's own ICD files,
 the two Windows stand-in DLLs to /opt/fsr-xmx, and the environment file to
-/etc/environment.d/fsr-xmx.conf. Mesa's own ICD file is never replaced.
+/etc/environment.d/fsr-xmx.conf. Mesa's own ICD file is never replaced. Log out
+and back in afterwards.
 
---no-snapshot skips the snapshot. Use it only when snapper cannot take one.
+The game step is separate: run ./install.sh inside the game's folder.
 
 Undo with: sudo ./uninstall.sh
 EOF
 }
 
-from=""
 test_root=""
-no_snapshot=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --from) from="${2-}"; shift 2 ;;
-    --from=*) from="${1#*=}"; shift ;;
-    --no-snapshot) no_snapshot=1; shift ;;
     --test-root) test_root="${2-}"; shift 2 ;;
     --test-root=*) test_root="${1#*=}"; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -99,18 +95,13 @@ if ! command -v python3 >/dev/null 2>&1; then
   fail "python3 is missing (package python), and this step needs it to write the ICD file; install it with sudo pacman -S python and run this again."
 fi
 
-if [ -z "$from" ]; then
-  from="$SELF_DIR/bundle"
-  if [ ! -d "$from" ]; then
-    fail "No bundle folder given and $from does not exist; download the bundle and run ./install.sh --from <bundle folder>."
-  fi
+bundle="$SELF_DIR/bundle"
+if [ ! -d "$bundle" ]; then
+  fail "This download is incomplete: the bundle folder is missing next to this script, so download it again."
 fi
-if [ ! -d "$from" ]; then
-  fail "Bundle folder not found: $from"
-fi
-from="$(cd "$from" && pwd -P)"
-if [ ! -f "$from/SHA256SUMS" ]; then
-  fail "$from has no SHA256SUMS file, so its files cannot be checked; nothing was written."
+bundle="$(cd "$bundle" && pwd -P)"
+if [ ! -f "$bundle/SHA256SUMS" ]; then
+  fail "$bundle has no SHA256SUMS file, so its files cannot be checked; nothing was written."
 fi
 
 for target in "$LIB_PATH" "$ICD_PATH" "$ENV_FILE" "$OPT_DIR/igdext64.dll" "$OPT_DIR/cabinet.dll"; do
@@ -119,10 +110,10 @@ for target in "$LIB_PATH" "$ICD_PATH" "$ENV_FILE" "$OPT_DIR/igdext64.dll" "$OPT_
   fi
 done
 
-if [ -z "$test_root" ] && [ "$no_snapshot" = "0" ] && command -v snapper >/dev/null 2>&1; then
+if [ -z "$test_root" ] && command -v snapper >/dev/null 2>&1; then
   if ! snap_out="$(snapper --config root create --description 'fsr-xmx driver install' --print-number 2>&1)"; then
     printf '%s\n' "$snap_out" >&2
-    fail "snapper could not create a snapshot, so nothing was written; check snapper with sudo snapper --config root list, or run this again with --no-snapshot if you accept the risk."
+    fail "snapper could not create a snapshot, so nothing was written; check it with sudo snapper --config root list and run this again."
   fi
   snap_number="$(printf '%s\n' "$snap_out" | grep -Eo '[0-9]+' | tail -1 || true)"
   if [ -n "$snap_number" ]; then
@@ -130,12 +121,10 @@ if [ -z "$test_root" ] && [ "$no_snapshot" = "0" ] && command -v snapper >/dev/n
   else
     say "snapper ran but printed no number; check it with: sudo snapper --config root list"
   fi
-elif [ -z "$test_root" ] && [ "$no_snapshot" = "1" ] && command -v snapper >/dev/null 2>&1; then
-  say "Skipping the snapper snapshot because --no-snapshot was given."
 fi
 
 say "Checking the bundle and installing the per-user part with $CLI ..."
-if ! "$CLI" install --from "$from"; then
+if ! "$CLI" install --from "$bundle"; then
   fail "The bundle failed its own check, so nothing was written to /usr, /opt or /etc."
 fi
 
@@ -182,7 +171,7 @@ put_text() {
 }
 
 icd_tmp="$(mktemp "${TMPDIR:-/tmp}/fsr-xmx-icd.XXXXXX")"
-if ! python3 - "$from/icd/intel_icd.json" "$LIB_PATH" >"$icd_tmp" <<'PY'
+if ! python3 - "$bundle/icd/intel_icd.json" "$LIB_PATH" >"$icd_tmp" <<'PY'
 import json
 import sys
 
@@ -201,14 +190,14 @@ then
   fail "The bundle's icd/intel_icd.json could not be read, so nothing was written to /usr, /opt or /etc."
 fi
 
-put_file "$from/lib/libvulkan_intel.so" "$LIB_PATH"
+put_file "$bundle/lib/libvulkan_intel.so" "$LIB_PATH"
 # This adds an ICD next to Mesa's own intel_icd file and never replaces or deletes
 # it: Mesa's file stays, and only VK_DRIVER_FILES (the name fsr-xmx run uses) points here.
 put_text "$ICD_PATH" <"$icd_tmp"
 rm -f "$icd_tmp"
 
-put_file "$from/igdext64.dll" "$OPT_DIR/igdext64.dll"
-put_file "$from/cabinet.dll" "$OPT_DIR/cabinet.dll"
+put_file "$bundle/igdext64.dll" "$OPT_DIR/igdext64.dll"
+put_file "$bundle/cabinet.dll" "$OPT_DIR/cabinet.dll"
 
 put_text "$ENV_FILE" <<EOF
 # Written by fsr-xmx. Remove it with driver/uninstall.sh.

@@ -178,6 +178,18 @@ class PackagingTest(unittest.TestCase):
                                 cwd=str(self.tmp))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def driver_folder(self, with_bundle=True):
+        folder = self.tmp / "driver"
+        if not folder.exists():
+            folder.mkdir()
+            for name in ("install.sh", "uninstall.sh", "find-cli.sh"):
+                shutil.copy2(REPO / "driver" / name, folder / name)
+            shutil.copytree(REPO / "installer", folder / "fsr-xmx",
+                            ignore=shutil.ignore_patterns("__pycache__"))
+        if with_bundle and not (folder / "bundle").exists():
+            shutil.copytree(self.bundle, folder / "bundle")
+        return folder
+
     def build_release(self, root):
         result = subprocess.run(
             [sys.executable, "-I", str(BUILD_RELEASE), "--out", str(root)],
@@ -214,7 +226,7 @@ class PackagingTest(unittest.TestCase):
             self.assertTrue(doc.is_file(), doc)
             self.assertNotIn("/home/", doc.read_text(), doc)
         for readme, limit in ((REPO / "game" / "README.md", 39),
-                              (REPO / "driver" / "README.md", 39)):
+                              (REPO / "driver" / "README.md", 30)):
             lines = readme.read_text().splitlines()
             self.assertLessEqual(len(lines), limit, readme)
 
@@ -280,8 +292,9 @@ class PackagingTest(unittest.TestCase):
         self.build_release(out)
         released = self.tmp / "driver folder"
         shutil.copytree(out / "fsr-xmx-driver", released)
+        shutil.copytree(self.bundle, released / "bundle")
         self.assertFalse((released.parent / "installer").exists())
-        result = self.run_script(released / "install.sh", "--from", str(self.bundle),
+        result = self.run_script(released / "install.sh",
                                  "--test-root", str(self.root),
                                  extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -350,7 +363,7 @@ class PackagingTest(unittest.TestCase):
                       (REPO / "game" / "PUT-THE-FILES-HERE.txt").read_text())
 
     def test_driver_install_names_the_game_download(self):
-        result = self.run_script(DRIVER_INSTALL, "--from", str(self.bundle),
+        result = self.run_script(self.driver_folder() / "install.sh",
                                  "--test-root", str(self.root),
                                  extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -417,22 +430,34 @@ class PackagingTest(unittest.TestCase):
         self.assertIn(".fsr-xmx-backup is missing", result.stderr)
 
     def test_driver_test_root_needs_the_env_flag(self):
-        result = self.run_script(DRIVER_INSTALL, "--from", str(self.bundle),
+        result = self.run_script(self.driver_folder() / "install.sh",
                                  "--test-root", str(self.root))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("FSR_XMX_DRIVER_TEST_ROOT=1", result.stderr)
         self.assertEqual(self.tree(self.root), {})
 
     def test_driver_install_rejects_a_missing_bundle(self):
-        result = self.run_script(DRIVER_INSTALL, "--from", str(self.tmp / "nope"),
+        folder = self.driver_folder(with_bundle=False)
+        result = self.run_script(folder / "install.sh",
                                  "--test-root", str(self.root),
                                  extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Bundle folder not found", result.stderr)
+        self.assertIn("This download is incomplete", result.stderr)
+        self.assertIn("bundle folder is missing", result.stderr)
+        self.assertEqual(result.stderr.strip().count("."), 1)
+        self.assertEqual(self.tree(self.root), {})
+
+    def test_driver_install_rejects_the_old_from_option(self):
+        result = self.run_script(self.driver_folder() / "install.sh",
+                                 "--from", str(self.bundle),
+                                 "--test-root", str(self.root),
+                                 extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Unknown option: --from", result.stderr)
         self.assertEqual(self.tree(self.root), {})
 
     def test_driver_install_writes_into_a_test_root(self):
-        result = self.run_script(DRIVER_INSTALL, "--from", str(self.bundle),
+        result = self.run_script(self.driver_folder() / "install.sh",
                                  "--test-root", str(self.root),
                                  extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -459,13 +484,14 @@ class PackagingTest(unittest.TestCase):
         self.assertIn("export VK_DRIVER_FILES=%s" % icd, result.stdout)
 
     def test_driver_uninstall_refuses_a_modified_file(self):
-        self.run_script(DRIVER_INSTALL, "--from", str(self.bundle),
+        folder = self.driver_folder()
+        self.run_script(folder / "install.sh",
                         "--test-root", str(self.root),
                         extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
         icd = self.root / "usr/share/vulkan/icd.d/fsr-xmx-intel_icd.json"
         with open(icd, "a", encoding="utf-8") as handle:
             handle.write("edited\n")
-        result = self.run_script(DRIVER_UNINSTALL, "--test-root", str(self.root),
+        result = self.run_script(folder / "uninstall.sh", "--test-root", str(self.root),
                                  extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(str(icd), result.stderr)
@@ -478,10 +504,11 @@ class PackagingTest(unittest.TestCase):
         icd_dir.mkdir(parents=True)
         foreign = icd_dir / "intel_icd.x86_64.json"
         foreign.write_text('{"ICD": {}}\n')
-        self.run_script(DRIVER_INSTALL, "--from", str(self.bundle),
+        folder = self.driver_folder()
+        self.run_script(folder / "install.sh",
                         "--test-root", str(self.root),
                         extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
-        result = self.run_script(DRIVER_UNINSTALL, "--test-root", str(self.root),
+        result = self.run_script(folder / "uninstall.sh", "--test-root", str(self.root),
                                  extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(foreign.read_text(), '{"ICD": {}}\n')
