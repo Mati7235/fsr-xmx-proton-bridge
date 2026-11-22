@@ -45,5 +45,5 @@ frame generation early.
 
 ## Not planned
 
-Upscaling and model work stays as documented in
-[xmx412-model-selection.md](xmx412-model-selection.md).
+Upscaling and model selection stay out of scope here. The mod picks INT8 or Lite from the two
+environment variables described in [how-it-works.md](how-it-works.md).

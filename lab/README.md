@@ -327,5 +327,5 @@ command uses the extracted IGC/ocloc environment and target `0xe20b`.
 `probe-spec.json` keeps every field from `contract()` unchanged and adds compile,
 payload, and artifact hashes. The user's first manual run of v16 passed independent
 GPU readback review; see
-[the result and its limits](../docs/validation.md). That review covers
+[what the evidence covers](../docs/compatibility.md#what-is-broken-or-missing). That review covers
 this synthetic image, not FSR.

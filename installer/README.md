@@ -1,7 +1,7 @@
 # `fsr-xmx` installer (v1)
 
 A bash script plus two small Python helpers (standard library only). No `sudo`:
-everything lives under your home folder. Design and decisions: `docs/installer-design.md`.
+everything lives under your home folder.
 
 ## Files
 

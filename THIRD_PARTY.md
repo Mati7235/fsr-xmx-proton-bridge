@@ -40,8 +40,8 @@ in every hunk it touches.
 Because our own additions are under the AGPL, publishing the binary comes with an
 obligation: whoever receives it must be able to get the exact source. The release
 therefore points at this repository, the pinned upstream revision and the Mesa
-version, and [docs/installer-design.md](docs/installer-design.md) records the build
-steps. The release archive also carries `LICENSE` and this file, so the Mesa and
+version, and [patches/README.md](patches/README.md) records how to regenerate and
+verify each patch. The release archive also carries `LICENSE` and this file, so the Mesa and
 upstream MIT notices travel with the binary.
 
 ## Game footage

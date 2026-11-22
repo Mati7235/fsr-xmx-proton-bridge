@@ -2,8 +2,7 @@
 
 This page records what runs today, on which hardware, with which game and Proton build. Static
 analysis dates from 2026-10-22, runtime results from 2026-11-12 to 2026-11-14. Anything the tree
-or the cited documents cannot confirm is marked unverified, and the standard a result must meet
-is in [validation.md](validation.md).
+or the cited documents cannot confirm is marked unverified.
 
 ## Compatibility table
 
@@ -49,7 +48,6 @@ The first functional result came from this game on 2026-11-13 (details below). T
 serves its embedded 4.0.2X model by default; a run with `FSR4_XMX_INT8=1` confirmed 4.1.2X INT8
 from the kernel set, not the overlay. A 2026-11-12 trace gave a correct UI and magenta and green
 3D noise with driver generation `0913d3f4`, which lacks 0005; the candidate removed the noise.
-Repeat with [spiderman-trace-runbook.md](spiderman-trace-runbook.md).
 
 ### Cyberpunk 2077
 
@@ -60,7 +58,6 @@ Lite had 12 and 6, and one kernel is shared, so Lite runs a smaller network, not
 
 Average FPS was 54.44 for XeSS, 54.54 for Full INT8 and 55.56 for Lite: Full is tied and Lite is
 2.06 percent above. Recorded quality runs fell from 41.7 to 28.4 fps, so they measure image only.
-Tables and metrics are in [benchmarks.md](benchmarks.md).
 
 ### SCP: 5K
 
@@ -185,7 +182,7 @@ not installed; see [shim-bridge.md](shim-bridge.md).
 
 Later analysis recovered 690 CM blocks by their footers and 1,977 CM envelopes in 6 packs. The
 4.1.2 PRE `native_1080` compiled offline for the B580 (`b1781bb4…` zebin, `68b962b5…` code, BTIs
-`[8,9,1,2,3,4,5,6,7,10,11]`); the pins are in [xmx412-toolchain.md](xmx412-toolchain.md). The
+`[8,9,1,2,3,4,5,6,7,10,11]`); the pins are in [shim-bridge.md](shim-bridge.md). The
 suite passed 416 tests with 3 skips on 2026-11-13.
 
 The fork's `0005-anv-cm-sampler-descriptor-table` patch computes
