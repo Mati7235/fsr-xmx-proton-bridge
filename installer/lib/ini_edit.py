@@ -7,9 +7,9 @@ import tempfile
 VALUE_RE = re.compile(r"^(?P<head>[^=]*=)(?P<pre>[ \t]*)(?P<val>.*?)(?P<post>[ \t]*)$")
 
 USAGE = (
-    "uso: ini_edit.py get <archivo> <seccion> <clave>\n"
-    "     ini_edit.py plan <archivo>   (claves por stdin: seccion<TAB>clave<TAB>valor)\n"
-    "     ini_edit.py set <archivo>\n"
+    "usage: ini_edit.py get <file> <section> <key>\n"
+    "     ini_edit.py plan <file>   (keys via stdin: section<TAB>key<TAB>value)\n"
+    "     ini_edit.py set <file>\n"
 )
 
 
@@ -133,7 +133,7 @@ def read_sets():
             continue
         parts = raw.split("\t")
         if len(parts) != 3:
-            sys.stderr.write("entrada invalida: %r\n" % raw)
+            sys.stderr.write("invalid input: %r\n" % raw)
             raise SystemExit(2)
         sets.append((parts[0].strip(), parts[1].strip(), parts[2].strip()))
     return sets
@@ -163,7 +163,7 @@ def main(argv):
         return 2
     path = argv[1]
     if not os.path.isfile(path):
-        sys.stderr.write("no existe el archivo: %s\n" % path)
+        sys.stderr.write("file not found: %s\n" % path)
         return 2
 
     if mode == "get":
@@ -184,7 +184,7 @@ def main(argv):
     if mode == "plan":
         for section, key, old, new in changes:
             if old is None:
-                sys.stdout.write("[%s] %s: (no estaba) -> %s\n" % (section, key, new))
+                sys.stdout.write("[%s] %s: (was not there) -> %s\n" % (section, key, new))
             else:
                 sys.stdout.write("[%s] %s: %s -> %s\n" % (section, key, old, new))
         return 0

@@ -13,7 +13,7 @@ COMMON = REPO / "installer" / "lib" / "common.sh"
 REAL_PROFILE = REPO / "installer" / "profiles" / "cyberpunk2077.conf"
 
 INI_ORIGINAL = (
-    b"; ini de prueba\r\n"
+    b"; test ini\r\n"
     b"\r\n"
     b"[Upscalers]\r\n"
     b"\r\n"
@@ -121,7 +121,7 @@ class InstallerTest(unittest.TestCase):
         result = subprocess.run([str(SCRIPT), *args], env=env, text=True,
                                 capture_output=True, cwd=str(cwd or self.tmp))
         if check and result.returncode != 0:
-            self.fail("fallo %s: %s\n%s" % (args, result.stdout, result.stderr))
+            self.fail("failed %s: %s\n%s" % (args, result.stdout, result.stderr))
         return result
 
     def make_game(self):
@@ -206,7 +206,7 @@ class InstallerTest(unittest.TestCase):
 
     def install_ok(self):
         result = self.run_cli("install", "--from", str(self.bundle), check=True)
-        self.assertIn("Copiado y verificado", result.stdout)
+        self.assertIn("Copied and verified", result.stdout)
 
     def enable_ok(self, *extra):
         return self.run_cli("enable", str(self.game), *extra, check=True)
@@ -225,7 +225,7 @@ class InstallerTest(unittest.TestCase):
 
     def test_shellcheck_when_available(self):
         if shutil.which("shellcheck") is None:
-            self.skipTest("shellcheck no está instalado")
+            self.skipTest("shellcheck is not installed")
         result = subprocess.run(["shellcheck", "-S", "warning", str(SCRIPT),
                                  str(COMMON)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -233,18 +233,18 @@ class InstallerTest(unittest.TestCase):
     def test_doctor_reports_fake_hardware(self):
         result = self.run_cli("doctor")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("OK     GPU Intel detectada", result.stdout)
-        self.assertIn("OK     driver del kernel: xe", result.stdout)
-        self.assertIn("OK     cargador de Vulkan presente", result.stdout)
-        self.assertIn("FALTA  el driver no está instalado", result.stdout)
+        self.assertIn("OK      Intel GPU detected", result.stdout)
+        self.assertIn("OK      Linux kernel driver: xe", result.stdout)
+        self.assertIn("OK      Vulkan loader found", result.stdout)
+        self.assertIn("MISSING the driver is not installed", result.stdout)
         self.assertIn("install --from", result.stdout)
 
         self.install_ok()
         result = self.run_cli("doctor", str(self.game))
-        self.assertIn("OK     instalación activa: versions/test-1", result.stdout)
+        self.assertIn("OK      active install: versions/test-1", result.stdout)
         self.assertIn("== Cyberpunk 2077", result.stdout)
-        self.assertIn("AVISO  este juego no está preparado", result.stdout)
-        self.assertIn("OK     mod FSR4 XMX: hash correcto", result.stdout)
+        self.assertIn("WARN    this game is not set up", result.stdout)
+        self.assertIn("OK      FSR4 XMX mod: checksum correct", result.stdout)
 
     def test_doctor_warns_flatpak_and_i915(self):
         for path in (self.sysfs / "class" / "drm" / "card0" / "device").iterdir():
@@ -257,14 +257,14 @@ class InstallerTest(unittest.TestCase):
         flatpak.mkdir(parents=True)
         shutil.rmtree(self.steam)
         result = self.run_cli("doctor")
-        self.assertIn("AVISO  driver del kernel: i915", result.stdout)
-        self.assertIn("AVISO  tenés Steam de Flatpak", result.stdout)
+        self.assertIn("WARN    Linux kernel driver: i915", result.stdout)
+        self.assertIn("WARN    you have the Flatpak version of Steam", result.stdout)
 
     def test_install_rejects_tampered_bundle(self):
         (self.bundle / "igdext64.dll").write_bytes(b"igdext shim TAMPERED\n")
         result = self.run_cli("install", "--from", str(self.bundle))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no coincide con SHA256SUMS", result.stdout)
+        self.assertIn("doesn't match SHA256SUMS", result.stdout)
         self.assertFalse(self.root.exists())
 
     def test_install_switches_current_atomically(self):
@@ -274,7 +274,7 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(os.readlink(current), "versions/test-1")
         self.assertTrue((current / "icd" / "intel_icd.json").is_file())
         second = self.run_cli("install", "--from", str(self.bundle), check=True)
-        self.assertIn("ya estaba instalada", second.stdout)
+        self.assertIn("is already installed", second.stdout)
 
     def test_enable_ini_diff_backups_and_state(self):
         self.install_ok()
@@ -301,7 +301,7 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("KEEP_COOPMAT=0\n", text)
 
         again = self.enable_ok("--fsr4", "int8")
-        self.assertIn("ya estaba como tiene que estar", again.stdout)
+        self.assertIn("was already set correctly", again.stdout)
         self.assertEqual(len(self.backup_dirs()), 1)
 
     def test_enable_rejects_unknown_mod(self):
@@ -309,7 +309,7 @@ class InstallerTest(unittest.TestCase):
         (self.game / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"otro mod\n")
         result = self.run_cli("enable", str(self.game), "--fsr4", "int8")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("mod FSR4 XMX", result.stderr)
+        self.assertIn("FSR4 XMX 4.1.2 mod by nitec", result.stderr)
         self.assertIn("--mod-dll", result.stderr)
         self.assertEqual(self.ini.read_bytes(), INI_ORIGINAL)
 
@@ -323,7 +323,7 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("FG=anr\n", state)
         self.assertIn("KEEP_COOPMAT=1\n", state)
 
-    @unittest.skipUnless(shutil.which("unzip"), "falta unzip para extraer los zips")
+    @unittest.skipUnless(shutil.which("unzip"), "unzip is missing, needed to extract the zips")
     def test_enable_from_official_archives_then_disable(self):
         import zipfile
         self.install_ok()
@@ -369,7 +369,7 @@ class InstallerTest(unittest.TestCase):
         self.assertFalse((self.game / "igdext64.dll").exists())
         self.assertTrue((self.game / "Cyberpunk2077.exe").is_file())
 
-    @unittest.skipUnless(shutil.which("unzip"), "falta unzip para extraer los zips")
+    @unittest.skipUnless(shutil.which("unzip"), "unzip is missing, needed to extract the zips")
     def test_enable_rejects_unpinned_optiscaler(self):
         import zipfile
         self.install_ok()
@@ -380,7 +380,7 @@ class InstallerTest(unittest.TestCase):
         result = self.run_cli("enable", str(self.game), "--fsr4", "int8",
                               "--optiscaler", str(other))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no es el esperado", result.stderr)
+        self.assertIn("is not the expected file", result.stderr)
         self.assertFalse((self.game / "dxgi.dll").exists())
 
     def test_run_exports_expected_env(self):
@@ -423,7 +423,7 @@ class InstallerTest(unittest.TestCase):
         self.install_ok()
         result = self.run_cli("run", "--profile", "cyberpunk2077", "--", "true")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no está preparado", result.stderr)
+        self.assertIn("is not set up", result.stderr)
 
     def test_run_without_profile_from_game_cwd(self):
         self.install_ok()
@@ -439,7 +439,7 @@ class InstallerTest(unittest.TestCase):
         result = self.run_cli("enable", str(self.game), "--fsr4", "int8",
                               "--fg", "anr")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("falta el addon de ANR", result.stderr)
+        self.assertIn("the ANR add-on is missing", result.stderr)
         self.assertIn("--anr", result.stderr)
         self.assertEqual(self.ini.read_bytes(), INI_ORIGINAL)
 
@@ -451,7 +451,7 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(self.ini.read_bytes(), EXPECTED_ANR)
 
         result = self.run_cli("disable", str(self.game), check=True)
-        self.assertIn("volvió a como estaba antes", result.stdout)
+        self.assertIn("is back to how it was before", result.stdout)
         self.assertEqual(self.ini.read_bytes(), INI_ORIGINAL)
         self.assertFalse((self.game / "igdext64.dll").exists())
         self.assertFalse((self.game / "cabinet.dll").exists())
@@ -461,16 +461,16 @@ class InstallerTest(unittest.TestCase):
 
         again = self.run_cli("disable", str(self.game))
         self.assertNotEqual(again.returncode, 0)
-        self.assertIn("no hay cambios pendientes", again.stderr)
+        self.assertIn("no changes pending to undo", again.stderr)
 
     def test_disable_keeps_preexisting_cabinet(self):
         self.install_ok()
-        (self.game / "cabinet.dll").write_bytes(b"cabinet viejo del usuario\n")
+        (self.game / "cabinet.dll").write_bytes(b"the user's old cabinet\n")
         self.enable_ok("--fsr4", "int8")
         self.assertEqual((self.game / "cabinet.dll").read_bytes(), b"cabinet shim\n")
         self.run_cli("disable", str(self.game), check=True)
         self.assertEqual((self.game / "cabinet.dll").read_bytes(),
-                         b"cabinet viejo del usuario\n")
+                         b"the user's old cabinet\n")
 
     def test_compat_tool_swaps_vkd3d_and_vdf(self):
         self.install_ok()
@@ -489,7 +489,7 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("NAME=GE-Proton-XMX", manifest)
         self.assertIn("BASE_VERSION=GE-Proton11-12", manifest)
         doctor = self.run_cli("doctor")
-        self.assertIn("OK     herramienta de compatibilidad: GE-Proton-XMX",
+        self.assertIn("OK      compatibility tool: GE-Proton-XMX",
                       doctor.stdout)
 
     def test_uninstall_removes_only_our_dirs(self):
@@ -498,14 +498,14 @@ class InstallerTest(unittest.TestCase):
         self.run_cli("install-compat-tool", "--ge-dir", str(ge), check=True)
         foreign = self.steam / "compatibilitytools.d" / "otra-cosa"
         foreign.mkdir()
-        (foreign / "readme.txt").write_text("no es nuestro\n")
+        (foreign / "readme.txt").write_text("not ours\n")
         keep = self.data_dir / "otro-programa"
         keep.mkdir()
 
         self.enable_ok("--fsr4", "int8")
         refused = self.run_cli("uninstall")
         self.assertNotEqual(refused.returncode, 0)
-        self.assertIn("Todavía hay juegos preparados", refused.stdout)
+        self.assertIn("Games are still set up", refused.stdout)
         self.assertTrue(self.root.exists())
 
         self.run_cli("disable", str(self.game), check=True)
@@ -519,10 +519,10 @@ class InstallerTest(unittest.TestCase):
 
     def test_uninstall_refuses_foreign_root(self):
         self.root.mkdir(parents=True)
-        (self.root / "algo.txt").write_text("no nuestro\n")
+        (self.root / "algo.txt").write_text("not ours\n")
         result = self.run_cli("uninstall")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no la creó este programa", result.stderr)
+        self.assertIn("was not created by this program", result.stderr)
         self.assertTrue((self.root / "algo.txt").is_file())
 
 

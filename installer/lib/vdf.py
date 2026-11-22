@@ -3,7 +3,7 @@ import os
 import re
 import sys
 
-USAGE = "uso: vdf.py <carpeta-ge-proton> <nombre-interno> <nombre-visible>\n"
+USAGE = "usage: vdf.py <GE-Proton-folder> <internal-name> <display-name>\n"
 
 KEY_LINE = re.compile(r'^(\s*)"([^"]+)"(\s+)"(.*)"\s*$')
 BARE_LINE = re.compile(r'^(\s*)"([^"]+)"\s*$')

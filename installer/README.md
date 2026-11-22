@@ -1,19 +1,19 @@
-# Instalador `fsr-xmx` (v1)
+# `fsr-xmx` installer (v1)
 
-Script de bash + dos ayudantes de Python (solo librería estándar). Sin `sudo`:
-todo vive bajo el home. Diseño y decisiones: `docs/installer-design.md`.
+A bash script plus two small Python helpers (standard library only). No `sudo`:
+everything lives under your home folder. Design and decisions: `docs/installer-design.md`.
 
-## Archivos
+## Files
 
-- `fsr-xmx`: el ejecutable (`installer/fsr-xmx`).
-- `lib/common.sh`: funciones compartidas (perfiles, respaldos, hashes).
-- `lib/ini_edit.py`: edita claves de `OptiScaler.ini` por sección, sin tocar
-  el resto de los bytes ni los CRLF.
-- `lib/vdf.py`: reescribe `compatibilitytool.vdf` de la herramienta de Steam.
-- `profiles/cyberpunk2077.conf`: perfil de referencia (appid 1091500,
-  `bin/x64`, hashes fijados de mod/fsr-original/OptiScaler/ANR).
+- `fsr-xmx`: the program itself (`installer/fsr-xmx`).
+- `lib/common.sh`: shared functions (profiles, backups, checksums).
+- `lib/ini_edit.py`: edits keys in `OptiScaler.ini` by section, leaving the
+  rest of the bytes and the CRLF line endings untouched.
+- `lib/vdf.py`: rewrites `compatibilitytool.vdf` for the Steam tool.
+- `profiles/cyberpunk2077.conf`: reference profile (appid 1091500,
+  `bin/x64`, pinned checksums for mod/fsr-original/OptiScaler/ANR).
 
-## Qué espera el paquete precompilado (`install --from <carpeta>`)
+## What the ready-made package must contain (`install --from <dir>`)
 
 ```text
 MANIFEST                                  VERSION=...
@@ -27,27 +27,27 @@ vkd3d-proton/x86_64-windows/d3d12core.dll
 tools/cm-compile.sh
 ```
 
-`install` verifica **todos** los archivos de `SHA256SUMS` antes de copiar
-nada, copia a `~/.local/share/fsr-xmx/versions/<VERSION>/` y recién ahí
-cambia el enlace `current` de forma atómica. Si algo no coincide, no deja
-nada a medias.
+`install` checks **every** file listed in `SHA256SUMS` before copying
+anything, copies to `~/.local/share/fsr-xmx/versions/<VERSION>/`, and only then
+switches the `current` link in one step. If anything doesn't match, it leaves
+nothing half-done.
 
-## Árbol que usa
+## Folder layout it uses
 
 ```text
 ~/.local/share/fsr-xmx/
   current -> versions/<VERSION>/
   versions/<VERSION>/
-  profiles/<juego>/state.conf          lo escribe `enable`
-  .fsr-xmx-root                        marca de "esto lo instaló fsr-xmx"
+  profiles/<game>/state.conf           written by `enable`
+  .fsr-xmx-root                        marker: "installed by fsr-xmx"
 ~/.cache/fsr-xmx/<appid>/kernels       ANV_CM_KERNEL_DIR
 ~/.cache/fsr-xmx/<appid>/logs          PROTON_LOG_DIR
-<juego>/.fsr-xmx-backup/<fecha>/       copia de lo que se pisó + manifest.tsv
+<game>/.fsr-xmx-backup/<date>/         copies of overwritten files + manifest.tsv
 ```
 
-## Pruebas
+## Tests
 
 `python3 -I -m unittest discover -s tests -p 'test_installer.py' -v`
 
-Todo corre sobre carpetas temporales con `HOME`/`XDG_*` falsos; nunca toca
-Steam, prefijos ni juegos reales.
+Everything runs in temporary folders with fake `HOME`/`XDG_*`; it never touches
+real Steam, prefixes or games.

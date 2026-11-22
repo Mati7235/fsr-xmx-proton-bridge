@@ -13,15 +13,15 @@ PROF_FILE=""
 FAIL_COUNT=0
 
 say() { printf '%s\n' "$*"; }
-info() { printf '       %s\n' "$*"; }
-okl() { printf 'OK     %s\n' "$*"; }
-warn() { printf 'AVISO  %s\n' "$*"; }
-failmsg() { printf 'FALTA  %s\n' "$*"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
-die() { printf 'ERROR  %s\n' "$*" >&2; exit 1; }
+info() { printf '        %s\n' "$*"; }
+okl() { printf 'OK      %s\n' "$*"; }
+warn() { printf 'WARN    %s\n' "$*"; }
+failmsg() { printf 'MISSING %s\n' "$*"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
+die() { printf 'ERROR   %s\n' "$*" >&2; exit 1; }
 
 need_python() {
   command -v python3 >/dev/null 2>&1 ||
-    die "falta python3 (paquete python). Instalá: sudo pacman -S python"
+    die "python3 is missing (package: python). Install it: sudo pacman -S python"
 }
 
 sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
@@ -74,7 +74,7 @@ profile_ids() {
 
 load_profile() {
   local file="$1" line key val
-  [ -f "$file" ] || die "no encuentro el perfil: $file"
+  [ -f "$file" ] || die "profile not found: $file"
   PROF=()
   PROF_FILE="$file"
   while IFS= read -r line || [ -n "$line" ]; do
@@ -131,65 +131,65 @@ hash_in_list() {
 
 verify_archive() {
   local path="$1" label="$2" allowed="$3" hint="$4" got
-  [ -f "$path" ] || die "no existe el archivo: $path"
+  [ -f "$path" ] || die "file not found: $path"
   got="$(sha256_of "$path")"
   if hash_in_list "$got" "$allowed"; then
     return 0
   fi
-  say "El $label no es el esperado." >&2
-  say "  archivo:  $path" >&2
+  say "The $label is not the expected file." >&2
+  say "  file:     $path" >&2
   say "  sha256:   $got" >&2
-  say "  esperaba: $allowed" >&2
+  say "  expected: $allowed" >&2
   die "$hint"
 }
 
 check_pinned_file() {
   local path="$1" expected_sha="$2" expected_size="$3" label="$4" hint="$5" got size
-  [ -f "$path" ] || die "falta $label: $path. $hint"
+  [ -f "$path" ] || die "$label is missing: $path. $hint"
   got="$(sha256_of "$path")"
   size="$(size_of "$path")"
   if [ -n "$expected_size" ] && [ "$size" != "$expected_size" ]; then
-    say "El $label tiene un tamaño distinto al esperado: $size bytes (esperaba $expected_size)." >&2
+    say "The $label has a different size than expected: $size bytes (expected $expected_size)." >&2
     die "$hint"
   fi
   if [ "$got" != "$expected_sha" ]; then
-    say "El $label no coincide con el esperado." >&2
-    say "  archivo:  $path" >&2
+    say "The $label doesn't match the expected file." >&2
+    say "  file:     $path" >&2
     say "  sha256:   $got" >&2
-    say "  esperaba: $expected_sha" >&2
+    say "  expected: $expected_sha" >&2
     die "$hint"
   fi
 }
 
 extract_archive() {
   local archive="$1" dest="$2" lower
-  [ -f "$archive" ] || die "no existe el archivo: $archive"
+  [ -f "$archive" ] || die "file not found: $archive"
   mkdir -p "$dest"
   lower="$(printf '%s' "$archive" | tr 'A-Z' 'a-z')"
   case "$lower" in
     *.7z)
       if command -v 7z >/dev/null 2>&1; then
-        7z x -y -o"$dest" "$archive" >/dev/null || die "no pude abrir $archive con 7z"
+        7z x -y -o"$dest" "$archive" >/dev/null || die "couldn't open $archive with 7z"
       elif command -v 7za >/dev/null 2>&1; then
-        7za x -y -o"$dest" "$archive" >/dev/null || die "no pude abrir $archive con 7za"
+        7za x -y -o"$dest" "$archive" >/dev/null || die "couldn't open $archive with 7za"
       else
-        die "el archivo es .7z y falta el programa 7z. Instalá: sudo pacman -S p7zip"
+        die "the file is .7z and the 7z program is missing. Install it: sudo pacman -S p7zip"
       fi
       ;;
     *.zip)
       if command -v unzip >/dev/null 2>&1; then
-        unzip -q -o "$archive" -d "$dest" || die "no pude abrir $archive con unzip"
+        unzip -q -o "$archive" -d "$dest" || die "couldn't open $archive with unzip"
       elif command -v bsdtar >/dev/null 2>&1; then
-        bsdtar -xf "$archive" -C "$dest" || die "no pude abrir $archive con bsdtar"
+        bsdtar -xf "$archive" -C "$dest" || die "couldn't open $archive with bsdtar"
       else
-        die "el archivo es .zip y falta unzip. Instalá: sudo pacman -S unzip"
+        die "the file is .zip and unzip is missing. Install it: sudo pacman -S unzip"
       fi
       ;;
     *.tar.xz|*.tar.gz|*.tar.zst|*.tgz)
-      tar -xf "$archive" -C "$dest" || die "no pude abrir $archive con tar"
+      tar -xf "$archive" -C "$dest" || die "couldn't open $archive with tar"
       ;;
     *)
-      die "no sé abrir $archive (formatos: .7z, .zip, .tar.xz)"
+      die "I can't open $archive (supported formats: .7z, .zip, .tar.xz)"
       ;;
   esac
 }
@@ -258,7 +258,7 @@ backup_mkdir() {
 
 copy_with_backup() {
   local src="$1" dst="$2"
-  [ -f "$src" ] || die "falta el archivo de origen: $src"
+  [ -f "$src" ] || die "source file is missing: $src"
   if [ -f "$dst" ] && [ "$(sha256_of "$src")" = "$(sha256_of "$dst")" ]; then
     return 0
   fi
@@ -269,7 +269,7 @@ copy_with_backup() {
 
 tree_with_backup() {
   local src="$1" dst="$2" item rel
-  [ -d "$src" ] || die "falta la carpeta de origen: $src"
+  [ -d "$src" ] || die "source folder is missing: $src"
   while IFS= read -r item; do
     rel="${item#"$src"}"
     rel="${rel#/}"
@@ -311,7 +311,7 @@ verify_bundle() {
   local dir="$1" file line hash rest got problems=0 count=0
   for file in $(bundle_required); do
     if [ ! -f "$dir/$file" ]; then
-      failmsg "a la instalación le falta $file (en $dir)."
+      failmsg "the install is missing $file (in $dir)."
       problems=1
     fi
   done
@@ -329,25 +329,25 @@ verify_bundle() {
     [ -n "$rest" ] || continue
     count=$((count + 1))
     if [ ! -f "$dir/$rest" ]; then
-      failmsg "falta el archivo $rest que figura en SHA256SUMS."
+      failmsg "the file $rest listed in SHA256SUMS is missing."
       problems=1
       continue
     fi
     got="$(sha256_of "$dir/$rest")"
     if [ "$got" != "$hash" ]; then
-      failmsg "el archivo $rest no coincide con SHA256SUMS (puede estar dañado o incompleto)."
+      failmsg "the file $rest doesn't match SHA256SUMS (it may be damaged or incomplete)."
       problems=1
     fi
   done <"$dir/SHA256SUMS"
   if [ "$count" -eq 0 ]; then
-    failmsg "SHA256SUMS está vacío; no puedo verificar la instalación."
+    failmsg "SHA256SUMS is empty; I can't verify the install."
     problems=1
   fi
   local needed
   for needed in igdext64.dll cabinet.dll icd/intel_icd.json vkd3d-proton/x86_64-windows/d3d12.dll vkd3d-proton/x86_64-windows/d3d12core.dll; do
     if ! grep -q "  $needed\$" "$dir/SHA256SUMS" 2>/dev/null &&
        ! grep -q " \*$needed\$" "$dir/SHA256SUMS" 2>/dev/null; then
-      failmsg "$needed no está listado en SHA256SUMS; no puedo confiar en esa instalación."
+      failmsg "$needed is not listed in SHA256SUMS; I can't trust that install."
       problems=1
     fi
   done
