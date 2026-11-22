@@ -37,6 +37,20 @@ checkpoint `b7481951…`), primeras ventanas de cada corrida:
   Cyberpunk 2.5, `multi-frame count N from evaluate`); `max_generated = 1`
   lo fija en 2X.
 
+## Artefactos con `coopmat`
+
+En la corrida `coopmat` aparecen rectángulos negros sobre la calzada alrededor
+de los autos y bordes negros dentableados en veredas y fachadas (captura del
+usuario, 1080p, 2X). En el mismo lugar con `portable-xmx` no aparecen. La causa
+está en el camino `coopmat` sobre ANV o en el dispositivo que deja `0005`
+(extensión y `cooperativeMatrixRobustBufferAccess` como los anuncia el
+driver); no está aislada. Hasta entonces `nr_fg.ini` queda en
+`path = portable-xmx`.
+
+En esa corrida el juego iba a ~45 FPS reales con `Simulation` 20,9 ms en el
+overlay de OptiScaler; el usuario veía 60-70 antes. No se comparó la misma
+escena entre Proton Experimental y GE-Proton.
+
 ## Pendiente
 
 - Probar que `coopmat` ejecuta `dpas` en ANV (dump del ISA compilado), no
