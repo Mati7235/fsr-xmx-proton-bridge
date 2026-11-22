@@ -1,0 +1,1012 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF="$SELF_DIR/$(basename "${BASH_SOURCE[0]}")"
+. "$SELF_DIR/lib/common.sh"
+
+usage() {
+  cat <<'EOF'
+fsr-xmx: FSR 4 sobre las unidades XMX de las Intel Arc, sin tocar el sistema.
+
+Uso:
+  fsr-xmx doctor [<carpeta-del-juego>] [--profile <juego>]
+      Revisa todo y no cambia nada.
+
+  fsr-xmx install --from <carpeta>
+      Instala el paquete ya compilado que tengas en esa carpeta.
+
+  fsr-xmx install-compat-tool --ge-dir <carpeta GE-Proton>
+      Crea la herramienta "GE-Proton-XMX" para elegir en Steam.
+
+  fsr-xmx enable <carpeta-del-juego> --fsr4 int8|lite [--fg xefg|anr]
+                 [--mod-dll <archivo>] [--original-dll <archivo>]
+                 [--optiscaler <archivo>] [--anr <zip>] [--profile <juego>]
+      Prepara un juego y te dice qué pegar en Steam.
+
+  fsr-xmx disable <carpeta-del-juego>
+      Devuelve el juego a como estaba.
+
+  fsr-xmx run [--profile <juego>] [--trace] -- <comando...>
+      Lo usa Steam: carga el entorno y arranca el juego.
+
+  fsr-xmx uninstall
+      Borra solo lo que instaló este programa.
+
+Variables útiles: FSR_XMX_HOME, FSR_XMX_CACHE, FSR_XMX_STEAM.
+Nada de esto pide sudo ni toca Steam, los drivers del sistema ni los prefijos.
+EOF
+}
+
+usage_install() {
+  cat <<'EOF'
+Uso: fsr-xmx install --from <carpeta>
+
+La carpeta tiene que traer SHA256SUMS, MANIFEST, icd/intel_icd.json,
+lib/libvulkan_intel.so, igdext64.dll, cabinet.dll, tools/cm-compile.sh y
+vkd3d-proton/x86_64-windows/{d3d12,d3d12core}.dll.
+Sin --from no hay descarga todavía: no hay versiones publicadas.
+EOF
+}
+
+usage_enable() {
+  cat <<'EOF'
+Uso: fsr-xmx enable <carpeta-del-juego> --fsr4 int8|lite [--fg xefg|anr]
+                    [--mod-dll <archivo>] [--original-dll <archivo>]
+                    [--optiscaler <archivo>] [--anr <zip>] [--profile <juego>]
+
+  --fsr4 int8|lite    Modelo a usar (int8 = 4.1.2X, lite = 4.1.2X Lite).
+  --fg xefg|anr       Generación de cuadros (por defecto xefg).
+  --mod-dll           El DLL del mod FSR4 XMX 4.1.2 (lo aportás vos).
+  --original-dll      fsr-original.dll 4.1.2 oficial de AMD (lo aportás vos).
+  --optiscaler        El archivo oficial de OptiScaler (.7z o .zip), si el
+                      juego todavía no lo tiene.
+  --anr               El zip del addon de ANR, solo si elegís --fg anr.
+EOF
+}
+
+cmd_version() {
+  say "fsr-xmx (instalador experimental)"
+}
+
+preflight_warnings() {
+  local card driver
+  if card="$(intel_card_dir)"; then
+    driver="$(card_driver "$card" || true)"
+    case "$driver" in
+      xe) ;;
+      i915) warn "el kernel usa el driver viejo i915; con Xe2 conviene xe." ;;
+      "") warn "no pude leer el driver de la GPU; revisá: lspci -k | grep -A3 VGA" ;;
+      *) warn "driver de GPU inesperado: $driver (esperaba xe o i915)." ;;
+    esac
+  else
+    warn "no encontré una GPU Intel. Este puente necesita una Intel Arc o Xe2."
+  fi
+  if ! has_vulkan_loader; then
+    warn "no encontré el cargador de Vulkan. Instalá: sudo pacman -S vulkan-icd-loader"
+  fi
+  if [ -z "$(steam_root)" ]; then
+    if [ -d "$(flatpak_steam_dir)" ]; then
+      warn "tenés Steam de Flatpak, que esta versión no soporta. Usá Steam nativo."
+    else
+      warn "no encontré Steam; abrí Steam una vez antes de jugar."
+    fi
+  fi
+}
+
+download_release() {
+  local base="${FSR_XMX_RELEASE_URL:-https://github.com/OWNER/fsr-xmx/releases/download}"
+  local pattern="$base/%s/fsr-xmx-%s.tar.xz"
+  say "Descarga desde GitHub Releases: todavía no hay versiones publicadas."
+  say "(patrón previsto: $pattern)"
+  say "Por ahora instalá desde una carpeta local:"
+  say "  $SELF install --from <carpeta con SHA256SUMS>"
+  return 1
+}
+
+cmd_install() {
+  local from="" version=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --from) from="${2-}"; shift 2 ;;
+      --from=*) from="${1#*=}"; shift ;;
+      --version) version="${2-}"; shift 2 ;;
+      --version=*) version="${1#*=}"; shift ;;
+      -h|--help) usage_install; return 0 ;;
+      *) die "opción desconocida para install: $1 (mirá: fsr-xmx install --help)" ;;
+    esac
+  done
+
+  if [ -z "$from" ]; then
+    download_release || return 1
+  fi
+  [ -d "$from" ] || die "no existe la carpeta: $from"
+  from="$(cd "$from" && pwd -P)"
+  [ -f "$from/SHA256SUMS" ] || die "esa carpeta no trae SHA256SUMS; no puedo verificar los archivos y no instalo nada."
+
+  version="${version:-$(manifest_get "$from" VERSION || true)}"
+  [ -n "$version" ] || version="$(basename "$from")"
+  case "$version" in
+    *[!A-Za-z0-9._-]*) die "el nombre de versión '$version' tiene caracteres raros; pasá --version <nombre>" ;;
+  esac
+
+  preflight_warnings
+  say "Verificando $from ..."
+  if ! verify_bundle "$from"; then
+    die "la carpeta no pasó la verificación; no copié nada."
+  fi
+
+  mkdir -p "$ROOT/versions" "$ROOT/profiles"
+  if [ ! -f "$ROOT/$MARKER" ]; then
+    printf 'fsr-xmx\n' >"$ROOT/$MARKER"
+  fi
+
+  local dest="$ROOT/versions/$version" tmp
+  if [ -d "$dest" ]; then
+    say "La versión $version ya estaba instalada; no la copio de nuevo."
+    if ! verify_bundle "$dest"; then
+      die "la copia instalada está dañada. Borrá $dest y volvé a correr install."
+    fi
+  else
+    tmp="$ROOT/versions/.tmp-$version-$$"
+    rm -rf "$tmp"
+    cp -a "$from/." "$tmp"
+    if ! verify_bundle "$tmp"; then
+      rm -rf "$tmp"
+      die "la copia no coincide con los hashes; borré la copia y no cambié nada."
+    fi
+    mv "$tmp" "$dest"
+    say "Copiado y verificado en $dest"
+  fi
+
+  tmp="$ROOT/.current.$$"
+  ln -sfn "versions/$version" "$tmp"
+  mv -Tf "$tmp" "$ROOT/current"
+  say "Ahora la instalación activa es: $version"
+  say ""
+  say "Siguiente paso: crear la herramienta para Steam con"
+  say "  $SELF install-compat-tool --ge-dir <carpeta GE-Proton descomprimida>"
+}
+
+cmd_install_compat_tool() {
+  local ge_dir=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --ge-dir) ge_dir="${2-}"; shift 2 ;;
+      --ge-dir=*) ge_dir="${1#*=}"; shift ;;
+      -h|--help)
+        say "Uso: fsr-xmx install-compat-tool --ge-dir <carpeta GE-Proton descomprimida>"
+        return 0
+        ;;
+      *) die "opción desconocida para install-compat-tool: $1" ;;
+    esac
+  done
+  [ -n "$ge_dir" ] || die "falta --ge-dir: pasá la carpeta de GE-Proton ya descomprimida."
+  [ -d "$ge_dir" ] || die "no existe la carpeta: $ge_dir"
+  ge_dir="$(cd "$ge_dir" && pwd -P)"
+
+  local steam rel
+  steam="$(steam_root)"
+  [ -n "$steam" ] || die "no encontré Steam nativo. Abrí Steam una vez o instalalo (sudo pacman -S steam); Flatpak no está soportado."
+  need_python
+  rel="$(release_dir)"
+  if [ ! -f "$rel/icd/intel_icd.json" ] || [ ! -f "$rel/vkd3d-proton/x86_64-windows/d3d12core.dll" ]; then
+    die "primero instalá el paquete: $SELF install --from <carpeta>"
+  fi
+
+  local ge_vkd3d="$ge_dir/files/lib/wine/vkd3d-proton/x86_64-windows"
+  [ -f "$ge_vkd3d/d3d12core.dll" ] || die "esa carpeta no parece GE-Proton: falta files/lib/wine/vkd3d-proton/x86_64-windows/d3d12core.dll"
+  [ -f "$ge_dir/proton" ] || die "esa carpeta no parece GE-Proton: falta el archivo 'proton'."
+
+  local tools_dir="$steam/compatibilitytools.d"
+  local target="$tools_dir/$TOOL_NAME"
+  mkdir -p "$tools_dir"
+  if [ -e "$target" ] && [ ! -f "$target/.fsr-xmx-manifest" ]; then
+    die "ya existe $target y no lo creó este programa. Movelo o borralo a mano y volvé a intentar."
+  fi
+  if [ -e "$target" ]; then
+    rm -rf "$target"
+  fi
+
+  say "Copiando GE-Proton (con reflink si el disco lo soporta) ..."
+  if ! cp -a --reflink=auto "$ge_dir" "$target" 2>/dev/null; then
+    cp -a "$ge_dir" "$target" || die "no pude copiar $ge_dir a $target (¿espacio en disco?)."
+  fi
+
+  cp -p "$rel/vkd3d-proton/x86_64-windows/d3d12.dll" "$target/files/lib/wine/vkd3d-proton/x86_64-windows/d3d12.dll"
+  cp -p "$rel/vkd3d-proton/x86_64-windows/d3d12core.dll" "$target/files/lib/wine/vkd3d-proton/x86_64-windows/d3d12core.dll"
+  python3 "$SELF_DIR/lib/vdf.py" "$target" "$TOOL_NAME" "$TOOL_NAME" || die "no pude escribir compatibilitytool.vdf"
+
+  local base_version=""
+  if [ -f "$ge_dir/version" ]; then
+    base_version="$(head -1 "$ge_dir/version" || true)"
+  fi
+  {
+    printf 'FORMAT=1\n'
+    printf 'NAME=%s\n' "$TOOL_NAME"
+    printf 'BASE=%s\n' "$(basename "$ge_dir")"
+    printf 'BASE_VERSION=%s\n' "$base_version"
+    printf 'CREATED=%s\n' "$(date +%Y-%m-%dT%H:%M:%S)"
+    printf 'D3D12_SHA256=%s\n' "$(sha256_of "$target/files/lib/wine/vkd3d-proton/x86_64-windows/d3d12.dll")"
+    printf 'D3D12CORE_SHA256=%s\n' "$(sha256_of "$target/files/lib/wine/vkd3d-proton/x86_64-windows/d3d12core.dll")"
+  } >"$target/.fsr-xmx-manifest"
+
+  say "Listo: $target"
+  say ""
+  say "En Steam: Propiedades del juego → Compatibilidad → forzar"
+  say "\"$TOOL_NAME\"."
+  if [ -n "$base_version" ]; then
+    say "(base: $base_version; no sigue las actualizaciones de GE-Proton)"
+  fi
+}
+
+timestamp() { date +%Y%m%d-%H%M%S; }
+
+cmd_enable() {
+  local game_arg="" profile_id="cyberpunk2077" fsr4="" fg="" mod_dll="" original_dll=""
+  local optiscaler="" anr_zip=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile) profile_id="${2-}"; shift 2 ;;
+      --profile=*) profile_id="${1#*=}"; shift ;;
+      --fsr4) fsr4="${2-}"; shift 2 ;;
+      --fsr4=*) fsr4="${1#*=}"; shift ;;
+      --fg) fg="${2-}"; shift 2 ;;
+      --fg=*) fg="${1#*=}"; shift ;;
+      --mod-dll) mod_dll="${2-}"; shift 2 ;;
+      --mod-dll=*) mod_dll="${1#*=}"; shift ;;
+      --original-dll) original_dll="${2-}"; shift 2 ;;
+      --original-dll=*) original_dll="${1#*=}"; shift ;;
+      --optiscaler) optiscaler="${2-}"; shift 2 ;;
+      --optiscaler=*) optiscaler="${1#*=}"; shift ;;
+      --anr) anr_zip="${2-}"; shift 2 ;;
+      --anr=*) anr_zip="${1#*=}"; shift ;;
+      -h|--help) usage_enable; return 0 ;;
+      --*) die "opción desconocida: $1 (mirá: fsr-xmx enable --help)" ;;
+      *) [ -z "$game_arg" ] || die "sobra un argumento: $1"; game_arg="$1"; shift ;;
+    esac
+  done
+  [ -n "$game_arg" ] || die "falta la carpeta del juego. Ejemplo: fsr-xmx enable ~/Juegos/steamapps/common/Cyberpunk\\ 2077/bin/x64 --fsr4 int8"
+  [ -d "$game_arg" ] || die "no existe la carpeta: $game_arg"
+  local game_dir
+  game_dir="$(cd "$game_arg" && pwd -P)"
+
+  need_python
+  load_profile "$(profile_path "$profile_id")"
+  profile_id="$(basename "$PROF_FILE" .conf)"
+
+  local exe
+  exe="$(prof_get GAME_EXE)"
+  [ -n "$exe" ] || die "el perfil $PROF_FILE no define GAME_EXE."
+  [ -f "$game_dir/$exe" ] || die "en $game_dir no está $exe. Pasá la carpeta que contiene el ejecutable (en Cyberpunk es .../bin/x64)."
+  if game_running "$exe" "$game_dir"; then
+    die "el juego está abierto ($exe). Cerralo y volvé a intentar."
+  fi
+
+  local rel
+  rel="$(release_dir)"
+  if [ ! -f "$rel/igdext64.dll" ] || [ ! -f "$rel/cabinet.dll" ]; then
+    die "falta la instalación del driver. Corré antes: $SELF install --from <carpeta>"
+  fi
+
+  fsr4="${fsr4:-$(prof_get FSR4_DEFAULT int8)}"
+  fg="${fg:-$(prof_get FG_DEFAULT xefg)}"
+  case "$fsr4" in
+    int8|lite) ;;
+    *) die "--fsr4 solo acepta int8 o lite (recibí: $fsr4)." ;;
+  esac
+  case "$fg" in
+    xefg|anr) ;;
+    *) die "--fg solo acepta xefg o anr (recibí: $fg)." ;;
+  esac
+
+  local mod_target="$game_dir/$(prof_get MOD_DLL)"
+  local orig_target="$game_dir/$(prof_get FSR_ORIGINAL_DLL)"
+  local mod_src="${mod_dll:-$mod_target}"
+  local orig_src="${original_dll:-$orig_target}"
+
+  check_pinned_file "$mod_src" "$(prof_get MOD_SHA256)" "$(prof_get MOD_SIZE)" \
+    "mod FSR4 XMX 4.1.2 de nitec" \
+    "Volvé a bajarlo de NexusMods y pasalo con --mod-dll <archivo>."
+  check_pinned_file "$orig_src" "$(prof_get FSR_ORIGINAL_SHA256)" "$(prof_get FSR_ORIGINAL_SIZE)" \
+    "fsr-original.dll 4.1.2 de AMD" \
+    "Pasá el DLL oficial 4.1.2 con --original-dll <archivo>."
+
+  local dxgi="$game_dir/$(prof_get OPTISCALER_DLL)"
+  local ini="$game_dir/$(prof_get OPTISCALER_INI)"
+  local tmp_extract=""
+  if [ ! -f "$dxgi" ]; then
+    [ -n "$optiscaler" ] || die "falta OptiScaler ($(prof_get OPTISCALER_DLL)) en $game_dir. Bajá su release oficial y pasalo con --optiscaler <archivo>."
+    verify_archive "$optiscaler" "OptiScaler" "$(prof_get OPTISCALER_SHA256)" \
+      "No uso un OptiScaler sin verificar. Bajá el release oficial que indica la documentación y pasalo con --optiscaler."
+    tmp_extract="$(mktemp -d "${TMPDIR:-/tmp}/fsr-xmx-opti.XXXXXX")"
+    extract_archive "$optiscaler" "$tmp_extract"
+    local found_dxgi found_ini found_dir
+    found_dxgi="$(find "$tmp_extract" -type f -name "$(prof_get OPTISCALER_DLL)" -print -quit)"
+    [ -n "$found_dxgi" ] || die "el archivo de OptiScaler no trae $(prof_get OPTISCALER_DLL)."
+    found_ini="$(find "$tmp_extract" -type f -name "$(prof_get OPTISCALER_INI)" -print -quit)"
+    found_dir="$(find "$tmp_extract" -type d -name OptiScaler -print |
+      awk -F/ '{ print NF, $0 }' | sort -n | tail -1 | cut -d' ' -f2-)"
+    backup_begin "$game_dir"
+    copy_with_backup "$found_dxgi" "$dxgi"
+    if [ ! -f "$ini" ] && [ -n "$found_ini" ]; then
+      copy_with_backup "$found_ini" "$ini"
+    fi
+    if [ -n "$found_dir" ] && [ ! -d "$game_dir/OptiScaler" ]; then
+      tree_with_backup "$found_dir" "$game_dir/OptiScaler"
+    fi
+    rm -rf "$tmp_extract"
+    tmp_extract=""
+    say "OptiScaler copiado y verificado."
+  fi
+  [ -f "$ini" ] || die "falta $ini. Abrí el juego una vez con OptiScaler para que lo cree, o pasá --optiscaler <archivo>."
+
+  if [ "$fg" = "anr" ]; then
+    local anr_dir="$game_dir/OptiScaler/custom/Apex Neural Rendering FG"
+    if [ ! -f "$anr_dir/dlssg/nvngx_dlssg.dll" ]; then
+      [ -n "$anr_zip" ] || die "elegiste --fg anr y falta el addon de ANR. Bajá el zip oficial y pasalo con --anr <zip>."
+      verify_archive "$anr_zip" "addon de ANR" "$(prof_get ANR_SHA256)" \
+        "No uso un ANR sin verificar. Bajá el addon oficial del release y pasalo con --anr <zip>."
+      tmp_extract="$(mktemp -d "${TMPDIR:-/tmp}/fsr-xmx-anr.XXXXXX")"
+      extract_archive "$anr_zip" "$tmp_extract"
+      local found_anr
+      found_anr="$(find "$tmp_extract" -type d -name 'Apex Neural Rendering FG' -print -quit)"
+      [ -n "$found_anr" ] || die "el zip no trae la carpeta 'Apex Neural Rendering FG'."
+      backup_begin "$game_dir"
+      tree_with_backup "$found_anr" "$anr_dir"
+      rm -rf "$tmp_extract"
+      tmp_extract=""
+      say "Addon de ANR copiado y verificado."
+    fi
+  fi
+
+  [ -n "$BK_DIR" ] || backup_begin "$game_dir"
+
+  if [ "$mod_src" != "$mod_target" ] || [ ! -f "$mod_target" ]; then
+    copy_with_backup "$mod_src" "$mod_target"
+  fi
+  if [ "$orig_src" != "$orig_target" ] || [ ! -f "$orig_target" ]; then
+    copy_with_backup "$orig_src" "$orig_target"
+  fi
+  copy_with_backup "$rel/igdext64.dll" "$game_dir/$(prof_get IGDEXT_DLL igdext64.dll)"
+  copy_with_backup "$rel/cabinet.dll" "$game_dir/$(prof_get CABINET_DLL cabinet.dll)"
+
+  local sets
+  sets="$(prof_get INI_BASE)"
+  if [ "$fg" = "anr" ]; then
+    sets="$sets;$(prof_get INI_FG_ANR)"
+  else
+    sets="$sets;$(prof_get INI_FG_XEFG)"
+  fi
+  local changes
+  changes="$(ini_stream "$sets" | python3 "$SELF_DIR/lib/ini_edit.py" plan "$ini")"
+  if [ -n "$changes" ]; then
+    backup_record "$ini"
+    ini_stream "$sets" | python3 "$SELF_DIR/lib/ini_edit.py" set "$ini" || die "no pude ajustar $ini"
+    say "OptiScaler.ini ajustado:"
+    printf '%s\n' "$changes" | sed 's/^/       /'
+  else
+    say "OptiScaler.ini ya estaba como tiene que estar."
+  fi
+
+  local appid provider keep_coopmat state_dir stamp
+  appid="$(prof_get APPID)"
+  case "$fsr4" in
+    int8) provider="$(prof_get PROVIDER_INT8 8)" ;;
+    lite) provider="$(prof_get PROVIDER_LITE 12)" ;;
+  esac
+  keep_coopmat=0
+  if [ "$fg" = "anr" ]; then
+    keep_coopmat=1
+  fi
+
+  state_dir="$ROOT/profiles/$profile_id"
+  mkdir -p "$state_dir"
+  stamp="$(timestamp)"
+  {
+    printf 'PROFILE_ID=%s\n' "$profile_id"
+    printf 'GAME_NAME=%s\n' "$(prof_get GAME_NAME "$profile_id")"
+    printf 'GAME_DIR=%s\n' "$game_dir"
+    printf 'GAME_EXE=%s\n' "$exe"
+    printf 'APPID=%s\n' "$appid"
+    printf 'FSR4=%s\n' "$fsr4"
+    printf 'FG=%s\n' "$fg"
+    printf 'PROVIDER_INDEX=%s\n' "$provider"
+    printf 'KEEP_COOPMAT=%s\n' "$keep_coopmat"
+    printf 'VKD3D_DISABLE_EXTENSIONS=%s\n' "$(prof_get VKD3D_DISABLE_EXTENSIONS)"
+    printf 'DLL_OVERRIDES=%s\n' "$(prof_get DLL_OVERRIDES 'dxgi cabinet')"
+    printf 'RELEASE=%s\n' "$(readlink "$ROOT/current" 2>/dev/null || printf 'desconocida')"
+    printf 'ENABLED_AT=%s\n' "$stamp"
+    printf 'BACKUP=%s\n' "${BK_DIR#"$game_dir"/}"
+  } >"$state_dir/state.conf"
+
+  backup_discard_if_empty
+  if [ -n "$BK_DIR" ]; then
+    say "Respaldos de lo que se pisó: $BK_DIR"
+  fi
+
+  say ""
+  say "Listo: $(prof_get GAME_NAME "$profile_id") preparado (FSR 4 XMX $fsr4, FG: $fg)."
+  say ""
+  say "Pegá esta línea en Steam → Propiedades → Opciones de lanzamiento:"
+  say ""
+  say "  $SELF run --profile $profile_id -- %command%"
+  say ""
+  say "Después revisá con: $SELF doctor \"$game_dir\" --profile $profile_id"
+}
+
+cmd_disable() {
+  local game_arg="" profile_id=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile) profile_id="${2-}"; shift 2 ;;
+      --profile=*) profile_id="${1#*=}"; shift ;;
+      -h|--help)
+        say "Uso: fsr-xmx disable <carpeta-del-juego>"
+        return 0
+        ;;
+      --*) die "opción desconocida: $1" ;;
+      *) [ -z "$game_arg" ] || die "sobra un argumento: $1"; game_arg="$1"; shift ;;
+    esac
+  done
+  [ -n "$game_arg" ] || die "falta la carpeta del juego. Ejemplo: fsr-xmx disable <carpeta>"
+  [ -d "$game_arg" ] || die "no existe la carpeta: $game_arg"
+  local game_dir
+  game_dir="$(cd "$game_arg" && pwd -P)"
+
+  local bk_root="$game_dir/.fsr-xmx-backup"
+  [ -d "$bk_root" ] || die "en $game_dir no hay nada preparado por fsr-xmx (falta .fsr-xmx-backup)."
+
+  local -a pending=()
+  local dir
+  while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    [ -f "$dir/manifest.tsv" ] || continue
+    [ -f "$dir/applied" ] && continue
+    pending+=("$dir")
+  done < <(find "$bk_root" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
+
+  if [ "${#pending[@]}" -eq 0 ]; then
+    die "no hay cambios pendientes de deshacer en $game_dir (¿ya corriste disable?)."
+  fi
+
+  local problems=0 oldest="${pending[0]}"
+  local i action rel hash path
+  for ((i = ${#pending[@]} - 1; i >= 0; i--)); do
+    dir="${pending[$i]}"
+    while IFS=$'\t' read -r action rel hash; do
+      case "$action" in
+        replaced)
+          path="$game_dir/$rel"
+          if [ ! -f "$dir/files/$rel" ]; then
+            failmsg "el respaldo $dir/files/$rel no está; no pude restaurar $rel."
+            problems=1
+            continue
+          fi
+          mkdir -p "$(dirname "$path")"
+          cp -p "$dir/files/$rel" "$path"
+          ;;
+        added)
+          rm -f "$game_dir/$rel"
+          ;;
+        mkdir)
+          rmdir "$game_dir/$rel" 2>/dev/null || true
+          ;;
+        FORMAT|GAME_DIR|CREATED) ;;
+      esac
+    done < <(tac "$dir/manifest.tsv")
+    : >"$dir/applied"
+  done
+
+  while IFS=$'\t' read -r action rel hash; do
+    case "$action" in
+      replaced)
+        path="$game_dir/$rel"
+        if [ ! -f "$path" ]; then
+          failmsg "esperaba $rel de vuelta y no está."
+          problems=1
+        elif [ -n "$hash" ] && [ "$(sha256_of "$path")" != "$hash" ]; then
+          failmsg "$rel no quedó igual que antes (hash distinto)."
+          problems=1
+        fi
+        ;;
+      added)
+        [ -e "$game_dir/$rel" ] && { failmsg "$rel debería haberse ido y sigue ahí."; problems=1; }
+        ;;
+    esac
+  done <"$oldest/manifest.tsv"
+
+  local state_dir=""
+  if [ -n "$profile_id" ]; then
+    state_dir="$ROOT/profiles/$profile_id"
+  else
+    local st
+    for st in "$ROOT"/profiles/*/state.conf; do
+      [ -f "$st" ] || continue
+      if [ "$(key_get "$st" GAME_DIR || true)" = "$game_dir" ]; then
+        state_dir="$(dirname "$st")"
+        break
+      fi
+    done
+  fi
+  if [ -n "$state_dir" ] && [ -f "$state_dir/state.conf" ]; then
+    mv "$state_dir/state.conf" "$state_dir/state.conf.disabled"
+    say "El juego quedó archivado como deshabilitado en $state_dir."
+  fi
+
+  if [ "$problems" -ne 0 ]; then
+    say ""
+    say "Deshice todo lo que pude, pero hay diferencias (ver FALTA arriba)."
+    say "Los respaldos quedan en $bk_root por si querés revisarlos a mano."
+    exit 1
+  fi
+  say ""
+  say "Listo: $game_dir volvió a como estaba antes."
+  say "Los respaldos quedan en $bk_root (se pueden borrar a mano)."
+  say "Sacá la línea de fsr-xmx de las opciones de lanzamiento en Steam."
+}
+
+resolve_run_profile() {
+  local want="$1" explicit="$2"
+  shift 2
+  local -a command=("$@")
+  local st id game appid arg matched="" count=0
+  if [ -n "$explicit" ]; then
+    st="$(state_file "$want")"
+    [ -f "$st" ] || die "el juego '$want' no está preparado. Corré: $SELF enable <carpeta del juego> --profile $want"
+    printf '%s' "$want"
+    return 0
+  fi
+  local -a ids=()
+  for st in "$ROOT"/profiles/*/state.conf; do
+    [ -f "$st" ] || continue
+    id="$(basename "$(dirname "$st")")"
+    count=$((count + 1))
+    ids+=("$id")
+    game="$(key_get "$st" GAME_DIR || true)"
+    appid="$(key_get "$st" APPID || true)"
+    if [ -n "$game" ]; then
+      case "$PWD/" in
+        "$game"/*) matched="$id"; break ;;
+      esac
+      for arg in "${command[@]}"; do
+        case "$arg" in
+          "$game"/*) matched="$id"; break ;;
+        esac
+      done
+      [ -n "$matched" ] && break
+    fi
+    if [ -n "$appid" ] && { [ "${SteamAppId:-}" = "$appid" ] || [ "${SteamCompatAppId:-}" = "$appid" ]; }; then
+      matched="$id"
+      break
+    fi
+  done
+  if [ -n "$matched" ]; then
+    printf '%s' "$matched"
+    return 0
+  fi
+  if [ "$count" -eq 1 ]; then
+    printf '%s' "${ids[0]}"
+    return 0
+  fi
+  if [ "$count" -eq 0 ]; then
+    die "no hay ningún juego preparado. Corré: $SELF enable <carpeta del juego> --fsr4 int8"
+  fi
+  die "hay varios juegos preparados (${ids[*]}) y no sé cuál es. Agregá --profile <juego> a la línea de Steam."
+}
+
+cmd_run() {
+  local want="" explicit="" trace=0 print_env=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile) want="${2-}"; explicit=1; shift 2 ;;
+      --profile=*) want="${1#*=}"; explicit=1; shift ;;
+      --game) want="${2-}"; explicit=1; shift 2 ;;
+      --game=*) want="${1#*=}"; explicit=1; shift ;;
+      --trace) trace=1; shift ;;
+      --print-env) print_env=1; shift ;;
+      --) shift; break ;;
+      -h|--help)
+        say "Uso: fsr-xmx run [--profile <juego>] [--trace] -- <comando...>"
+        say "En Steam se usa así: $SELF run --profile cyberpunk2077 -- %command%"
+        return 0
+        ;;
+      -*) die "opción desconocida para run: $1" ;;
+      *) break ;;
+    esac
+  done
+
+  local -a command=("$@")
+  [ "${#command[@]}" -gt 0 ] || die "falta el comando a ejecutar. Uso: fsr-xmx run -- %command%"
+
+  local rel
+  rel="$(release_dir)"
+  if [ ! -f "$rel/icd/intel_icd.json" ]; then
+    die "no encuentro el driver instalado. Corré: $SELF install --from <carpeta>"
+  fi
+
+  local id state
+  id="$(resolve_run_profile "$want" "$explicit" "${command[@]}")"
+  state="$(state_file "$id")"
+
+  local appid game_dir exe fsr4 fg provider keep disable_ext overrides
+  appid="$(key_get "$state" APPID || true)"
+  game_dir="$(key_get "$state" GAME_DIR || true)"
+  exe="$(key_get "$state" GAME_EXE || true)"
+  fsr4="$(key_get "$state" FSR4 || true)"
+  fg="$(key_get "$state" FG || true)"
+  provider="$(key_get "$state" PROVIDER_INDEX || true)"
+  keep="$(key_get "$state" KEEP_COOPMAT || true)"
+  disable_ext="$(key_get "$state" VKD3D_DISABLE_EXTENSIONS || true)"
+  overrides="$(key_get "$state" DLL_OVERRIDES || true)"
+  [ -n "$appid" ] || appid="0"
+  [ -n "$overrides" ] || overrides="dxgi cabinet"
+
+  local cache_game="$CACHE/$appid"
+  mkdir -p "$cache_game/kernels" "$cache_game/logs"
+
+  export VK_DRIVER_FILES="$rel/icd/intel_icd.json"
+  export VK_LOADER_LAYERS_DISABLE='*'
+  export VKD3D_DISABLE_EXTENSIONS="$disable_ext"
+  export ANV_CM_HELPER="$rel/tools/cm-compile.sh"
+  export ANV_CM_KERNEL_DIR="$cache_game/kernels"
+  export ANV_CM_DEBUG=1
+  # shellcheck disable=SC2086
+  export WINEDLLOVERRIDES="$(merge_dll_overrides "${WINEDLLOVERRIDES-}" $overrides)"
+  export PROTON_LOG=1
+  export PROTON_LOG_DIR="$cache_game/logs"
+  if [ "$trace" = "1" ]; then
+    export VKD3D_DEBUG=trace
+  else
+    export VKD3D_DEBUG="${VKD3D_DEBUG:-warn}"
+  fi
+  case "$fsr4" in
+    int8) export FSR4_XMX_INT8=1 ;;
+    lite) export FSR4_XMX_LITE=1 ;;
+  esac
+  if [ -n "$provider" ]; then
+    export FSR4_XMX_PROVIDER_INDEX="$provider"
+  fi
+  if [ "$keep" = "1" ]; then
+    export VKD3D_KEEP_COOPMAT_EXTENSION=1
+  fi
+
+  if [ "$print_env" = "1" ]; then
+    printf 'perfil: %s (%s, FSR4 %s, FG %s)\n' "$id" "$game_dir" "${fsr4:-stock}" "${fg:-off}"
+    local name
+    for name in VK_DRIVER_FILES VK_LOADER_LAYERS_DISABLE VKD3D_DISABLE_EXTENSIONS \
+                ANV_CM_HELPER ANV_CM_KERNEL_DIR ANV_CM_DEBUG WINEDLLOVERRIDES \
+                FSR4_XMX_INT8 FSR4_XMX_LITE FSR4_XMX_PROVIDER_INDEX \
+                VKD3D_KEEP_COOPMAT_EXTENSION PROTON_LOG PROTON_LOG_DIR VKD3D_DEBUG; do
+      if [ -n "${!name:-}" ]; then
+        printf '%s=%s\n' "$name" "${!name}"
+      fi
+    done
+    return 0
+  fi
+
+  if [ -n "$exe" ] && [ -f "$game_dir/$exe" ] && game_running "$exe" "$game_dir"; then
+    say "fsr-xmx: ya hay un $exe corriendo; igual sigo (Steam suele lanzar un solo proceso)."
+  fi
+  exec "${command[@]}"
+}
+
+cmd_doctor() {
+  local game_arg="" profile_id=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile) profile_id="${2-}"; shift 2 ;;
+      --profile=*) profile_id="${1#*=}"; shift ;;
+      -h|--help)
+        say "Uso: fsr-xmx doctor [<carpeta-del-juego>] [--profile <juego>]"
+        return 0
+        ;;
+      --*) die "opción desconocida: $1" ;;
+      *) [ -z "$game_arg" ] || die "sobra un argumento: $1"; game_arg="$1"; shift ;;
+    esac
+  done
+
+  local card="" driver="" steam rel
+  say "== Hardware y sistema =="
+  if card="$(intel_card_dir)"; then
+    local device
+    device="$(cat "$card/device/device" 2>/dev/null || true)"
+    okl "GPU Intel detectada (PCI 8086:${device#0x})"
+  elif command -v lspci >/dev/null 2>&1 && lspci -nn 2>/dev/null | grep -qi 'VGA.*8086:'; then
+    card="lspci"
+    okl "GPU Intel detectada (por lspci; no pude leer /sys)"
+  else
+    failmsg "no encontré una GPU Intel. Este puente necesita una Intel Arc/Xe2. Revisá: lspci -nn | grep -i vga"
+  fi
+
+  if [ -n "$card" ] && [ "$card" != "lspci" ]; then
+    driver="$(card_driver "$card" || true)"
+    case "$driver" in
+      xe) okl "driver del kernel: xe" ;;
+      i915) warn "driver del kernel: i915 (viejo). Con Xe2 conviene xe; si podés, actualizá el kernel." ;;
+      "") failmsg "no pude ver qué driver usa la GPU. Probá: lspci -k | grep -A3 -i vga" ;;
+      *) warn "driver del kernel: $driver (esperaba xe o i915)." ;;
+    esac
+  elif [ -z "$card" ]; then
+    failmsg "sin GPU Intel no puedo revisar el driver."
+  fi
+
+  if has_vulkan_loader; then
+    okl "cargador de Vulkan presente"
+  else
+    failmsg "no encuentro el cargador de Vulkan. Instalá: sudo pacman -S vulkan-icd-loader"
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    okl "python3 presente"
+  else
+    failmsg "falta python3 (lo usa el instalador para tocar el ini). Instalá: sudo pacman -S python"
+  fi
+
+  steam="$(steam_root)"
+  if [ -n "$steam" ] && [ -d "$steam" ]; then
+    okl "Steam nativo en $steam"
+  elif [ -d "$(flatpak_steam_dir)" ]; then
+    warn "tenés Steam de Flatpak y esta versión no lo soporta (no ve tus carpetas). Usá Steam nativo."
+  else
+    failmsg "no encontré Steam. Abrí Steam una vez o instalalo (sudo pacman -S steam)."
+  fi
+
+  say ""
+  say "== Instalador =="
+  rel="$(release_dir)"
+  if [ -d "$ROOT" ] && [ -f "$ROOT/$MARKER" ]; then
+    if [ -L "$ROOT/current" ] && [ -d "$ROOT/current" ]; then
+      local detail
+      if detail="$(verify_bundle "$rel" 2>&1)"; then
+        okl "instalación activa: $(readlink "$ROOT/current")"
+      else
+        failmsg "la instalación activa está dañada. Volvé a instalar: $SELF install --from <carpeta>"
+        printf '%s\n' "$detail" | sed 's/^/       /'
+      fi
+    else
+      failmsg "falta el enlace '$ROOT/current'. Volvé a instalar: $SELF install --from <carpeta>"
+    fi
+  else
+    failmsg "el driver no está instalado. Corré: $SELF install --from <carpeta>"
+  fi
+
+  if [ -n "$steam" ] && [ -d "$steam/compatibilitytools.d" ]; then
+    local man found=0 tool mismatch
+    for man in "$steam"/compatibilitytools.d/*/.fsr-xmx-manifest; do
+      [ -f "$man" ] || continue
+      found=1
+      tool="$(dirname "$man")"
+      mismatch=0
+      if [ -f "$rel/vkd3d-proton/x86_64-windows/d3d12core.dll" ]; then
+        local want got
+        want="$(sed -n 's/^D3D12CORE_SHA256=//p' "$man" | head -1)"
+        got="$(sha256_of "$tool/files/lib/wine/vkd3d-proton/x86_64-windows/d3d12core.dll" 2>/dev/null || true)"
+        [ "$want" = "$got" ] || mismatch=1
+        want="$(sed -n 's/^D3D12_SHA256=//p' "$man" | head -1)"
+        got="$(sha256_of "$tool/files/lib/wine/vkd3d-proton/x86_64-windows/d3d12.dll" 2>/dev/null || true)"
+        [ "$want" = "$got" ] || mismatch=1
+      fi
+      if [ "$mismatch" = "0" ]; then
+        okl "herramienta de compatibilidad: $(basename "$tool")"
+      else
+        failmsg "la herramienta $(basename "$tool") tiene DLL distintos a los anotados. Recreala: $SELF install-compat-tool --ge-dir <carpeta>"
+      fi
+    done
+    if [ "$found" = "0" ]; then
+      failmsg "no hay herramienta de compatibilidad nuestra. Creala: $SELF install-compat-tool --ge-dir <carpeta GE-Proton>"
+    fi
+  elif [ -z "$steam" ]; then
+    warn "sin Steam no puedo revisar la herramienta de compatibilidad."
+  fi
+
+  if [ -n "$game_arg" ]; then
+    say ""
+    doctor_game "$game_arg" "$profile_id"
+  else
+    say ""
+    say "Para revisar un juego: $SELF doctor <carpeta-del-juego>"
+  fi
+
+  say ""
+  if [ "$FAIL_COUNT" -eq 0 ]; then
+    say "Todo en orden."
+    return 0
+  fi
+  say "Hay $FAIL_COUNT cosa(s) para arreglar (mirá las líneas FALTA)."
+  return 1
+}
+
+doctor_game() {
+  local game_arg="$1" profile_id="$2" game_dir exe
+  [ -d "$game_arg" ] || { failmsg "no existe la carpeta del juego: $game_arg"; return 1; }
+  game_dir="$(cd "$game_arg" && pwd -P)"
+
+  if [ -z "$profile_id" ]; then
+    local id
+    while IFS= read -r id; do
+      load_profile "$(profile_path "$id")"
+      if [ -f "$game_dir/$(prof_get GAME_EXE)" ]; then
+        profile_id="$id"
+        break
+      fi
+    done < <(profile_ids)
+    if [ -z "$profile_id" ]; then
+      failmsg "no reconozco el juego en $game_dir. Pasá --profile <juego>."
+      return 1
+    fi
+  else
+    load_profile "$(profile_path "$profile_id")"
+    profile_id="$(basename "$PROF_FILE" .conf)"
+  fi
+
+  say "== $(prof_get GAME_NAME "$profile_id") ($game_dir) =="
+  local rel state fsr4 fg enabled=0
+  rel="$(release_dir)"
+  state="$(state_file "$profile_id")"
+  if [ -f "$state" ] && [ "$(key_get "$state" GAME_DIR || true)" = "$game_dir" ]; then
+    fsr4="$(key_get "$state" FSR4 || true)"
+    fg="$(key_get "$state" FG || true)"
+    enabled=1
+    okl "preparado por fsr-xmx (FSR4 $fsr4, FG $fg)"
+  else
+    fsr4="$(prof_get FSR4_DEFAULT int8)"
+    fg="$(prof_get FG_DEFAULT xefg)"
+    warn "este juego no está preparado (o se preparó para otra carpeta). Corré: $SELF enable \"$game_dir\" --fsr4 $fsr4"
+  fi
+
+  local mod="$game_dir/$(prof_get MOD_DLL)"
+  if [ ! -f "$mod" ]; then
+    failmsg "falta el mod de nitec ($(prof_get MOD_DLL)). Pasalo con --mod-dll en enable."
+  elif [ "$(sha256_of "$mod")" = "$(prof_get MOD_SHA256)" ]; then
+    okl "mod FSR4 XMX: hash correcto"
+  else
+    failmsg "el mod de nitec no es el 4.1.2 esperado. Volvé a copiarlo con enable --mod-dll."
+  fi
+
+  local orig="$game_dir/$(prof_get FSR_ORIGINAL_DLL)"
+  if [ ! -f "$orig" ]; then
+    failmsg "falta fsr-original.dll (los pesos INT8/Lite). Pasalo con enable --original-dll."
+  elif [ "$(sha256_of "$orig")" = "$(prof_get FSR_ORIGINAL_SHA256)" ]; then
+    okl "fsr-original.dll: hash correcto"
+  else
+    failmsg "fsr-original.dll no es el 4.1.2 oficial esperado. Conseguí el correcto y repetí enable."
+  fi
+
+  if [ -f "$rel/igdext64.dll" ]; then
+    local shim="$game_dir/$(prof_get IGDEXT_DLL igdext64.dll)"
+    if [ ! -f "$shim" ]; then
+      if [ "$enabled" = "1" ]; then
+        failmsg "falta igdext64.dll junto al juego. Corré enable de nuevo con el driver instalado."
+      else
+        warn "todavía no hay igdext64.dll junto al juego (lo pone enable)."
+      fi
+    elif [ "$(sha256_of "$shim")" = "$(sha256_of "$rel/igdext64.dll")" ]; then
+      okl "igdext64.dll: igual al del driver"
+    else
+      failmsg "igdext64.dll del juego no es el del driver. Corré enable de nuevo."
+    fi
+    local cab="$game_dir/$(prof_get CABINET_DLL cabinet.dll)"
+    if [ -f "$cab" ] && [ "$(sha256_of "$cab")" = "$(sha256_of "$rel/cabinet.dll")" ]; then
+      okl "cabinet.dll: igual al del driver"
+    elif [ "$fg" = "anr" ]; then
+      failmsg "cabinet.dll no coincide con el del driver. Corré enable de nuevo."
+    fi
+  else
+    warn "sin instalación no puedo comparar igdext64.dll ni cabinet.dll."
+  fi
+
+  local ini="$game_dir/$(prof_get OPTISCALER_INI)"
+  if [ ! -f "$ini" ]; then
+    failmsg "falta $(prof_get OPTISCALER_INI). Abrí el juego una vez con OptiScaler o pasá --optiscaler en enable."
+  else
+    if grep -q $'\r' "$ini"; then
+      okl "OptiScaler.ini con CRLF"
+    else
+      warn "OptiScaler.ini no tiene CRLF; OptiScaler lo espera así. Abrilo y guardalo con CRLF."
+    fi
+    local sets bad="" section key value got
+    sets="$(prof_get INI_BASE);$(prof_get INI_FG_ANR)"
+    [ "$fg" = "anr" ] || sets="$(prof_get INI_BASE);$(prof_get INI_FG_XEFG)"
+    while IFS=$'\t' read -r section key value; do
+      [ -n "$section" ] || continue
+      got="$(python3 "$SELF_DIR/lib/ini_edit.py" get "$ini" "$section" "$key" 2>/dev/null || true)"
+      if [ "$(printf '%s' "$got" | tr 'A-Z' 'a-z')" != "$(printf '%s' "$value" | tr 'A-Z' 'a-z')" ]; then
+        bad="$bad [$section] $key (está '${got:-vacío}', tendría que ser '$value');"
+      fi
+    done < <(ini_stream "$sets")
+    if [ -z "$bad" ]; then
+      okl "OptiScaler.ini: claves de FSR4 y FG en orden"
+    elif [ "$enabled" = "1" ]; then
+      failmsg "OptiScaler.ini tiene claves fuera de lugar:$bad Corré enable de nuevo."
+    else
+      warn "OptiScaler.ini todavía no tiene los valores de fsr-xmx:$bad (los escribe enable)."
+    fi
+  fi
+
+  local appid marker
+  appid="$(prof_get APPID)"
+  marker="$CACHE/$appid/kernels/compile_failed.txt"
+  if [ -f "$marker" ]; then
+    warn "el driver se rindió con algún kernel (compile_failed.txt). Mirá el log del juego antes de insistir."
+  fi
+}
+
+cmd_uninstall() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help)
+        say "Uso: fsr-xmx uninstall"
+        return 0
+        ;;
+      *) die "opción desconocida: $1" ;;
+    esac
+  done
+
+  local enabled=""
+  local st
+  for st in "$ROOT"/profiles/*/state.conf; do
+    [ -f "$st" ] || continue
+    enabled="$enabled $(basename "$(dirname "$st")")"
+  done
+  if [ -n "$enabled" ]; then
+    say "Todavía hay juegos preparados:$enabled"
+    say "Antes de desinstalar, devolvelos a como estaban con:"
+    for st in $enabled; do
+      local gd
+      gd="$(key_get "$(state_file "$st")" GAME_DIR || true)"
+      say "  $SELF disable \"$gd\""
+    done
+    die "no borré nada para no dejar juegos a medio tocar."
+  fi
+
+  local steam tool removed=0
+  steam="$(steam_root)"
+  if [ -n "$steam" ] && [ -d "$steam/compatibilitytools.d" ]; then
+    for tool in "$steam"/compatibilitytools.d/*/; do
+      [ -d "$tool" ] || continue
+      if [ -f "$tool/.fsr-xmx-manifest" ]; then
+        rm -rf "${tool%/}"
+        say "Quité la herramienta de compatibilidad $(basename "$tool")."
+        removed=1
+      fi
+    done
+  fi
+
+  if [ -d "$ROOT" ]; then
+    [ -f "$ROOT/$MARKER" ] || die "$ROOT no la creó este programa (falta $MARKER); no la borro."
+    rm -rf "$ROOT"
+    say "Quité $ROOT"
+    removed=1
+  fi
+
+  if [ -d "$CACHE" ]; then
+    say "La caché de kernels quedó en $CACHE; borrala a mano si querés recuperar el espacio."
+  fi
+
+  if [ "$removed" = "0" ]; then
+    say "No encontré nada instalado por fsr-xmx."
+  else
+    say "Listo. Steam, los prefijos y los juegos quedaron intactos."
+  fi
+}
+
+main() {
+  local command="${1-}"
+  if [ $# -gt 0 ]; then shift; fi
+  case "$command" in
+    doctor) cmd_doctor "$@" ;;
+    install) cmd_install "$@" ;;
+    install-compat-tool) cmd_install_compat_tool "$@" ;;
+    enable) cmd_enable "$@" ;;
+    disable) cmd_disable "$@" ;;
+    run) cmd_run "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    version|--version|-V) cmd_version ;;
+    help|--help|-h) usage ;;
+    "") usage; exit 2 ;;
+    *) usage >&2; die "no conozco el comando '$command'." ;;
+  esac
+}
+
+main "$@"
