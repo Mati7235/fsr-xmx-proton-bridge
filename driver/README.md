@@ -7,7 +7,7 @@ the machine for every account there.
    `lib/`, `igdext64.dll`, `cabinet.dll` and `tools/`.
 2. Put it in `bundle/`, or pass its path: `sudo ./install.sh --from <folder>`.
 3. Log out and back in, or use the `export` line the script prints.
-4. Do the game step, see `game/README.md`.
+4. Do the game step from the separate `fsr-xmx-game` download. Its README explains it.
 
 ## What it writes
 
@@ -34,6 +34,6 @@ sessions only. The script prints the one-line `export` for the session you are i
 
 `sudo ./uninstall.sh` removes exactly the paths listed in
 `/opt/fsr-xmx/created.tsv`, the manifest from install time, and refuses when one of
-them changed since. Undo each game first with `game/uninstall.sh`: the per-user part
-refuses while a game is still set up. It is also the rollback if Vulkan applications
-stop starting. Log out and back in afterwards.
+them changed since. Undo each game first with `uninstall.sh` in the game folder.
+The per-user part refuses while a game is still set up, and it is the rollback if
+Vulkan applications stop starting. Log out and back in afterwards.

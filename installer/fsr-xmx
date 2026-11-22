@@ -260,14 +260,6 @@ cmd_install_compat_tool() {
 
 timestamp() { date +%Y%m%d-%H%M%S; }
 
-launch_tool() {
-  if command -v fsr-xmx >/dev/null 2>&1; then
-    printf 'fsr-xmx'
-    return 0
-  fi
-  printf '<path-to-fsr-xmx>'
-}
-
 quote_arg() {
   local value="$1"
   case "$value" in
@@ -277,6 +269,14 @@ quote_arg() {
       ;;
     *) printf '%s' "$value" ;;
   esac
+}
+
+launch_tool() {
+  if command -v fsr-xmx >/dev/null 2>&1; then
+    printf 'fsr-xmx'
+    return 0
+  fi
+  quote_arg "$SELF"
 }
 
 failure_hint() {
@@ -387,6 +387,9 @@ cmd_enable() {
   local ini="$game_dir/$(prof_get OPTISCALER_INI)"
   local tmp_extract=""
   if [ ! -f "$dxgi" ]; then
+    if [ -f "$game_dir/OptiScaler.dll" ]; then
+      die "OptiScaler.dll is there, but the game needs it as $(prof_get OPTISCALER_DLL). The release ships the file under its release name, so rename it in the game folder with: mv OptiScaler.dll $(prof_get OPTISCALER_DLL)"
+    fi
     [ -n "$optiscaler" ] || die "OptiScaler is missing ($(prof_get OPTISCALER_DLL)) in $game_dir. Download its official release and pass it with --optiscaler <file>."
     verify_archive "$optiscaler" "OptiScaler" "$(prof_get OPTISCALER_SHA256)" \
       "I won't use an unverified OptiScaler. Download the official release listed in the documentation and pass it with --optiscaler."
@@ -514,11 +517,7 @@ cmd_enable() {
   say ""
   say "Done: $(prof_get GAME_NAME "$profile_id") is ready (FSR 4 XMX $fsr4, FG: $fg)."
   say ""
-  if [ "$tool" = "<path-to-fsr-xmx>" ]; then
-    say "First replace <path-to-fsr-xmx> with the full path to fsr-xmx, then paste the line into Steam → Properties → Launch Options:"
-  else
-    say "Paste this line into Steam → Properties → Launch Options:"
-  fi
+  say "Paste this line into Steam → Properties → Launch Options:"
   say ""
   say "  $tool run --profile $profile_id -- %command%"
   say ""

@@ -1,8 +1,8 @@
 # Third-party components and their licenses
 
-This repository ships scripts, configuration and documentation. It does not ship
-any binary, and it grants no rights over the software listed below. Each component
-keeps its own license and its own copyright holder.
+This repository ships scripts, configuration and documentation. The one binary we
+publish is the patched Vulkan driver described below, and it comes with its source.
+Each component keeps its own license and its own copyright holder.
 
 ## What this repository contains
 
@@ -16,8 +16,8 @@ its source available under the same license.
 
 | Component | Where it comes from | License | Bundled here |
 |---|---|---|---|
-| `xess-xmx-linux` | Upstream project, pinned at `f06dc39` | MIT, copyright HHHHanasak1. MIT code can be combined with AGPL code, and the combined work stays AGPL | No. The installers read a bundle the user builds or downloads |
-| Mesa 3D (the patched Vulkan driver) | mesa3d.org plus the patches in [patches/](patches/) | MIT | No |
+| `xess-xmx-linux` | Upstream project, pinned at `f06dc39` | MIT, copyright HHHHanasak1. MIT code can be combined with AGPL code, and the combined work stays AGPL | Its patches are applied to build our driver, not copied into this repository |
+| Mesa 3D (the patched Vulkan driver) | mesa3d.org plus the patches in [patches/](patches/) | MIT | We publish the compiled library; see the section below |
 | vkd3d-proton | Valve's fork of vkd3d | LGPL-2.1 | No |
 | `igdext64.dll` | Intel graphics driver components, taken from the upstream package | Intel's own terms, see the upstream package | No |
 | nitec's FSR 4 XMX mod | NexusMods, author nitec | No public license that allows redistribution | No. The user supplies the file and the installer checks its sha256 |
@@ -29,6 +29,20 @@ Because the mod and the AMD DLL are not redistributable, `game/install.sh` refus
 to run until the user puts them in the game folder. [game/PUT-THE-FILES-HERE.txt](game/PUT-THE-FILES-HERE.txt)
 lists the exact sizes and sha256 values, so a wrong version stops before anything is
 copied.
+
+## The driver binary we publish
+
+The driver library we ship is built from Mesa 26.3 with the upstream
+`xess-xmx-linux` patches and our own patch on top, `patches/0001-anv-cmk3-explicit-mapping.patch`.
+That patch edits files that carry the upstream MIT notice, and it keeps that notice
+in every hunk it touches.
+
+Because our own additions are under the AGPL, publishing the binary comes with an
+obligation: whoever receives it must be able to get the exact source. The release
+therefore points at this repository, the pinned upstream revision and the Mesa
+version, and [docs/installer-design.md](docs/installer-design.md) records the build
+steps. The release archive also carries `LICENSE` and this file, so the Mesa and
+upstream MIT notices travel with the binary.
 
 ## Game footage
 

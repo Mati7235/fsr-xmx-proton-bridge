@@ -34,5 +34,6 @@ it again to retry.
 
 ## What is not here
 
-nitec's mod, `dxgi.dll` and `OptiScaler.ini` are third-party and cannot be
-redistributed; `PUT-THE-FILES-HERE.txt` has the hashes and sources.
+nitec's mod, OptiScaler and `OptiScaler.ini` are third-party and cannot be
+redistributed. The OptiScaler release ships `OptiScaler.dll`, so rename it to
+`dxgi.dll` in the game folder. `PUT-THE-FILES-HERE.txt` has the hashes and sources.

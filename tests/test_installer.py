@@ -98,8 +98,10 @@ class InstallerTest(unittest.TestCase):
         (device / "vendor").write_text("0x8086\n")
         (device / "device").write_text("0xe20b\n")
         (device / "driver").symlink_to(self.sysfs / "bus" / "pci" / "drivers" / "xe")
+        path_dirs = [p for p in os.environ.get("PATH", "/usr/bin:/bin").split(os.pathsep)
+                     if p and not (Path(p) / "fsr-xmx").exists()]
         self.env = {
-            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "PATH": os.pathsep.join(path_dirs) or "/usr/bin:/bin",
             "HOME": str(self.home),
             "LANG": "C.UTF-8",
             "TMPDIR": str(self.tmp / "tmp"),
@@ -334,21 +336,38 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("Usage:", result.stdout)
 
-    def test_hints_do_not_contain_the_script_path(self):
-        install = self.run_cli("install")
-        self.assertIn("install --from", install.stdout)
-        self.assertNotIn(str(SCRIPT), install.stdout + install.stderr)
+    def test_hints_name_the_running_tool_instead_of_a_placeholder(self):
+        tool = self.copy_tool("my download")
+        install = self.run_tool(tool, "install", "--from", str(self.bundle))
+        self.assertEqual(install.returncode, 0, install.stdout + install.stderr)
+        self.assertIn('"%s" install-compat-tool --ge-dir' % tool, install.stdout)
+        self.assertNotIn("<path-to-fsr-xmx>", install.stdout)
+        self.assertNotIn(str(REPO), install.stdout)
 
-        self.install_ok()
-        self.enable_ok("--fsr4", "int8")
-        uninstall = self.run_cli("uninstall")
-        self.assertIn("disable", uninstall.stdout)
-        self.assertNotIn(str(SCRIPT), uninstall.stdout + uninstall.stderr)
+        doctor = self.run_tool(tool, "doctor")
+        self.assertIn('"%s" doctor <game-folder>' % tool, doctor.stdout)
+        self.assertNotIn("<path-to-fsr-xmx>", doctor.stdout)
 
-        shutil.rmtree(self.root)
-        doctor = self.run_cli("doctor")
-        self.assertIn("install --from", doctor.stdout)
-        self.assertNotIn(str(SCRIPT), doctor.stdout + doctor.stderr)
+        prefix = self.tmp / "bin"
+        prefix.mkdir()
+        (prefix / "fsr-xmx").symlink_to(tool)
+        on_path = self.run_tool(
+            tool, "doctor",
+            extra_env={"PATH": str(prefix) + os.pathsep + self.env["PATH"]})
+        self.assertIn("fsr-xmx doctor <game-folder>", on_path.stdout)
+        self.assertNotIn(str(tool), on_path.stdout)
+
+    def copy_tool(self, folder_name):
+        dest = self.tmp / folder_name
+        shutil.copytree(REPO / "installer", dest)
+        return dest / "fsr-xmx"
+
+    def run_tool(self, tool, *args, extra_env=None):
+        env = dict(self.env)
+        if extra_env:
+            env.update(extra_env)
+        return subprocess.run([str(tool), *args], env=env, text=True,
+                              capture_output=True, cwd=str(self.tmp))
 
     def test_install_rejects_tampered_bundle(self):
         (self.bundle / "igdext64.dll").write_bytes(b"igdext shim TAMPERED\n")
@@ -406,19 +425,28 @@ class InstallerTest(unittest.TestCase):
                  if "-- %command%" in line]
         self.assertEqual(len(lines), 1, result.stdout)
         line = lines[0]
-        self.assertTrue(line.startswith("fsr-xmx ")
-                        or line.startswith("<path-to-fsr-xmx> "), line)
+        self.assertTrue(line.startswith(str(SCRIPT) + " "), line)
         self.assertIn("run --profile cyberpunk2077 -- %command%", line)
-        self.assertNotIn(str(SCRIPT.parent), line)
         self.assertNotIn(str(self.tmp), line)
         self.assertIn('doctor "%s"' % spaced, result.stdout)
 
-    def test_enable_placeholder_line_says_to_replace_it(self):
+    def test_enable_launch_line_uses_the_real_path(self):
         self.install_ok()
         result = self.enable_ok("--fsr4", "int8")
-        self.assertIn("First replace <path-to-fsr-xmx> with the full path to fsr-xmx",
+        self.assertIn("Paste this line into Steam", result.stdout)
+        self.assertNotIn("<path-to-fsr-xmx>", result.stdout)
+        self.assertIn("%s run --profile cyberpunk2077 -- %%command%%" % SCRIPT,
                       result.stdout)
-        self.assertNotIn("Paste this line into Steam", result.stdout)
+
+    def test_enable_explains_the_optiscaler_rename(self):
+        self.install_ok()
+        (self.game / "dxgi.dll").rename(self.game / "OptiScaler.dll")
+        result = self.run_cli("enable", str(self.game), "--fsr4", "int8")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("OptiScaler.dll is there", result.stderr)
+        self.assertIn("rename it", result.stderr)
+        self.assertIn("dxgi.dll", result.stderr)
+        self.assertFalse((self.game / "igdext64.dll").exists())
 
     def test_enable_twice_keeps_a_backup_path_that_exists(self):
         self.install_ok()

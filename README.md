@@ -54,8 +54,9 @@ file, keeps the backup pending and exits non-zero; run it again to retry.
 
 Three of the files cannot ship with the download. nitec's FSR 4 XMX mod, AMD's FSR 4.1.2
 DLL and OptiScaler belong to their authors (NexusMods, AMD and GitHub), and their licenses
-do not allow us to redistribute them. The game script checks the pinned hashes, so only the
-right versions pass.
+do not allow us to redistribute them. The OptiScaler release ships `OptiScaler.dll`, so
+rename it to `dxgi.dll` in the game folder before you run the game step. The game script
+checks the pinned hashes, so only the right versions pass.
 
 ## What works today
 

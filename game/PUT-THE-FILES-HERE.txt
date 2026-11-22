@@ -14,7 +14,9 @@ Put these files in this folder, next to Cyberpunk2077.exe, before running ./inst
 
 3. dxgi.dll and OptiScaler.ini
    Both come from the OptiScaler release v10.0.0-pre_20261022 on GitHub
-   (github.com/OptiScalers/OptiScaler). The release archive we pin is:
+   (github.com/OptiScalers/OptiScaler). That release ships OptiScaler.dll, so
+   rename it to dxgi.dll in this game folder: mv OptiScaler.dll dxgi.dll
+   The release archive we pin is:
    sha256 df1380aa37fc17b26524e783f12ccb2f59cb67f966af13240bca3d4cd608a25a
 
 Only for --fg anr, also drop in:

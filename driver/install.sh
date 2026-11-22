@@ -233,5 +233,6 @@ say "/etc/environment.d is only read when a login session starts, so log out and
 say "For the session you are in now, run:"
 say "  export VK_DRIVER_FILES=$ICD_PATH"
 say ""
-say "Next: the game step, see game/README.md."
+say "Next: the game step, the separate fsr-xmx-game download."
+say "That download has its own README, which explains what to do in the game folder."
 say "Undo with: sudo ./uninstall.sh"

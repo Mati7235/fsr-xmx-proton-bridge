@@ -327,6 +327,36 @@ class PackagingTest(unittest.TestCase):
                 held.rename(self.game / name)
                 self.assertEqual(self.tree(self.game), before)
 
+    def test_game_install_explains_the_optiscaler_rename(self):
+        before = self.tree(self.game)
+        (self.game / "dxgi.dll").rename(self.game / "OptiScaler.dll")
+        result = self.run_script(GAME_INSTALL, str(self.game))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("OptiScaler.dll is", result.stderr)
+        self.assertIn("rename it", result.stderr)
+        self.assertIn("dxgi.dll", result.stderr)
+        self.assertEqual(self.backups(), [])
+        (self.game / "OptiScaler.dll").rename(self.game / "dxgi.dll")
+        self.assertEqual(self.tree(self.game), before)
+
+    def test_docs_explain_the_optiscaler_rename(self):
+        for doc in (REPO / "game" / "PUT-THE-FILES-HERE.txt",
+                    REPO / "game" / "README.md", REPO / "README.md"):
+            text = doc.read_text(encoding="utf-8")
+            self.assertIn("OptiScaler.dll", text, doc)
+            self.assertIn("dxgi.dll", text, doc)
+            self.assertIn("rename", text, doc)
+        self.assertIn("mv OptiScaler.dll dxgi.dll",
+                      (REPO / "game" / "PUT-THE-FILES-HERE.txt").read_text())
+
+    def test_driver_install_names_the_game_download(self):
+        result = self.run_script(DRIVER_INSTALL, "--from", str(self.bundle),
+                                 "--test-root", str(self.root),
+                                 extra_env={"FSR_XMX_DRIVER_TEST_ROOT": "1"})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("fsr-xmx-game", result.stdout)
+        self.assertNotIn("game/README.md", result.stdout)
+
     def test_game_install_rejects_a_wrong_mod(self):
         before = self.tree(self.game)
         (self.game / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"other mod\n")

@@ -88,21 +88,25 @@ check_pinned_file "$game_dir/$orig_name" "$(prof_get FSR_ORIGINAL_SHA256)" "$(pr
   "AMD's official FSR 4.1.2 DLL ($orig_name)" \
   "Put the official 4.1.2 DLL in $game_dir; where to get it is in PUT-THE-FILES-HERE.txt."
 
-for payload in "$(prof_get OPTISCALER_DLL)" "$(prof_get OPTISCALER_INI)"; do
-  if [ ! -f "$game_dir/$payload" ]; then
-    fail "$payload is not in $game_dir; put the OptiScaler release files there, see PUT-THE-FILES-HERE.txt"
+opti_dll="$(prof_get OPTISCALER_DLL)"
+opti_ini="$(prof_get OPTISCALER_INI)"
+if [ ! -f "$game_dir/$opti_dll" ]; then
+  if [ -f "$game_dir/OptiScaler.dll" ]; then
+    fail "$opti_dll is not in $game_dir, but OptiScaler.dll is. The release ships the file under that name, so rename it in the game folder with: mv OptiScaler.dll $opti_dll"
   fi
-done
+  fail "$opti_dll is not in $game_dir; put the OptiScaler release files there, see PUT-THE-FILES-HERE.txt"
+fi
+if [ ! -f "$game_dir/$opti_ini" ]; then
+  fail "$opti_ini is not in $game_dir; put the OptiScaler release files there, see PUT-THE-FILES-HERE.txt"
+fi
 
 if [ ! -f "$(release_dir)/igdext64.dll" ] || [ ! -f "$(release_dir)/cabinet.dll" ]; then
   fail "The driver step has not run on this machine yet (nothing at $(release_dir)); run driver/install.sh --from <bundle folder> first."
 fi
 
-set +o pipefail
-"$CLI" enable "$game_dir" --fsr4 "$(prof_get FSR4_DEFAULT int8)" --fg "$(prof_get FG_DEFAULT xefg)" "$@" |
-  grep -v '<path-to-fsr-xmx>' | cat -s || true
-enable_status="${PIPESTATUS[0]}"
-set -o pipefail
+enable_status=0
+"$CLI" enable "$game_dir" --fsr4 "$(prof_get FSR4_DEFAULT int8)" --fg "$(prof_get FG_DEFAULT xefg)" "$@" ||
+  enable_status=$?
 if [ "$enable_status" -ne 0 ]; then
   exit "$enable_status"
 fi
