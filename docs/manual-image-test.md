@@ -1,60 +1,60 @@
-# Segunda prueba manual: imagen y sampler
+# Second manual test: image and sampler
 
-**Primera ejecución positiva en GPU:** ver [resultado y límites](first-image-gpu-result.md).
-Comprueba el muestreo real de una
-textura 2x2 con filtrado lineal y bordes clamp. Es un kernel propio, no el PRE ni
-FSR completo. No usa Cyberpunk, OptiScaler ni Proton.
+**First positive GPU run:** see [result and limits](first-image-gpu-result.md).
+It checks the real sampling of a 2x2 texture with linear filtering and clamp
+edges. It is a custom kernel, not the PRE or full FSR. It does not use
+Cyberpunk, OptiScaler or Proton.
 
-Guardá tu trabajo y cerrá juegos/cargas GPU: un fallo puede colgar la GPU o la
-sesión. El timeout no garantiza recuperación. No uses `sudo`.
+Save your work and close games/GPU loads: a failure can hang the GPU or the
+session. The timeout does not guarantee recovery. Do not use `sudo`.
 
-## Ejecutar en este equipo
+## Run on this machine
 
 ```bash
 python3 /home/matias/Proyectos/fsr-xmx-proton-bridge/build/image-test-v01/run-manual.py --run-gpu
 ```
 
-El flag autoriza esa ejecución manual concreta. Sin él se rechaza el lanzamiento.
-El agente no ejecutó el harness ni GPU durante la preparación.
+The flag authorizes that specific manual run. Without it the launch is refused.
+The agent did not run the harness or the GPU during preparation.
 
-Antes de invocar el harness se verifican hashes de driver, ICD, harness, kernel,
-marcadores, auditoría y referencia CPU. Se crea un HOME/caché nuevo por ejecución
-y se usa solo el ICD local. No se instalan drivers ni se alteran Steam o prefijos
-existentes. Se reserva un directorio `WINEPREFIX` nuevo sin inicializar Wine; el
-harness es nativo. No hay aislamiento de hardware respecto del escritorio.
+Before invoking the harness, the hashes of the driver, ICD, harness, kernel,
+markers, audit and CPU reference are verified. A new HOME/cache is created per run
+and only the local ICD is used. No drivers are installed and no existing Steam or
+prefixes are altered. A new empty `WINEPREFIX` is reserved without initializing Wine;
+the harness is native. There is no hardware isolation from the desktop.
 
-## Qué debe comprobar
+## What it must check
 
-- PCI `8086:e20b`, extensión de descriptores mutables y soporte de RGBA32F lineal.
-- Canary del driver adaptado y ausencia de cambios en los demás words.
-- Inyección CM y layout DIRECT antes del despacho del kernel objetivo.
-- 64 valores float32 de la imagen contra la referencia CPU, incluidos centros,
-  interpolación y bordes; tolerancia absoluta `1e-5`, NaN rechazados.
-- Los otros 1.984 words de buffers permanecen centinela, incluida la cola de salida.
+- PCI `8086:e20b`, mutable descriptor extension and linear RGBA32F support.
+- Canary of the adapted driver and no changes in the other words.
+- CM injection and DIRECT layout before the target kernel dispatch.
+- 64 float32 image values against the CPU reference, including centers,
+  interpolation and edges; absolute tolerance `1e-5`, NaN rejected.
+- The other 1,984 buffer words remain sentinel, including the output tail.
 
-La preparación v16 corrige orden SPIR-V, firma de muestreo, orden de canales,
-índices de heap y bandera de sampler del paquete. No usar los intentos v01–v15.
-La auditoría estática es restringida y no sustituye este experimento.
+The v16 preparation fixes the SPIR-V order, sampling signature, channel order,
+heap indices and the sampler flag of the package. Do not use attempts v01–v15.
+The static audit is restricted and does not replace this experiment.
 
-Si pasa, el harness imprime:
+If it passes, the harness prints:
 
 ```text
 Image probe passed canary, injection/layout gates, all 64 oracle samples, and sentinel checks.
 ```
 
-El lanzador imprime además el código de salida y la ruta de la ejecución bajo
-`build/image-test-v01/runs/`. Mandame esa salida y la ruta, tanto si pasa como si
-falla. No hace falta pegar el contenido binario en el chat.
+The launcher also prints the exit code and the path of the run under
+`build/image-test-v01/runs/`. Send me that output and the path, whether it passes or
+fails. There is no need to paste the binary content into the chat.
 
-## Evidencia e inspección CPU independiente
+## Evidence and independent CPU inspection
 
-En `runs/ID-DE-EJECUCION/evidence/` quedan canary, selección ICD, logs de inyección
-y despacho, `image-readback.txt` y **`image-readback.bin`**. Este último contiene
-los 16 buffers completos (8.192 bytes), no solo un reporte de que coincidieron.
-Permite volver a comprobar los valores sin ejecutar GPU ni confiar únicamente en
-el comparador C.
+In `runs/ID-DE-EJECUCION/evidence/` you will find the canary, ICD selection, injection and
+dispatch logs, `image-readback.txt` and **`image-readback.bin`**. The latter contains
+the 16 complete buffers (8,192 bytes), not just a report that they matched.
+It allows the values to be checked again without running the GPU or relying only on
+the C comparator.
 
-Desde la raíz del repositorio, opcionalmente:
+From the repository root, optionally:
 
 ```bash
 python3 tools/review_image_result.py \
@@ -62,19 +62,19 @@ python3 tools/review_image_result.py \
   --evidence-dir "build/image-test-v01/runs/ID-DE-EJECUCION/evidence"
 ```
 
-Reemplazá `ID-DE-EJECUCION` por la ruta que imprimió el lanzador. El revisor exige
-también logs de canary/inyección/mapa y los hashes actuales de la preparación.
-Un readback correcto sin esa evidencia no se acepta como prueba de esta ruta.
-No borres controles ni pases a Cyberpunk para esquivar un fallo.
+Replace `ID-DE-EJECUCION` with the path the launcher printed. The reviewer also
+requires the canary/injection/map logs and the current hashes of the preparation.
+A correct readback without that evidence is not accepted as proof of this path.
+Do not delete controls or move to Cyberpunk to get around a failure.
 
-## Regenerar solo la preparación
+## Regenerate only the preparation
 
-Si cambian archivos o recompilás, desde la raíz:
+If files change or you rebuild, from the root:
 
 ```bash
 python3 tools/prepare_image_test.py --probe-dir build/image-probe-v16
 ```
 
-Esto solo regenera auditoría, compara el paquete CMK3 completo y prepara nuevos
-ICD/manifiesto/lanzador. No ejecuta el C ni Vulkan. Imprime un comando manual
-para el directorio nuevo; nunca sobrescribe una preparación anterior.
+This only regenerates the audit, compares the full CMK3 package and prepares new
+ICD/manifest/launcher. It does not run the C or Vulkan code. It prints a manual
+command for the new directory; it never overwrites a previous preparation.

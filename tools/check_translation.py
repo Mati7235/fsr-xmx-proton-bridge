@@ -6,8 +6,8 @@ import subprocess
 import sys
 from collections import Counter
 
-FENCE = re.compile(r"^(```|~~~).*?^\1", re.S | re.M)
-INLINE = re.compile(r"`[^`\n]+`")
+FENCE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1", re.S | re.M)
+INLINE = re.compile(r"`[^`]+`")
 LINK = re.compile(r"\]\(([^)]+)\)")
 TOKEN = re.compile(r"0x[0-9A-Fa-f]+|\b[0-9a-f]{7,64}\b|\d+(?:[.,]\d+)*")
 
@@ -18,10 +18,11 @@ def norm_number(token):
 
 def facts(text):
     fences = FENCE.findall(text)
-    blocks = [m.group(0) for m in FENCE.finditer(text)]
+    blocks = ["\n".join(line.strip() for line in m.group(0).splitlines()) for m in FENCE.finditer(text)]
     rest = FENCE.sub("", text)
-    inline = INLINE.findall(rest)
-    prose = INLINE.sub("", rest)
+    paragraphs = re.split(r"\n\s*\n", rest)
+    inline = [" ".join(span.split()) for para in paragraphs for span in INLINE.findall(para)]
+    prose = "\n\n".join(INLINE.sub("", para) for para in paragraphs)
     return {
         "code blocks": Counter(blocks),
         "inline code": Counter(inline),

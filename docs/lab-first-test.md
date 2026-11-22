@@ -1,19 +1,18 @@
-# Primera prueba del laboratorio: preflight y límites
+# First lab test: preflight and limits
 
-**La preparación manual ya está terminada:** ver
-[comando, riesgos y resultados esperados](manual-synthetic-test.md).
-Este documento explica el inventario y sus límites, no un resultado GPU.
+**Manual preparation is already finished:** see
+[command, risks and expected results](manual-synthetic-test.md).
+This document explains the inventory and its limits, not a GPU result.
 
-Este hito prepara un inventario reproducible, no un launcher. El preflight lee
-archivos locales, extrae metadata Meson y calcula SHA-256 de un conjunto acotado
-de artefactos. No invoca Mesa, el probe, `vulkaninfo`, Vulkan, el driver ni
-herramientas de compilación; no modifica prefijos, Steam, el entorno ni archivos
-del sistema.
+This milestone prepares a reproducible inventory, not a launcher. The preflight reads
+local files, extracts Meson metadata and computes SHA-256 of a bounded set of artifacts.
+It does not invoke Mesa, the probe, `vulkaninfo`, Vulkan, the driver nor build tools; it
+does not modify prefixes, Steam, the environment nor system files.
 
-## Crear el manifiesto
+## Create the manifest
 
-Después de compilar Mesa y generar el probe por separado, ejecutar desde la raíz
-del repositorio, cambiando rutas si corresponde:
+After building Mesa and generating the probe separately, run from the repository root,
+changing paths if needed:
 
 ```sh
 python tools/lab_preflight.py \
@@ -22,65 +21,58 @@ python tools/lab_preflight.py \
   --out analysis/lab-preflight.json
 ```
 
-El JSON se escribe incluso si faltan entradas. Código de salida `2` y estado
-`blocked` significan que falta evidencia o que el contrato sintético no coincide;
-no se debe saltar el bloqueo. Código `0` solo significa que el inventario
-requerido está presente y pasa sus comprobaciones estáticas. El estado
-`inventory-complete-review-required` **no** certifica que la build de Mesa sea
-correcta ni que el driver se haya cargado. El manifiesto conserva rutas, tamaños
-y hashes; no copia ni empaqueta binarios.
+The JSON is written even if inputs are missing. Exit code `2` and status `blocked` mean
+that evidence is missing or that the synthetic contract does not match; the block must
+not be skipped. Code `0` only means that the required inventory is present and passes its
+static checks. The status `inventory-complete-review-required` does **not** certify that
+the Mesa build is correct nor that the driver was loaded. The manifest keeps paths, sizes
+and hashes; it does not copy or package binaries.
 
-Es un **inventario**, no una validación semántica de binarios: el preflight no
-desensambla ni interpreta el contenido de Mesa, SPIR-V, CMK o zebin. Comprueba
-metadata JSON y algunos valores declarados, exige CMK3 con heap explícito y
-compara la identidad del zebin con la auditoría registrada. No vuelve a ejecutar
-esa auditoría. Registra hashes para identificar bytes. La búsqueda textual de
-`dpas.` en un archivo de desensamblado tampoco
-certifica la ejecución o corrección de DPAS.
+It is an **inventory**, not a semantic validation of binaries: the preflight does not
+disassemble nor interpret the content of Mesa, SPIR-V, CMK or zebin. It checks JSON
+metadata and some declared values, requires CMK3 with an explicit heap, and compares the
+zebin identity with the registered audit. It does not rerun that audit. It records hashes
+to identify bytes. A textual search for `dpas.` in a disassembly file does not certify
+the execution or correctness of DPAS either.
 
-La compilación local produjo un `.so` de ANV y metadata Meson en
-`build/mesa-26.1.2/out`, pero la mera presencia no acredita máscara/dimensiones,
-parche correcto o prueba de carga. `build/lab-probe-v10` contiene el probe con
-auditoría restringida y heap explícito; ver [evidencia](lab-probe.md). Las salidas
-anteriores pueden estar incompletas o usar el heap automático incompatible.
-No reutilizar salidas parciales como si fueran un probe terminado.
+The local build produced an ANV `.so` and Meson metadata in `build/mesa-26.1.2/out`, but
+mere presence does not prove the mask/dimensions, a correct patch, or a load test.
+`build/lab-probe-v10` contains the probe with restricted audit and explicit heap; see
+[evidence](lab-probe.md). Earlier outputs may be incomplete or use the incompatible
+automatic heap. Do not reuse partial outputs as if they were a finished probe.
 
-El probe identificado por `kind` es una **prueba sintética DPAS/mapa de recursos**,
-no contiene el kernel FSR. `gpu_validated` debe permanecer `false` hasta una
-prueba GPU independiente. Ni compilación, desensamblado DPAS, PSO, `S_OK`, overlay
-ni salida de preflight son evidencia de inyección o readback. El manifiesto marca
-explícitamente `fsr.complete_kernel_present=false`, `fsr.bridge_ready=false` y
+The probe identified by `kind` is a **synthetic DPAS/resource-map test**; it does not
+contain the FSR kernel. `gpu_validated` must remain `false` until an independent GPU test.
+Neither compilation, DPAS disassembly, PSO, `S_OK`, overlay nor preflight output is
+evidence of injection or readback. The manifest explicitly marks
+`fsr.complete_kernel_present=false`, `fsr.bridge_ready=false` and
 `runtime_test_authorized=false`.
 
-## Antes de cualquier prueba manual aislada
+## Before any isolated manual test
 
-No hay todavía un harness validado en runtime. `lab/bridge_probe.c` compila
-localmente y `lab/README.md` describe sus controles e invocación futura. Su
-compilación CPU no demuestra inyección ni readback GPU.
-El inventario solo no autoriza una prueba runtime. Para iniciar el experimento
-manual, usar la preparación revisada y el opt-in explícito descritos en
-`manual-synthetic-test.md`, manteniendo estos requisitos:
+There is no runtime-validated harness yet. `lab/bridge_probe.c` builds locally and
+`lab/README.md` describes its controls and future invocation. Its CPU build does not
+demonstrate injection nor GPU readback.
+The inventory alone does not authorize a runtime test. To start the manual experiment,
+use the reviewed preparation and the explicit opt-in described in
+`manual-synthetic-test.md`, keeping these requirements:
 
-1. La validación de `docs/lab-mesa-build.md` debe confirmar el parche y build de
-   Mesa, la máscara de ejecución y dimensiones locales; registrar revisión,
-   opciones relevantes y hashes de los artefactos. El preflight no deduce estos
-   hechos de `libvulkan_intel.so`.
-2. Completar y auditar todos los entregables del probe. Mantener el canary activo;
-   no ocultar errores de compilación ni sustituir DPAS real con una constante.
-3. Revisar el harness con buffers conocidos, comprobación de
-   los 11 resultados y de los slots intactos, readback determinista y evidencia
-   inequívoca de que se llamó al kernel CM inyectado. El probe solo es un control
-   de ABI, no FSR completo.
-4. Para runtime, pedir autorización explícita. Usar exclusivamente un prefijo
-   descartable nuevo, nunca el prefijo de Cyberpunk/Steam; aislar variables de
-   entorno en el proceso de prueba, usar únicamente los artefactos Mesa locales
-   identificados por hash, conservar el canary y registrar logs/readback. No
-   instalar drivers, cambiar servicios ni modificar configuración global.
-5. Detenerse ante falta de inyección, discrepancia de readback, fallo de compilación,
-   canary o cualquier diferencia con los valores esperados. No escalar a FSR ni a
-   integración por juego hasta explicar el fallo y revisar evidencia.
+1. The validation in `docs/lab-mesa-build.md` must confirm the Mesa patch and build, the
+   execution mask and local dimensions; record the revision, relevant options and artifact
+   hashes. The preflight does not deduce these facts from `libvulkan_intel.so`.
+2. Complete and audit all probe deliverables. Keep the canary active; do not hide build
+   errors or replace real DPAS with a constant.
+3. Review the harness with known buffers, the check of the 11 results and of the intact
+   slots, deterministic readback, and unambiguous evidence that the injected CM kernel was
+   called. The probe is only an ABI control, not a full FSR.
+4. For runtime, ask for explicit authorization. Use exclusively a new disposable prefix,
+   never the Cyberpunk/Steam prefix; isolate environment variables in the test process, use
+   only the local Mesa artifacts identified by hash, keep the canary and record logs/readback.
+   Do not install drivers, change services or modify global configuration.
+5. Stop on missing injection, readback discrepancy, build failure, canary failure or any
+   difference from the expected values. Do not escalate to FSR nor to per-game integration
+   until the failure is explained and the evidence reviewed.
 
-La preparación `build/lab-test-v02` registra los hashes del harness/ICD/driver y
-probe, y verifica su identidad antes de cada ejecución manual. El agente no
-ejecutó la prueba GPU. El timeout del harness no garantiza recuperar una GPU
-colgada.
+The `build/lab-test-v02` preparation records the hashes of the harness/ICD/driver and
+probe, and verifies their identity before each manual run. The agent did not run the GPU
+test. The harness timeout does not guarantee recovering a hung GPU.

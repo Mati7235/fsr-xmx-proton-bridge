@@ -1,61 +1,60 @@
-# Primer FSR 4 sobre XMX funcional en Linux (2026-11-13)
+# First functional FSR 4 on XMX on Linux (2026-11-13)
 
-**Resultado funcional en el juego, no solo inyección.** Marvel's Spider-Man
-Remastered renderiza la escena correctamente con el mod XMX 4.1.2, el shim y
-un driver ANV propio, sobre una Intel Arc B580. La UI y el mundo 3D son
-coherentes; el upscaler reporta ~0.99 ms.
+**Functional result in the game, not just injection.** Marvel's Spider-Man Remastered
+renders the scene correctly with the XMX 4.1.2 mod, the shim and a custom ANV driver, on an
+Intel Arc B580. The UI and the 3D world are coherent; the upscaler reports ~0.99 ms.
 
-Sigue sin ser una validación bit-exacta de FSR: no hay oracle independiente ni
-readback determinista del PRE. Es el primer resultado visual/funcional
-correcto del proyecto.
+It is still not a bit-exact validation of FSR: there is no independent oracle nor a
+deterministic readback of the PRE. It is the project's first correct visual/functional
+result.
 
-## Setup exacto
+## Exact setup
 
-- Paquete candidato `xess-xmx-linux-20261113-cmk3` (side-by-side, sin instalar
-  en el sistema): Mesa 26.3.0 + serie del fork `662dc6e` + shim 861.184 B.
-- Driver usado solo por proceso: `VK_DRIVER_FILES` al ICD del candidato,
-  `ANV_CM_HELPER` nuevo, `VKD3D_DISABLE_EXTENSIONS=VK_EXT_descriptor_buffer`,
+- Candidate package `xess-xmx-linux-20261113-cmk3` (side-by-side, not installed on the
+  system): Mesa 26.3.0 + series of the `662dc6e` fork + shim 861,184 B.
+- Driver used only per process: `VK_DRIVER_FILES` pointing to the candidate's ICD,
+  new `ANV_CM_HELPER`, `VKD3D_DISABLE_EXTENSIONS=VK_EXT_descriptor_buffer`,
   `ANV_CM_DEBUG=1`, `WINEDLLOVERRIDES="cabinet=n,b"`.
-- Prefijo descartable del run de traza (saves del usuario copiados), Proton
-  Experimental, mod `fadbcb50…`, OptiScaler `Dx12Upscaler = ffx`.
-- Comando: `runs/20261112-161210-c1561db6/run-candidate.sh`.
+- Disposable prefix of the trace run (the user's saves copied), Proton Experimental, mod
+  `fadbcb50…`, OptiScaler `Dx12Upscaler = ffx`.
+- Command: `runs/20261112-161210-c1561db6/run-candidate.sh`.
 
-## Evidencia
+## Evidence
 
-| Artefacto | Valor |
+| Artifact | Value |
 |---|---|
-| Log | `evidence/vkd3d-trace3-20261113.log`, 19.523 líneas |
+| Log | `evidence/vkd3d-trace3-20261113.log`, 19,523 lines |
 | SHA-256 | `012ac930a7369d9723234b4e84a9d68aaa6dba7e1827bd72578da3d368c1d957` |
-| PRE | `~/.cache/xess-xmx/kernels/e8fca351200197b3_e20b_142835e7.cmk` (CMK2, 30.936 B) |
-| Línea clave | `ANV CM: …e8fca351200197b3_e20b_142835e7.cmk: sampler descriptor table after the surfaces (sampler heap found)` |
-| Recursos FSR4 detectados | 11 líneas `FSR4 resource detected` |
+| PRE | `~/.cache/xess-xmx/kernels/e8fca351200197b3_e20b_142835e7.cmk` (CMK2, 30,936 B) |
+| Key line | `ANV CM: …e8fca351200197b3_e20b_142835e7.cmk: sampler descriptor table after the surfaces (sampler heap found)` |
+| FSR4 resources detected | 11 `FSR4 resource detected` lines |
 | Device lost | 0 |
 
-El PRE se compiló con el helper nuevo (gen `142835e7`, distinto de `0913d3f4`
-del paquete viejo) y el driver nuevo aplicó la ruta de sampler de tabla:
-`table_pc_base = push_size - 4*(nsurf+1) = 52 - 48 = 4` y
+The PRE was compiled with the new helper (gen `142835e7`, different from `0913d3f4` of
+the old package) and the new driver applied the table sampler path:
+`table_pc_base = push_size - 4*(nsurf+1) = 52 - 48 = 4` and
 `cm_sampler_pc_off = 48`.
 
-## Qué cerró el problema
+## What closed the problem
 
-1. La magia CMK estaba invertida en el parche 0001 heredado: el driver habría
-   rechazado todos los kernels. Corregida y con test semántico.
-2. El paquete instalado era viejo (`0913d3f4`) y no tenía el soporte de sampler
-   de tabla del fork (`0005`), que es lo que corrige el desfase de base
-   (8 → 4) y el offset del sampler. La traza anterior con ruido magenta era
-   coherente con ese driver, no con una ABI rota del PRE.
-3. Los packs del mod 4.1.2 necesitan `Cabinet.dll` (Compression API LZMS), que
-   Wine no implementa; el shim juego-local lo aporta.
+1. The CMK magic was inverted in the inherited 0001 patch: the driver would have rejected
+   all kernels. Fixed and covered by a semantic test.
+2. The installed package was old (`0913d3f4`) and lacked the fork's table-sampler support
+   (`0005`), which is what fixes the base offset mismatch (8 → 4) and the sampler offset.
+   The earlier trace with magenta noise was consistent with that driver, not with a broken
+   PRE ABI.
+3. The 4.1.2 mod packs need `Cabinet.dll` (LZMS Compression API), which Wine does not
+   implement; the game-local shim provides it.
 
-## Qué no prueba
+## What it does not prove
 
-- Exactitud matemática de FSR ni equivalencia con la implementación de
-  referencia (falta oracle).
-- Formatos/contenidos reales de las 8 imágenes (falta captura RenderDoc).
-- Que el paquete funcione instalado system-wide o en otros juegos/prefijos.
-- Repetibilidad entre ejecuciones (una sola sesión).
+- Mathematical exactness of FSR nor equivalence with the reference implementation (no
+  oracle).
+- Real formats/contents of the 8 images (no RenderDoc capture).
+- That the package works system-wide or in other games/prefixes.
+- Repeatability across runs (a single session).
 
-## Siguiente
+## Next
 
-Instalación system-wide del paquete candidato (decisión del usuario; rollback
-en `backup-20261113`), y después captura RenderDoc para formatos + oracle.
+System-wide installation of the candidate package (user decision; rollback in
+`backup-20261113`), and then a RenderDoc capture for formats + oracle.

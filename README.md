@@ -1,107 +1,106 @@
-# Puente FSR4 XMX sobre Intel Linux
+# FSR4 XMX bridge on Intel Linux
 
-Puente experimental para correr el mod FSR4 XMX de nitec sobre Intel Linux
-usando `xess-xmx-linux`: su driver Mesa ANV parcheado compila los kernels
-CM del mod y los ejecuta en las unidades XMX en vez de la ruta DP4a de
-Wine/Proton. Investigación de compatibilidad, no un producto.
+Experimental bridge to run the nitec FSR4 XMX mod on Intel Linux using
+`xess-xmx-linux`: its patched Mesa ANV driver builds the mod's CM kernels and
+runs them on the XMX units instead of the DP4a path of Wine/Proton. Compatibility
+research, not a product.
 
-## Estado actual
+## Current status
 
-Primera ejecución funcional de FSR 4 sobre XMX en Marvel's Spider-Man
-Remastered (2026-11-13) con el paquete candidato side-by-side
-(`xess-xmx-linux-20261113-cmk3`, Mesa 26.3.0 + shim + registry 4.1.2).
-Ver: `docs/first-fsr-xmx-success.md` y `docs/rebuild-20261113.md`.
+First working run of FSR 4 on XMX in Marvel's Spider-Man Remastered (2026-11-13)
+with the side-by-side candidate package (`xess-xmx-linux-20261113-cmk3`, Mesa
+26.3.0 + shim + registry 4.1.2).
+See: `docs/first-fsr-xmx-success.md` and `docs/rebuild-20261113.md`.
 
-- Probado en Spider-Man: 4.0.2X (ruta base, evidencia funcional completa) y
-  4.1.2X INT8 (corrida con `FSR4_XMX_INT8=1` y 4.1.2 en OptiScaler: despacha
-  sus propios passes de red; el modelo quedó inferido del set de kernels).
-- Probado en Cyberpunk 2077 (bench integrado): 4.1.2X INT8 y Lite,
-  confirmados por log (`INT8 model:` y `Lite model: 2`) y por sets de kernels
-  distintos. FPS en `docs/cyberpunk-bench-20261113.md`; calidad en
+- Tested on Spider-Man: 4.0.2X (base path, full functional evidence) and
+  4.1.2X INT8 (run with `FSR4_XMX_INT8=1` and 4.1.2 in OptiScaler: it dispatches
+  its own network passes; the model was inferred from the kernel set).
+- Tested on Cyberpunk 2077 (built-in benchmark): 4.1.2X INT8 and Lite, confirmed
+  by log (`INT8 model:` and `Lite model: 2`) and by different kernel sets. FPS in
+  `docs/cyberpunk-bench-20261113.md`; quality in
   `docs/cyberpunk-quality-20261113.md`.
-- Probado en SCP: 5K (UE4.27.2, DX12): 4.1.2X INT8 y Lite, con inyección
-  XMX confirmada por log y render en partida; ver
-  `docs/scp5k-fsr4xmx-20261114.md`.
-- No probado todavía: el camino DLSS. Los pesos Lite/INT8 están verificados a
-  nivel archivo.
-- Verificado a nivel kernel: inyección, sampler heap, 11 recursos FSR4,
-  0 device lost. Sin oracle independiente ni readback determinista.
-- No instalado system-wide: el paquete activo del usuario sigue intacto;
-  el candidato corre solo por proceso. Rollback en `backup-20261113/`.
+- Tested on SCP: 5K (UE4.27.2, DX12): 4.1.2X INT8 and Lite, with XMX injection
+  confirmed by log and rendering in a match; see `docs/scp5k-fsr4xmx-20261114.md`.
+- Not tested yet: the DLSS path. The Lite/INT8 weights are verified at the file
+  level.
+- Verified at kernel level: injection, sampler heap, 11 FSR4 resources, 0 device
+  lost. No independent oracle and no deterministic readback.
+- Not installed system-wide: the user's active package remains intact; the
+  candidate runs only per process. Rollback in `backup-20261113/`.
 
-Guía de instalación y setup real: `docs/install-setup.md`.
-Contexto de upstream: FSR 4 sobre XMX ya estaba soportado en `xess-xmx-linux`
-y se abandonó como dirección de producto en noviembre de 2026, no por un
-bloqueo técnico. Ver `docs/upstream-fsr4-status.md`.
+Installation guide and real setup: `docs/install-setup.md`.
+Upstream context: FSR 4 on XMX was already supported in `xess-xmx-linux` and was
+abandoned as a product direction in November 2026, not for a technical blocker.
+See `docs/upstream-fsr4-status.md`.
 
-## Videos de comparación
+## Comparison videos
 
-| Variante | Video |
+| Variant | Video |
 |---|---|
-| Nativo | [`ref-native.mp4`](media/quality-cp77/ref-native.mp4) |
+| Native | [`ref-native.mp4`](media/quality-cp77/ref-native.mp4) |
 | XeSS | [`xess.mp4`](media/quality-cp77/xess.mp4) |
 | FSR 4.1.2 INT8 | [`fsr4-int8.mp4`](media/quality-cp77/fsr4-int8.mp4) |
 | FSR 4.1.2 Lite | [`fsr4-lite.mp4`](media/quality-cp77/fsr4-lite.mp4) |
 
-Recortes del benchmark de Cyberpunk 2077, mismo preset y misma cámara. Los
-MP4 están versionados acá; los clips lossless para medir quedan en
-`analysis/quality-cp77/` (local, ignorado por Git por tamaño).
+Cyberpunk 2077 benchmark crops, same preset and same camera. The MP4 files are
+versioned here; the lossless clips used for measurement are in
+`analysis/quality-cp77/` (local, ignored by Git because of their size).
 
-1. Abrir [hallo.io](https://hallo.io/tools/video/video-compare).
-2. Cargar el nativo como A y una variante como B.
-3. Elegir `Slider`, dar play y arrastrar el divisor. La herramienta sincroniza
-   la línea de tiempo y corrige la deriva.
+1. Open [hallo.io](https://hallo.io/tools/video/video-compare).
+2. Load the native video as A and one variant as B.
+3. Choose `Slider`, press play and drag the divider. The tool syncs the timeline
+   and corrects the drift.
 
-No se sube nada: la comparación corre en el navegador. Los MP4 son H.264
-4:2:0 para que los abra cualquier navegador o editor. Los stills de 800x450
-están en [`media/quality-cp77/stills/`](media/quality-cp77/stills/).
+Nothing is uploaded: the comparison runs in the browser. The MP4 files are
+H.264 4:2:0 so that any browser or editor can open them. The 800x450 stills are
+in [`media/quality-cp77/stills/`](media/quality-cp77/stills/).
 
-## Arquitectura
+## Architecture
 
-1. Driver ANV parcheado: inyecta y compila kernels CM con ocloc en runtime.
-2. Shim `igdext64.dll`: responde queries Intel y entrega placeholders CM.
-3. Helper `tools/cm-compile.sh` del paquete: compila cada kernel al primer uso.
-4. Mod FSR4 XMX + `fsr-original.dll` + `cabinet.dll` juego-local: el mod
-   emite el PRE y los packs; OptiScaler lo enchufa como `Dx12Upscaler = ffx`.
+1. Patched ANV driver: injects and builds CM kernels with ocloc at runtime.
+2. `igdext64.dll` shim: answers Intel queries and delivers CM placeholders.
+3. Package helper `tools/cm-compile.sh`: builds each kernel on first use.
+4. FSR4 XMX mod + `fsr-original.dll` + game-local `cabinet.dll`: the mod emits
+   the PRE and the packs; OptiScaler plugs it in as `Dx12Upscaler = ffx`.
 
-## Docs clave
+## Key docs
 
-| Doc | Qué fija |
+| Doc | What it fixes |
 |---|---|
-| `docs/install-setup.md` | Instalación side-by-side y system-wide, rollback, prueba en juego |
-| `docs/upstream-fsr4-status.md` | Qué encontró y por qué abandonó upstream el camino FSR 4 XMX |
-| `docs/first-fsr-xmx-success.md` | Setup exacto y evidencia de la primera ejecución funcional |
-| `docs/rebuild-20261113.md` | Qué se construyó en el paquete candidato y qué falta |
-| `docs/xmx412-model-selection.md` | Selección INT8/Lite/Hybrid, contrato de `fsr-original.dll`, receta |
-| `docs/cabinet-shim.md` | Shim juego-local de Cabinet para los packs LZMS del mod |
-| `docs/spiderman-trace-runbook.md` | Runbook de traza manual en Spider-Man con Proton Experimental |
-| `docs/bench-quality.md` | Grabación lossless, recorte del bench y métricas de calidad |
-| `docs/cyberpunk-bench-20261113.md` | FPS en Cyberpunk: nativo, XeSS, FSR INT8 y Lite |
-| `docs/cyberpunk-quality-20261113.md` | Calidad medida en Cyberpunk y límites del método |
-| `docs/scp5k-fsr4xmx-20261114.md` | Setup y evidencia de SCP: 5K con FSR 4.1.2 XMX |
+| `docs/install-setup.md` | Side-by-side and system-wide installation, rollback, in-game test |
+| `docs/upstream-fsr4-status.md` | What was found and why upstream abandoned the FSR 4 XMX path |
+| `docs/first-fsr-xmx-success.md` | Exact setup and evidence of the first functional run |
+| `docs/rebuild-20261113.md` | What was built in the candidate package and what is missing |
+| `docs/xmx412-model-selection.md` | INT8/Lite/Hybrid selection, `fsr-original.dll` contract, recipe |
+| `docs/cabinet-shim.md` | Game-local Cabinet shim for the mod's LZMS packs |
+| `docs/spiderman-trace-runbook.md` | Manual trace runbook in Spider-Man with Proton Experimental |
+| `docs/bench-quality.md` | Lossless recording, benchmark crop and quality metrics |
+| `docs/cyberpunk-bench-20261113.md` | FPS in Cyberpunk: native, XeSS, FSR INT8 and Lite |
+| `docs/cyberpunk-quality-20261113.md` | Quality measured in Cyberpunk and limits of the method |
+| `docs/scp5k-fsr4xmx-20261114.md` | Setup and evidence of SCP: 5K with FSR 4.1.2 XMX |
 
-## Herramientas (`tools/`)
+## Tools (`tools/`)
 
-- `tools/inspect_dll.py`: inventario estático de DLLs (cadenas, SHA-256).
-- `tools/parse_cm_payloads.py`: extracción de bloques CM por pies y longitudes.
-- `tools/decompress_mscf.py`, `tools/decompress_xmx412.py`: descompresión
-  LZMS de packs con wimlib local.
-- `tools/xmx_kernel_set.py`: fingerprint y diff de kernels entre corridas.
-- `tools/bench_quality.py`: alineación de grabaciones, PSNR/SSIM/nitidez y crops.
-- `tools/build_cabinet_shim.py`: construye el `cabinet.dll` juego-local.
-- `tools/prepare_trace_capture_412.py`: andamiaje CPU-only del run de traza.
+- `tools/inspect_dll.py`: static inventory of DLLs (strings, SHA-256).
+- `tools/parse_cm_payloads.py`: extraction of CM blocks by offsets and lengths.
+- `tools/decompress_mscf.py`, `tools/decompress_xmx412.py`: LZMS decompression of
+  packs with a local wimlib.
+- `tools/xmx_kernel_set.py`: fingerprint and diff of kernels between runs.
+- `tools/bench_quality.py`: recording alignment, PSNR/SSIM/sharpness and crops.
+- `tools/build_cabinet_shim.py`: builds the game-local `cabinet.dll`.
+- `tools/prepare_trace_capture_412.py`: CPU-only scaffolding for the trace run.
 
-## Licencia y procedencia
+## License and provenance
 
-Los binarios de terceros no se redistribuyen y este repo no concede derechos
-sobre modelos, DLLs o código upstream; consultar sus licencias respectivas
-(`THIRD_PARTY.md` del paquete, licencias de AMD/Intel/nitec/Valve).
+Third-party binaries are not redistributed, and this repo grants no rights over
+upstream models, DLLs or code; check their respective licenses
+(`THIRD_PARTY.md` in the package, licenses of AMD/Intel/nitec/Valve).
 
-## Procedencia
+## Provenance
 
-- Upstream `xess-xmx-linux`: `662dc6e` (178 commits desde `ef39559`).
-- Parches del paquete: `0001` inyección CM (CMK3, magia corregida),
-  `0002` debug, `0003` Large GRF para Xe2, `0005` tabla de descriptores
-  sampler, más serie `patches/mesa-26.3/` (`0004` Jay, `0006` cmat).
-- Este repo ignora `artifacts/original/`, `artifacts/extracted/`, `upstream/`,
-  `analysis/` y `build/` (artefactos locales, no redistribuidos).
+- Upstream `xess-xmx-linux`: `662dc6e` (178 commits since `ef39559`).
+- Package patches: `0001` CM injection (CMK3, magic fixed), `0002` debug,
+  `0003` Large GRF for Xe2, `0005` sampler descriptor table, plus the
+  `patches/mesa-26.3/` series (`0004` Jay, `0006` cmat).
+- This repo ignores `artifacts/original/`, `artifacts/extracted/`, `upstream/`,
+  `analysis/` and `build/` (local artifacts, not redistributed).

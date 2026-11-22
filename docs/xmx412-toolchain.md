@@ -4,7 +4,7 @@ CPU-only. No DLL is executed, no GPU/Wine/driver/prefix/Steam state is
 touched, `artifacts/original` is read-only. Offline compilation with the
 local IGC/ocloc below is explicitly allowed (CPU, no dispatch).
 
-## 1. Toolchain intacto (verificado)
+## 1. Intact toolchain (verified)
 
 Pinned in `profiles/intel-toolchain.json`:
 
@@ -26,7 +26,7 @@ Extracted layout (no install, only `data.tar.gz` / `data.tar.zst` extracted):
 - `artifacts/extracted/intel-toolchain/igc/usr/local/lib/libigdfcl.so.2.10.10+18926`
 - `artifacts/extracted/intel-toolchain/igc/usr/local/lib/libopencl-clang2.so.15`
 
-Verificación (solo lectura + parseo stdlib, sin ejecutar la DLL):
+Verification (read-only + stdlib parsing, without running the DLL):
 
 ```bash
 sha256sum artifacts/original/intel-toolchain/*.deb
@@ -39,23 +39,23 @@ python -m unittest tests.test_xmx412_toolchain -v
 `tests/test_xmx412_toolchain.py` fails closed on any hash/layout drift and
 skips only when the ignored local artifacts are absent.
 
-## 2. Bloque CM del PRE Xe2 4.1.2 (listo para compilar)
+## 2. CM block of the Xe2 PRE, 4.1.2 (ready to compile)
 
 Pack `analysis/fsr-xmx-412/pack-40102.raw` (bucket `18-variant Xe2
-(SIMD16 DPAS)`, del commit `7059945`):
+(SIMD16 DPAS)`, from commit `7059945`):
 
 - `raw_size 23682325`, `raw_sha256
   d88aa9d67b3b039934927ce6dfea407bed0280370ed9170281533b62d995e491`.
-- 252 envelopes CM, todos `trailer 97` con las mismas opciones embebidas.
-- 18 PRE (`ir_size 358776`, antes `330108`) + 18 `pass6` (`31824`/`31808`,
-  antes `31748`/`31732`); las otras 216 envolventes son bit-idénticas al
-  censo viejo (mismo `ir_sha256` por índice).
-- Cada IR contiene `fsr4_pre_xmx` / `fsr4_pass6_xmx_runtime` según familia.
+- 252 CM envelopes, all `trailer 97` with the same embedded options.
+- 18 PRE (`ir_size 358776`, previously `330108`) + 18 `pass6` (`31824`/`31808`,
+  previously `31748`/`31732`); the other 216 envelopes are bit-identical to the
+  old census (same `ir_sha256` per index).
+- Each IR contains `fsr4_pre_xmx` / `fsr4_pass6_xmx_runtime` depending on family.
 
-PRE `native_1080` = primer envelope del pack (posición heredada del censo
-viejo: `pre-reconstruction.json` variant `index 1`, `pack_40102 offset 0`):
+PRE `native_1080` = first envelope of the pack (position inherited from the old
+census: `pre-reconstruction.json` variant `index 1`, `pack_40102 offset 0`):
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | Pack | `analysis/fsr-xmx-412/pack-40102.raw` |
 | `offset` | `0` |
@@ -66,14 +66,14 @@ viejo: `pre-reconstruction.json` variant `index 1`, `pack_40102 offset 0`):
 | `envelope_sha256` | `ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab` |
 | `embedded_string_a` | `-vc-payload -Xfinalizer '-noDPASMacro'` |
 | `embedded_string_b` | ` -target-features=+ocl_runtime` |
-| Contenido | magic `03 02 23 07` en offset 0, `fsr4_pre_xmx` en el IR |
+| Content | magic `03 02 23 07` at offset 0, `fsr4_pre_xmx` in the IR |
 
-Si el parseo (`tools/parse_cm_payloads.py`) no devuelve este bloque exacto,
-el PRE **no es identificable**: reportar y parar, no compilar otro índice.
+If the parsing (`tools/parse_cm_payloads.py`) does not return this exact block,
+the PRE is **not identifiable**: report it and stop, do not compile another index.
 
-Materializar el input sin ejecutar la DLL (el `.cmspv` incluye IR + pie;
-no usar el `.spv` recortado; el control viejo demuestra que el compilador
-consume las opciones del pie):
+Materialize the input without running the DLL (the `.cmspv` includes IR + footer;
+do not use the trimmed `.spv`; the old control shows that the compiler
+consumes the options from the footer):
 
 ```bash
 python3 -c "
@@ -89,8 +89,8 @@ print('staged', out, len(blob))
 "
 ```
 
-Comando exacto de compilación (misma receta que
-`docs/offline-pre-compilation.md`, solo cambia el input/output):
+Exact build command (same recipe as
+`docs/offline-pre-compilation.md`, only the input/output change):
 
 ```bash
 mkdir -p analysis/xmx412-pre-native1080/out analysis/compiler-cache
@@ -102,26 +102,26 @@ artifacts/extracted/intel-toolchain/neo/usr/bin/ocloc-25.18.1 compile \
   -output pre -options '-vc-codegen'
 ```
 
-Inspección posterior (CPU, sin GPU):
+Post-inspection (CPU, no GPU):
 
 ```bash
 python tools/inspect_zebin.py analysis/xmx412-pre-native1080/out/pre_bmg.bin \
   --kernel fsr4_pre_xmx > analysis/xmx412-pre-native1080/summary.json
 ```
 
-Nota: `tools/build_pre_profile.py` rechaza este input nuevo por diseño
-(fija `input 76942f…` / `zebin 3e974d…` viejos). Comparar BTIs/ze_info a
-mano contra la §4 hasta una revisión de perfil nueva.
+Note: `tools/build_pre_profile.py` rejects this new input by design
+(it pins the old `input 76942f…` / `zebin 3e974d…`). Compare BTIs/ze_info by
+hand against §4 until a new profile review.
 
-## 3. Matriz mínima de compilación
+## 3. Minimum compile matrix
 
-Orden de variantes asumido del censo viejo (`pre-reconstruction.json`
-`native_1080 … drs_4320`, `rec_idx = 14k`). Todos los PRE nuevos comparten
-`ir_size 358776`, `envelope 358873`, mismo pie que arriba. Prefijos SHA-12
-solo como sanity; el pin completo de `native_1080` está en la §2 y en el
-test; recalcular el resto con `tools/parse_cm_payloads.py` antes de compilar.
+Assumed variant order from the old census (`pre-reconstruction.json`
+`native_1080 … drs_4320`, `rec_idx = 14k`). All new PREs share
+`ir_size 358776`, `envelope 358873`, same footer as above. SHA-12 prefixes
+are only a sanity check; the full pin of `native_1080` is in §2 and in the
+test; recompute the rest with `tools/parse_cm_payloads.py` before compiling.
 
-| # | Variante (asumida) | `rec_idx` | `offset` | `ir_sha12` | `env_sha12` |
+| # | Variant (assumed) | `rec_idx` | `offset` | `ir_sha12` | `env_sha12` |
 |---|---|---:|---:|---|---|
 | 1 | `native_1080` | 0 | 0 | `49e069fd7ad1` | `ce3727191553` |
 | 2 | `native_2160` | 14 | 1315712 | `20096eefd6ea` | `ee5553e3d31d` |
@@ -142,25 +142,25 @@ test; recalcular el resto con `tools/parse_cm_payloads.py` antes de compilar.
 | 17 | `drs_2160` | 224 | 21051008 | `b289069b36ae` | `436e5cb09cd5` |
 | 18 | `drs_4320` | 238 | 22366704 | `c674bc372fe5` | `ed03b05e97c5` |
 
-Fases:
+Phases:
 
-1. Solo `native_1080` (fila 1): compilar, inspeccionar, aplicar criterio §5.
-2. Resto PRE (filas 2–18): mismo comando por bloque (`data[offset:offset+358873]`),
-   sin perfilar ni cachear hasta que la fila 1 cierre.
-3. `pass6` (18 bloques en `rec_idx 6,20,…`, `ir 31824/31808`): fuera de esta
-   matriz; requiere su propio censo/kernel. Las 12 familias restantes no se
-   recompilan (bit-idénticas al build viejo).
+1. Only `native_1080` (row 1): compile, inspect, apply the §5 criterion.
+2. Rest of the PREs (rows 2–18): same command per block (`data[offset:offset+358873]`),
+   without profiling or caching until row 1 closes.
+3. `pass6` (18 blocks at `rec_idx 6,20,…`, `ir 31824/31808`): outside this
+   matrix; it requires its own census/kernel. The remaining 12 families are not
+   recompiled (bit-identical to the old build).
 
-Si las tablas de variante de la DLL 4.1.2 (`fadbcb50…`) reordenan los PRE
-respecto al censo viejo, la columna `Variante` queda invalidada: no renombrar
-a ciegas, reportar la tabla real y parar.
+If the variant tables of the 4.1.2 DLL (`fadbcb50…`) reorder the PREs
+relative to the old census, the `Variante` column is invalidated: do not rename
+blindly, report the real table and stop.
 
-## 4. BTIs / `ze_info` esperados (censo viejo)
+## 4. Expected BTIs / `ze_info` (old census)
 
-Del perfil `profiles/fsr4-pre-native1080-bmg.json` + `ze_info.yaml` viejo
+From the profile `profiles/fsr4-pre-native1080-bmg.json` + old `ze_info.yaml`
 (`zebin 3e974d…`, `code 2e42d33c…`, `input 76942f…`):
 
-| Arg | BTI | Root | Registro | Push |
+| Arg | BTI | Root | Register | Push |
 |---:|---:|---:|---|---:|
 | 0 | 8 | 1 | u0 | 4 |
 | 1 | 9 | 2 | u1 | 8 |
@@ -173,31 +173,31 @@ Del perfil `profiles/fsr4-pre-native1080-bmg.json` + `ze_info.yaml` viejo
 | 8 | 7 | 9 | t6 | 36 |
 | 9 | 10 | 10 | t7 | 40 |
 | 10 | 11 | 11 | t8 | 44 |
-| 11 | — sampler 0 | 12 | s0 | 48 (heap separado) |
+| 11 | — sampler 0 | 12 | s0 | 48 (separate heap) |
 
-- 11 superficies stateful + 1 sampler; `expected_push_size 52`, `table_pc_base 4`.
+- 11 stateful surfaces + 1 sampler; `expected_push_size 52`, `table_pc_base 4`.
 - `execution_env`: `grf_count 128`, `simd_size 1`, `has_dpas true`,
   `has_sample true`, `has_fence_for_image_access true`,
   `has_no_stateless_write true`, `offset_to_skip_per_thread_data_load 128`.
 - `per_thread`: `packed_local_ids size 6`; cross-thread: `arg0@8`, `arg9@16`,
-  `arg10@24` (8 B cada uno) + `private_base_stateless@0` (8 B), en cero según
-  packer; auditoría `static-unread-under-full-mask` pendiente de máscara.
+  `arg10@24` (8 B each) + `private_base_stateless@0` (8 B), zeroed by the
+  packer; `static-unread-under-full-mask` audit pending the mask.
 
-## 5. Criterio de éxito (solo offline)
+## 5. Success criterion (offline only)
 
-- Build `ocloc` exit 0 (`Build succeeded`; el warning de triples dispares se
-  conserva, no se suprime).
-- Orden y BTIs **iguales al perfil viejo** (`[8,9,1,2,3,4,5,6,7,10,11]` por
-  `arg_index 0…10` + sampler separado, push 52, base 4). Cualquier desvío es
-  evidencia nueva: registrar `ze_info.yaml`/hashes reales, no forzar el mapa.
-- `code_sha256`/`zebin_sha256` **deben diferir** del pin viejo (el IR cambió de
-  `330108` a `358776` B); coincidir sería sospechoso, no éxito.
-- `simd_size 1`, `has_dpas`, `has_sample` se re-chquean; `grf_count > 128` u
-  otro env divergente no generaliza a otras variantes: reportar por variante.
-- No hay gate GPU: sin dispatch, inyección, readback ni aprobación runtime.
-  No copiar a cache runtime ni activar helpers con el artefacto nuevo.
+- `ocloc` build exit 0 (`Build succeeded`; the mismatched-triples warning is
+  kept, not suppressed).
+- Order and BTIs **equal to the old profile** (`[8,9,1,2,3,4,5,6,7,10,11]` by
+  `arg_index 0…10` + separate sampler, push 52, base 4). Any deviation is new
+  evidence: record the real `ze_info.yaml`/hashes, do not force the map.
+- `code_sha256`/`zebin_sha256` **must differ** from the old pin (the IR changed from
+  `330108` to `358776` B); matching would be suspicious, not a success.
+- `simd_size 1`, `has_dpas`, `has_sample` are re-checked; `grf_count > 128` or
+  another divergent env does not generalize to other variants: report per variant.
+- There is no GPU gate: no dispatch, injection, readback or runtime approval.
+  Do not copy to the runtime cache nor activate helpers with the new artifact.
 
-## 6. Reproducción mínima
+## 6. Minimal reproduction
 
 ```bash
 python -m unittest tests.test_xmx412_toolchain -v

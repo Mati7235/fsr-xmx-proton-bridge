@@ -1,41 +1,41 @@
-# Spider-Man Remastered: runbook de traza manual con el mod XMX 4.1.2
+# Spider-Man Remastered: manual trace runbook with the XMX 4.1.2 mod
 
-Fase 1, CPU-only para quien prepara; **ejecución manual del usuario** para la
-traza. Este documento no autoriza nada por sí mismo: cada paso de ejecución
-lo realiza el usuario a mano, en un prefijo descartable, sin tocar Steam,
-prefijos reales, drivers ni servicios.
+Phase 1, CPU-only for the preparer; **manual execution by the user** for the
+trace. This document does not authorize anything by itself: each execution step
+is carried out by the user by hand, in a disposable prefix, without touching Steam,
+real prefixes, drivers or services.
 
-Estado fijado por `tools/prepare_trace_capture_412.py` (verificado por
-SHA-256 el 2026-11-12):
+State pinned by `tools/prepare_trace_capture_412.py` (verified by
+SHA-256 on 2026-11-12):
 
-| Artefacto | SHA-256 |
+| Artifact | SHA-256 |
 |---|---|
 | DLL `artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll` | `fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732` |
 | PRE Xe2 `native_1080` IR (pack 40102, record 0, offset 0, 358776 B) | `49e069fd7ad17af19589195e274d8a1af191af363608f71d0a50ad0a21f9f568` |
-| PRE Xe2 `native_1080` envelope (358873 B, también `analysis/offline-pre-412/module-0000.cmspv`) | `ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab` |
-| Packs 40101–40106 raw | ver `profiles/xmx412-pins.json` (1977 envelopes CM en total) |
+| PRE Xe2 `native_1080` envelope (358873 B, also `analysis/offline-pre-412/module-0000.cmspv`) | `ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab` |
+| Packs 40101–40106 raw | see `profiles/xmx412-pins.json` (1977 CM envelopes in total) |
 
-Contrato de captura: `docs/pre-trace-capture-spec.md` (qué registrar del
-dispatch PRE `native_1080`); checklist de versiones:
+Capture contract: `docs/pre-trace-capture-spec.md` (what to record from the
+PRE `native_1080` dispatch); version checklist:
 `docs/pre-trace-version-checklist.md`.
 
-## 0. Rutas y versiones de partida (solo lectura)
+## 0. Starting paths and versions (read-only)
 
-- Juego: `/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/`,
-  ejecutable `Spider-Man.exe` (121.901.008 B observados; re-registrar el día
-  de la traza, Steam puede actualizarlo).
-- OptiScaler ya instalado: `dxgi.dll` + `D3D12_OptiScaler/D3D12Core.dll` +
-  `OptiScaler.ini`. El `amd_fidelityfx_upscaler_dx12.dll` actual del juego
-  (`d0dcccc7…`) **no** es el mod.
+- Game: `/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/`,
+  executable `Spider-Man.exe` (121,901,008 B observed; re-register on the day
+  of the trace, since Steam may update it).
+- OptiScaler already installed: `dxgi.dll` + `D3D12_OptiScaler/D3D12Core.dll` +
+  `OptiScaler.ini`. The game's current `amd_fidelityfx_upscaler_dx12.dll`
+  (`d0dcccc7…`) is **not** the mod.
 - Proton: `/home/matias/.steam/root/steamapps/common/Proton - Experimental`
-  (`version`: `experimental-11.0-20261105c`; lanzador `proton`, uso
+  (`version`: `experimental-11.0-20261105c`; launcher `proton`, usage
   `proton run <exe>`).
-- ICD explícito: `/usr/share/vulkan/icd.d/intel_icd.x86_64.json`
-  (`api_version 1.4.363`, librería `/usr/lib/libvulkan_intel.so`).
-- RenderDoc disponible: `renderdoccmd` / `qrenderdoc` v1.46 (soporte
-  Vulkan compilado).
+- Explicit ICD: `/usr/share/vulkan/icd.d/intel_icd.x86_64.json`
+  (`api_version 1.4.363`, library `/usr/lib/libvulkan_intel.so`).
+- RenderDoc available: `renderdoccmd` / `qrenderdoc` v1.46 (Vulkan support
+  compiled in).
 
-## 1. Re-verificar hashes de partida (solo lectura, sin ejecutar nada)
+## 1. Re-verify starting hashes (read-only, run nothing else)
 
 ```bash
 cd /home/matias/Proyectos/fsr-xmx-proton-bridge
@@ -57,37 +57,37 @@ cat "/home/matias/.steam/root/steamapps/common/Proton - Experimental/version"
 sha256sum /usr/share/vulkan/icd.d/intel_icd.x86_64.json /usr/lib/libvulkan_intel.so
 ```
 
-Si cualquier hash del mod difiere: parar, no continuar.
+If any hash of the mod differs: stop, do not continue.
 
-## 2. Colocar la DLL del mod (acción manual del usuario)
+## 2. Place the mod DLL (manual action by the user)
 
-Lectura del `OptiScaler.ini` del juego (verificado por lectura directa):
+Reading the game's `OptiScaler.ini` (verified by direct reading):
 
-- `[Upscalers] Dx12Upscaler = xess` (línea 14): OptiScaler intercepta el
-  DX12 del juego por la ruta XeSS.
-- `[Libraries] FfxDx12SRPath = auto` (línea 810-811, comentario
-  `amd_fidelityfx_upscaler_dx12.dll`): en `auto`, OptiScaler resuelve esa
-  DLL desde el directorio del juego.
+- `[Upscalers] Dx12Upscaler = xess` (line 14): OptiScaler intercepts the
+  game's DX12 through the XeSS path.
+- `[Libraries] FfxDx12SRPath = auto` (lines 810-811, comment
+  `amd_fidelityfx_upscaler_dx12.dll`): on `auto`, OptiScaler resolves that
+  DLL from the game directory.
 
-Por tanto, la ruta exacta esperada del mod es:
+Therefore, the exact expected path of the mod is:
 
 ```text
 /home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/amd_fidelityfx_upscaler_dx12.dll
 ```
 
-Pasos manuales (el usuario, nunca automatizado):
+Manual steps (the user, never automated):
 
-1. Copia de seguridad del archivo actual fuera del juego (el actual es
-   `d0dcccc7…`, no el mod; no tocar `.optiscaler-backup/`).
-2. Copiar encima `artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll`.
-3. Re-verificar: `sha256sum` debe dar `fadbcb50…`.
-4. Antes de capturar, confirmar en el overlay/menú de OptiScaler (Insert) y
-   en su log qué backend atiende realmente el upscale: con
-   `Dx12Upscaler=xess`, si la ruta activa es XeSS puro la traza del PRE no
-   aplica; solo proceder si el backend FSR/XMX 4.1.2 está en uso. Registrar
-   lo observado en `evidence/versions/` como nota, sin reinterpretarlo.
+1. Back up the current file outside the game (the current one is `d0dcccc7…`,
+   not the mod; do not touch `.optiscaler-backup/`).
+2. Copy `artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll` over it.
+3. Re-verify: `sha256sum` must give `fadbcb50…`.
+4. Before capturing, confirm in the OptiScaler overlay/menu (Insert) and
+   in its log which backend actually serves the upscale: with
+   `Dx12Upscaler=xess`, if the active path is pure XeSS, the PRE trace does not
+   apply; only proceed if the FSR/XMX 4.1.2 backend is in use. Record
+   what was observed in `evidence/versions/` as a note, without reinterpreting it.
 
-## 3. Andamiar la preparación y el run (CPU-only, sin ejecutar nada)
+## 3. Scaffold the preparation and the run (CPU-only, run nothing)
 
 ```bash
 cd /home/matias/Proyectos/fsr-xmx-proton-bridge
@@ -99,14 +99,14 @@ python3 build/trace-412-<fecha>-<id>/run-manual.py --run-trace \
 # y evidence/{env.json,pinned-hashes.json,planned-command.txt,icd-manifest.json,versions/}
 ```
 
-El lanzador exige **ambos** flags y nunca inicializa el prefijo ni genera
-procesos hijo. El `WINEPREFIX` reservado solo se inicializa dentro del run
-manual autorizado, nunca antes.
+The launcher requires **both** flags and never initializes the prefix nor spawns
+child processes. The reserved `WINEPREFIX` is only initialized inside the
+authorized manual run, never before.
 
-## 4. Comando Proton exacto (manual, una vez autorizado)
+## 4. Exact Proton command (manual, once authorized)
 
-Solo con las variables de `evidence/env.json` (entorno reemplazado, no
-heredado), más la redirección del log fuera del juego/Steam:
+Only with the variables from `evidence/env.json` (environment replaced, not
+inherited), plus the log redirection outside the game/Steam:
 
 ```bash
 env -i \
@@ -122,19 +122,19 @@ env -i \
   > '<run>/evidence/vkd3d-trace.log' 2>&1
 ```
 
-Notas:
+Notes:
 
-- `VKD3D_DEBUG=trace` ya viene fijado en `evidence/env.json`; es la
-  variable de captura API de VKD3D-Proton (log textual masivo, no frame).
-- En el juego, buscar una escena con entrada de upscale 1920×1080
-  (grid PRE `native_1080`); anotar resolución interna real observada en vez
-  de suponerla.
-- Device PCI esperado en B580: `8086:e20b`; registrar el ID real del log.
+- `VKD3D_DEBUG=trace` is already set in `evidence/env.json`; it is the
+  API capture variable of VKD3D-Proton (massive textual log, not a frame).
+- In the game, look for a scene with an upscale input of 1920×1080
+  (PRE grid `native_1080`); note the real internal resolution observed instead
+  of assuming it.
+- Expected PCI device on B580: `8086:e20b`; record the real ID from the log.
 
-## 5. Captura del frame con RenderDoc (manual, opcional complementario)
+## 5. Frame capture with RenderDoc (manual, optional complement)
 
-El log `VKD3D_DEBUG=trace` da la secuencia API; el frame con descriptores
-se captura con RenderDoc sobre el lado Vulkan:
+The `VKD3D_DEBUG=trace` log gives the API sequence; the frame with descriptors
+is captured with RenderDoc on the Vulkan side:
 
 ```bash
 renderdoccmd capture --capturefile '<run>/evidence/spiderman-412.rdc' \
@@ -143,50 +143,50 @@ renderdoccmd capture --capturefile '<run>/evidence/spiderman-412.rdc' \
   "/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe"
 ```
 
-Abrir el `.rdc` con `qrenderdoc` (CPU, sin GPU del juego) y localizar el
-evento `Dispatch(120, 540, 1)`. Cualquier variable extra de capa
-(`VK_INSTANCE_LAYERS`, …) es una desviación documentada de
-`evidence/env.json`, no parte del entorno fijado.
+Open the `.rdc` with `qrenderdoc` (CPU, without the game's GPU) and locate the
+event `Dispatch(120, 540, 1)`. Any extra layer variable
+(`VK_INSTANCE_LAYERS`, …) is a documented deviation from
+`evidence/env.json`, not part of the pinned environment.
 
-Qué buscar en el frame (criterio de la spec §2–§8):
+What to look for in the frame (criteria of spec §2–§8):
 
-- Un único `Dispatch` con grid `(120, 540, 1)` para `w=1920, h=1080`
-  (fórmula `x=(w+15)>>4; x+=x&1; y=h>>1`); modos 2–3 no emiten PRE,
+- A single `Dispatch` with grid `(120, 540, 1)` for `w=1920, h=1080`
+  (formula `x=(w+15)>>4; x+=x&1; y=h>>1`); modes 2–3 do not emit PRE,
   4 → `(1,1,1)`, 5 → `(x,1,1)`, 6 → `(x,0x44,1)`.
-- 11 tablas de descriptores efectivas (roots 1–11: u0, u1, t0–t6, t7, t8)
-  + sampler en root 12; `SetComputeRoot32BitConstant(root 0) = 0`.
-- Formatos: UAV/SRV `R8_UINT` (`0x3E`); arg 9 SRV `0x1688`, `0x840`
-  (2.112 B); arg 10 SRV `0x1688`, `0x80` (128 B); arg 0 UAV
-  `NumElements = Width` con `GetDesc.Dimension == 1` y
+- 11 effective descriptor tables (roots 1–11: u0, u1, t0–t6, t7, t8)
+  + sampler in root 12; `SetComputeRoot32BitConstant(root 0) = 0`.
+- Formats: UAV/SRV `R8_UINT` (`0x3E`); arg 9 SRV `0x1688`, `0x840`
+  (2,112 B); arg 10 SRV `0x1688`, `0x80` (128 B); arg 0 UAV
+  `NumElements = Width` with `GetDesc.Dimension == 1` and
   `Width >= 8.294.400`.
-- `Width` efectivo de arg 0 (dimensiona el UAV; no suponer asignación
-  exacta), `GetDesc` por slot, aliasing entre slots, estados/transiciones
+- Effective `Width` of arg 0 (sizes the UAV; do not assume the exact
+  assignment), `GetDesc` per slot, aliasing between slots, states/transitions
   `ResourceBarrier` (`0x40`/`0x400`/`0x800`).
-- Bytes pre **y** post dispatch: header arg 10 (128 B), arg 9 (2.112 B),
-  registro float4 en `base+{0,16}` y plano OWORD de arg 0
-  (`índice = wg_y*960 + wg_x*8`); volcado completo recomendado, sin
-  inicializar nada como buffer vacío.
+- Bytes before **and** after the dispatch: arg 10 header (128 B), arg 9 (2,112 B),
+  float4 register at `base+{0,16}` and the OWORD plane of arg 0
+  (`índice = wg_y*960 + wg_x*8`); a full dump is recommended, without initializing
+  anything as an empty buffer.
 
-## 6. Llenar `evidence/versions/` (una fila por ítem, valor + fuente)
+## 6. Fill `evidence/versions/` (one row per item, value + source)
 
-Guía fila a fila del checklist (todos los comandos son de solo lectura;
-guardar cada salida con el nombre indicado):
+Row-by-row guide of the checklist (all commands are read-only; save each output
+with the indicated name):
 
-| # | Archivo | Comando de solo lectura |
+| # | File | Read-only command |
 |---|---|---|
-| 1 | `exe.sha256` | `sha256sum "<juego>/Spider-Man.exe"` + tamaño en bytes |
-| 2 | `exe.version.txt` | recurso de versión del PE (FileVersion/ProductVersion), leído sin ejecutar |
-| 3 | `proton.version.txt` | `cat "<proton>/version"` + ruta del directorio Proton |
-| 4 | `vkd3d.*.sha256` | `sha256sum <proton>/files/lib/wine/x86_64-windows/{d3d12,dxgi}.dll <proton>/files/lib/vkd3d/x86_64-windows/*.dll` de los binarios confirmados por el log de carga |
-| 5 | `vkd3d.version.txt` | cadena de versión del build VKD3D en uso (archivo de versión o log), sin asumir número |
-| 6 | `wine.version.txt` | `"<proton>/files/bin/wine" --version` (fuera de Steam, sin inicializar prefijos) |
-| 7 | copia del manifiesto | `evidence/icd-manifest.json` ya la deja el lanzador; añadir `sha256sum` del manifiesto usado |
-| 8 | `icd.library.sha256` | `sha256sum /usr/lib/libvulkan_intel.so` + `api_version` del manifiesto |
-| 9 | `dll.sha256` | `sha256sum "<juego>/amd_fidelityfx_upscaler_dx12.dll"` → debe dar `fadbcb50…` (el checklist impreso aún muestra el hash viejo: anotar la desviación explícitamente) |
-| 10 | `pre-412.hashes.txt` | IR `49e069fd…` + envelope `ce372719…` re-verificados con el comando del §1 (no hay zebin 4.1.2 compilado: `REQUIRED-TBD`, el runtime resuelve desde el pack 40102 de la DLL) |
-| 11 | `device.pci.txt` | ID PCI real del log de selección (`8086:e20b` esperado en B580) |
-| 12 | `host.context.txt` | `uname -r`, versión de CachyOS/Mesa (solo contexto) |
+| 1 | `exe.sha256` | `sha256sum "<juego>/Spider-Man.exe"` + size in bytes |
+| 2 | `exe.version.txt` | PE version resource (FileVersion/ProductVersion), read without executing |
+| 3 | `proton.version.txt` | `cat "<proton>/version"` + path of the Proton directory |
+| 4 | `vkd3d.*.sha256` | `sha256sum <proton>/files/lib/wine/x86_64-windows/{d3d12,dxgi}.dll <proton>/files/lib/vkd3d/x86_64-windows/*.dll` of the binaries confirmed by the load log |
+| 5 | `vkd3d.version.txt` | version string of the VKD3D build in use (version file or log), without assuming a number |
+| 6 | `wine.version.txt` | `"<proton>/files/bin/wine" --version` (outside Steam, without initializing prefixes) |
+| 7 | copy of the manifest | `evidence/icd-manifest.json` is already left by the launcher; add `sha256sum` of the manifest used |
+| 8 | `icd.library.sha256` | `sha256sum /usr/lib/libvulkan_intel.so` + `api_version` of the manifest |
+| 9 | `dll.sha256` | `sha256sum "<juego>/amd_fidelityfx_upscaler_dx12.dll"` → must give `fadbcb50…` (the printed checklist still shows the old hash: note the deviation explicitly) |
+| 10 | `pre-412.hashes.txt` | IR `49e069fd…` + envelope `ce372719…` re-verified with the command in §1 (no compiled 4.1.2 zebin exists: `REQUIRED-TBD`, the runtime resolves from pack 40102 of the DLL) |
+| 11 | `device.pci.txt` | real PCI ID from the device selection log (`8086:e20b` expected on B580) |
+| 12 | `host.context.txt` | `uname -r`, CachyOS/Mesa version (context only) |
 
-Reglas: si un ítem no aplica, anotarlo explícitamente; no reutilizar
-valores de otra máquina o ejecución; ninguna fila sustituye al oracle de
-salida ni acredita corrección funcional.
+Rules: if an item does not apply, note it explicitly; do not reuse
+values from another machine or run; no row replaces the output
+oracle nor certifies functional correctness.

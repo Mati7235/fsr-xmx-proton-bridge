@@ -1,52 +1,59 @@
-# PRE: qué puede servir de referencia independiente
+# PRE: what can serve as an independent reference
 
-No se ejecutaron nuevas pruebas GPU para esta evaluación. El PRE y FSR completo
-siguen sin validar; no hay un oracle de salida disponible todavía.
+No new GPU tests were run for this evaluation. PRE and full FSR remain
+unvalidated; there is no output oracle available yet.
 
-## Referencia funcional
+## Functional reference
 
-La opción más directa es capturar los recursos de entrada y salida del mismo
-PRE en una implementación de referencia que ya funcione, junto con formatos,
-vistas, versión del kernel, constantes y geometría. Una implementación CPU sería
-otra opción, pero requiere reconstruir la semántica y validarla contra esa
-referencia; no basta con traducir unas operaciones aisladas del shader.
+The most direct option is to capture the input and output resources of the
+same PRE in a reference implementation that already works, together with
+formats, views, kernel version, constants and geometry. A CPU implementation
+would be another option, but it requires reconstructing the semantics and
+validating them against that reference; translating isolated shader
+operations is not enough.
 
-Una captura del bridge experimental bajo Proton puede aportar el contrato del
-llamador y evidencia de sus bindings. **No constituye automáticamente una salida
-de referencia correcta:** el camino que se investiga podría ya estar fallando.
-Hay que identificar la procedencia y el grado de validación de la salida.
+A capture from the experimental bridge under Proton can provide the caller
+contract and evidence of its bindings. **It does not automatically constitute
+a correct reference output:** the path under investigation could already be
+failing. Its provenance and degree of validation must be established.
 
-## Contraste de bindings con otro frontend Intel
+## Binding cross-check with another Intel frontend
 
-El zebin fijado para B580 (`3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2`)
-contiene metadata de buffers stateful, imágenes y sampler. Level Zero ofrece
-`ZE_MODULE_FORMAT_NATIVE` y `zeModuleCreate`; su header y bibliotecas de runtime
-están presentes localmente. Eso permite investigar una segunda ruta de carga,
-**no demuestra que ese zebin particular sea aceptado**.
+The zebin pinned for B580 (`3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2`)
+contains metadata for stateful buffers, images and sampler. Level Zero exposes
+`ZE_MODULE_FORMAT_NATIVE` and `zeModuleCreate`; its header and runtime
+libraries are present locally. That makes it possible to investigate a second
+loading path, **but it does not demonstrate that this particular zebin is
+accepted**.
 
-Ejecutar el mismo kernel mediante Level Zero u OpenCL podría contrastar el ABI
-del bridge contra un frontend distinto de shim/ANV, con entradas idénticas y
-comparación de bytes. No sería una implementación algorítmica independiente:
-conservaría el kernel y posiblemente el mismo compilador. Además, OpenCL y
-Level Zero de Intel comparten el core NEO; comparar ambos no proporciona dos
-referencias totalmente independientes.
+Running the same kernel through Level Zero or OpenCL could cross-check the
+bridge's ABI against a different shim/ANV frontend, with identical inputs and
+a byte-by-byte comparison. It would not be an independent algorithmic
+implementation: it would keep the kernel and possibly the same compiler.
+Moreover, Intel's OpenCL and Level Zero share the NEO core, so comparing the
+two does not provide two fully independent references.
 
-Fuente de arquitectura: [Intel Compute Runtime](https://github.com/intel/compute-runtime/blob/master/ARCHITECTURE.md).
-La presencia de bibliotecas no prueba que un ICD sea usable ni autoriza a
-enumerar dispositivos o cargar módulos durante la inspección offline.
+Architecture source: [Intel Compute Runtime](https://github.com/intel/compute-runtime/blob/master/ARCHITECTURE.md).
+The presence of libraries does not prove that an ICD is usable, nor does it
+authorize enumerating devices or loading modules during offline inspection.
 
-## Próximo gate offline de esa alternativa
+## Next offline gate for that alternative
 
-Antes de preparar un experimento con otro frontend:
+Before preparing an experiment with another frontend:
 
-1. Identificar revisión/versión del Compute Runtime instalado y compatibilidad
-   con el IGC/ocloc fijado; revisar su parser de zebin y versión de `.ze_info`.
-2. Seguir la conversión de los doce argumentos a objetos de API, BTIs y sampler.
-   No asumir que una API expuesta acepta todas las particularidades del kernel CM.
-3. Resolver formatos/vistas, contenido, tamaños y geometría que todavía falten.
-4. Diseñar readback, canarios y comparación independiente antes del opt-in GPU.
+1. Identify the revision/version of the installed Compute Runtime and its
+   compatibility with the pinned IGC/ocloc; review its zebin parser and the
+   `.ze_info` version.
+2. Trace the conversion of the twelve arguments into API objects, BTIs and
+   sampler. Do not assume that an exposed API accepts all the particularities
+   of the CM kernel.
+3. Resolve the formats/views, contents, sizes and geometry that are still
+   missing.
+4. Design readback, canaries and an independent comparison before the GPU
+   opt-in.
 
-Si se prepara esa ruta, se registrará como **contraste de bindings/backend**, no
-como validación matemática de FSR. Crear el módulo o un kernel sin comparar sus
-resultados no cierra ningún gate funcional. El [contrato PRE](pre-controlled-test-contract.md)
-sigue siendo el criterio de aprobación, y esta evaluación no autoriza runtime.
+If that path is prepared, it will be recorded as a **binding/backend
+cross-check**, not as mathematical validation of FSR. Creating the module or a
+kernel without comparing its results does not close any functional gate. The
+[PRE contract](pre-controlled-test-contract.md) remains the acceptance
+criterion, and this evaluation does not authorize runtime.

@@ -1,20 +1,20 @@
-# Medir calidad de imagen entre upscalers
+# Measuring image quality across upscalers
 
-Procedimiento para comparar FSR 4.1.2 XMX contra XeSS y contra un render
-nativo, con evidencia numérica y visual. Requiere `wf-recorder`, instalado
-desde los repos oficiales (`wf-recorder 0.6.0`).
+Procedure for comparing FSR 4.1.2 XMX against XeSS and against a native
+render, with numerical and visual evidence. Requires `wf-recorder`, installed
+from the official repos (`wf-recorder 0.6.0`).
 
-## Por qué no alcanza con el ojo
+## Why the eye is not enough
 
-"Se ve más nítido" es una impresión. Para que sea un dato hacen falta tres
-cosas: la misma escena, una referencia y una métrica. La referencia correcta
-no es otro upscaler sino el render nativo: el trabajo de FSR es aproximar lo
-que verías sin upscaler.
+"It looks sharper" is an impression. To make it a data point three things are
+needed: the same scene, a reference and a metric. The right reference is not
+another upscaler but the native render: FSR's job is to approximate what
+you would see without an upscaler.
 
-## Grabación
+## Recording
 
-`wf-recorder` graba la salida del compositor sin pérdida. El launcher lo
-arranca y lo para solo con `--record`:
+`wf-recorder` records the compositor output losslessly. The launcher starts it
+and stops it only with `--record`:
 
 ```bash
 ./run-full-test.sh manual ref-native --game cyberpunk --native --record --proton-log
@@ -22,44 +22,44 @@ arranca y lo para solo con `--record`:
 ./run-full-test.sh int8  cp-int8      --game cyberpunk --record --proton-log
 ```
 
-- `ref-native`: `--native` aparta `dxgi.dll` (OptiScaler) y la DLL del mod
-  durante la corrida; el juego queda con su TAA. Apagar el upscaler en el
-  menú no alcanza: Cyberpunk aplica FSR en las cinemáticas del bench aunque
-  esté en Off.
+- `ref-native`: `--native` sets aside `dxgi.dll` (OptiScaler) and the mod DLL
+  during the run; the game keeps its TAA. Turning the upscaler off in the
+  menu is not enough: Cyberpunk applies FSR in the benchmark cutscenes even
+  when it is set to Off.
 - `cp-xess`: XeSS.
 - `cp-int8`: FSR 4.1.2.
-- Cada corrida deja `bench.mkv` en su carpeta de resultados.
+- Each run leaves `bench.mkv` in its results folder.
 
-Parámetros de grabación: `libx264rgb`, `crf=0` (lossless, `Avg QP 0.00`),
-4:4:4, 1920x1080, 60 fps, MKV. Nada de AV1 ni de 4:2:0: destruyen la
-crominancia justo donde se nota la diferencia.
+Recording parameters: `libx264rgb`, `crf=0` (lossless, `Avg QP 0.00`),
+4:4:4, 1920x1080, 60 fps, MKV. No AV1 or 4:2:0: they destroy chrominance
+exactly where the difference shows.
 
-Condiciones: misma resolución, mismo preset, mismas opciones gráficas, y
-correr el bench completo en las tres.
+Conditions: same resolution, same preset, same graphics options, and run the
+full bench in all three.
 
-## Recortar el bench
+## Trimming the bench
 
-Las grabaciones completas traen escritorio, menú, carga y resultados. Para
-comparar conviene cortar una vez el tramo del bench en cada video:
+The full recordings include desktop, menu, loading and results. To compare,
+it is best to cut the bench segment once in each video:
 
-- **Inicio**: primer frame con imagen después del hueco negro de carga previo.
-- **Fin**: justo antes del corte a la pantalla de resultados (fondo oscuro,
-  "Average FPS" en naranja).
-- Duración típica: ~69 s de reloj, aunque el contador del juego diga 64,2 s.
+- **Start**: first frame with an image after the black loading gap before it.
+- **End**: just before the cut to the results screen (dark background,
+  "Average FPS" in orange).
+- Typical duration: ~69 s of wall clock, even though the game counter says 64.2 s.
 
 ```bash
 ffmpeg -v error -y -ss 79.883 -i bench.mkv -t 69.317 \
   -c:v libx264rgb -crf 0 -preset ultrafast -pix_fmt gbrp -an -sn bench-clip.mkv
 ```
 
-`-ss` antes de `-i` y re-encode dan un corte exacto al frame. Con `-c copy`
-el corte cae en el keyframe anterior y puede errar hasta 4 s. El re-encode
-con `libx264rgb -crf 0` es lossless sobre RGB, igual que la grabación. Guardar
-los segundos usados en un JSON al lado del clip.
+`-ss` before `-i` and re-encoding give an exact cut to the frame. With `-c copy`
+the cut falls on the previous keyframe and can be off by up to 4 s. Re-encoding
+with `libx264rgb -crf 0` is lossless over RGB, same as the recording. Save the
+seconds used in a JSON next to the clip.
 
-## Análisis
+## Analysis
 
-Sobre los clips ya recortados, con `--length` igual a la duración del clip:
+On the already trimmed clips, with `--length` equal to the clip duration:
 
 ```bash
 python3 tools/bench_quality.py report \
@@ -72,65 +72,65 @@ python3 tools/bench_quality.py report \
   --crop 760,100,400,225
 ```
 
-Los clips arrancan en el mismo frame del bench y la cámara sigue una línea de
-tiempo fija, así que el mismo segundo corresponde a la misma posición aunque
-un clip tenga 60 fps y otro no. Verificado: a los 30 s el offset óptimo entre
-XeSS y Lite es 0, y correrse un frame empeora el MSE 2 a 4 veces. Contra la
-nativa queda un residuo de 2 o 3 frames, que el tool corrige solo.
+The clips start at the same frame of the bench and the camera follows a fixed
+timeline, so the same second corresponds to the same position even if one clip
+is 60 fps and another is not. Verified: at 30 s the optimal offset between
+XeSS and Lite is 0, and shifting by one frame makes the MSE 2 to 4 times worse.
+Against native there is a residual of 2 or 3 frames, which the tool corrects
+on its own.
 
-Las versiones publicadas para comparar son los MP4 H.264 4:2:0 de
-`media/quality-cp77/`. Los clips lossless se usan solo para medir y quedan
-locales.
+The published versions for comparison are the H.264 4:2:0 MP4s in
+`media/quality-cp77/`. The lossless clips are used only for measuring and stay
+local.
 
-Qué hace:
+What it does:
 
-1. Saca miniaturas a 1 fps de cada video.
-2. Detecta el bench: busca el tramo de `--length` segundos que **mejor
-   coincide entre la referencia y cada video**. El bench repite el mismo
-   recorrido de cámara, así que alinearlo da el mínimo error; el menú tiene
-   fondo animado pero no está sincronizado entre corridas, y la carga
-   directamente cambia. Devuelve el segundo de inicio en la referencia y el
-   desfase de cada video. Con clips que ya empiezan en el bench, el tramo es
-   el clip completo (`--length` igual a su duración).
-3. Ajusta el desfase sub-segundo a 60 fps: un segundo de resolución deja
-   hasta medio segundo de error, que con cámara en movimiento es otra escena.
-4. Extrae el mismo frame de cada video en posiciones normalizadas.
-5. Calcula por frame:
-   - **PSNR y SSIM** contra la referencia nativa, sobre el frame completo y
-     sobre el crop. El crop es una zona estática y evita pagar el movimiento
-     de peatones y vehículos, que no cae igual entre corridas.
-   - **Nitidez**: varianza del Laplaciano sobre luma. Es la forma de
-     convertir "vaselina" en un número; un upscaler borroso da mucho menos
-     que el nativo.
-5. Genera crops lado a lado (`crop_*.png`) con etiqueta, al doble de tamaño.
-6. Escribe `report.md` con la tabla.
+1. Extracts thumbnails at 1 fps from each video.
+2. Detects the bench: it looks for the `--length`-second segment that **best
+   matches between the reference and each video**. The bench repeats the same
+   camera path, so aligning it gives the minimum error; the menu has an
+   animated background but is not synchronized between runs, and loading
+   changes it directly. It returns the start second in the reference and the
+   offset of each video. With clips that already start in the bench, the
+   segment is the full clip (`--length` equal to its duration).
+3. Refines the sub-second offset to 60 fps: one second of resolution leaves up
+   to half a second of error, which with a moving camera is a different scene.
+4. Extracts the same frame from each video at normalized positions.
+5. Computes per frame:
+   - **PSNR and SSIM** against the native reference, on the full frame and on
+     the crop. The crop is a static area and avoids paying for the movement of
+     pedestrians and vehicles, which does not line up between runs.
+   - **Sharpness**: variance of the Laplacian over luma. It is the way to turn
+     "vaseline" into a number; a blurry upscaler gives much less than native.
+5. Generates side-by-side crops (`crop_*.png`) with labels, at double size.
+6. Writes `report.md` with the table.
 
-## Cómo leerlo
+## How to read it
 
-- La nitidez alta no es automáticamente mejor: oversharpening también sube
-  el Laplaciano. Se lee junto con PSNR/SSIM, no en lugar de ellos.
-- PSNR y SSIM contra el nativo bajan si el upscaler agrega detalle que el
-  nativo no tiene, aunque se vea mejor. Sirven para comparar entre sí a los
-  upscalers, no como veredicto absoluto.
-- Los crops son la evidencia que convence: texto, barandillas, rejas y
-  superficies con detalle fino a 200 %.
-- Una sola escena no generaliza. Si se quiere afirmar algo más fuerte,
-  repetir con otra zona del bench y otro preset.
+- High sharpness is not automatically better: oversharpening also raises the
+  Laplacian. Read it together with PSNR/SSIM, not instead of them.
+- PSNR and SSIM against native drop if the upscaler adds detail that native
+  does not have, even if it looks better. They serve to compare the upscalers
+  with each other, not as an absolute verdict.
+- The crops are the convincing evidence: text, railings, grilles and surfaces
+  with fine detail at 200%.
+- A single scene does not generalize. To claim something stronger, repeat with
+  another area of the bench and another preset.
 
-## Límites
+## Limits
 
-- Grabar en lossless cuesta rendimiento. Las corridas grabadas midieron 41,7
-  (nativa), 35,7 (XeSS), 36,7 (FSR) y 28,4 (Lite) fps promedio, contra 54-55
-  sin grabar. Los videos sirven para calidad; el rendimiento se mide en
-  corridas sin grabación.
-- El contador del juego dice 64,2 s, pero el tramo del bench en la grabación
-  dura ~69 s de reloj por tirones y carga. Para recortarlo, el inicio es el
-  primer frame con imagen después del hueco negro previo y el fin es el corte
-  a la pantalla de resultados, no 64,2 s desde un offset.
-- El render nativo no es ground truth absoluto: tiene su propio TAA con
-  ghosting. Es la referencia práctica disponible sin hardware AMD.
-- El video pasa por la composición del compositor; no es el framebuffer
-  crudo. Para eso haría falta RenderDoc, que es otra herramienta y otro
-  objetivo.
-- La alineación es por segundo; diferencias de un frame en la animación
-  agregan ruido a PSNR.
+- Recording lossless costs performance. The recorded runs measured 41.7
+  (native), 35.7 (XeSS), 36.7 (FSR) and 28.4 (Lite) fps on average, against 54-55
+  without recording. The videos are good for quality; performance is measured in
+  runs without recording.
+- The game counter says 64.2 s, but the bench segment in the recording lasts
+  ~69 s of wall clock due to stutters and loading. To trim it, the start is the
+  first frame with an image after the previous black gap and the end is the cut
+  to the results screen, not 64.2 s from an offset.
+- The native render is not an absolute ground truth: it has its own TAA with
+  ghosting. It is the practical reference available without AMD hardware.
+- The video goes through the compositor's composition; it is not the raw
+  framebuffer. For that, RenderDoc would be needed, which is another tool and
+  another target.
+- Alignment is per second; one-frame differences in the animation add noise to
+  PSNR.

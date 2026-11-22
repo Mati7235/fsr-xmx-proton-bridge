@@ -1,62 +1,62 @@
-# Regeneración del puente XMX 4.1.2 (CPU-only, sin commit)
+# Regeneration of the XMX 4.1.2 bridge (CPU-only, no commit)
 
-Alcance: re-correr los 3 builders y confirmar determinismo + `apply --check`
-contra upstream, cross-compilar el shim con el stack 0002→0003, probar que el
-registry aceptará una segunda entrada sin cambios de código, y fijar la
-secuencia exacta para regenerar 0001 cuando exista el perfil 4.1.2.
+Scope: re-run the 3 builders and confirm determinism + `apply --check`
+against upstream, cross-compile the shim with the 0002→0003 stack, check that
+the registry will accept a second entry without code changes, and fix the
+exact sequence to regenerate 0001 once the 4.1.2 profile exists.
 
-La corrida original (2026-11-12) se hizo contra `ef39559`. La sección de
-actualización siguiente revalida todo contra `662dc6e`; las secciones (a)–(d)
-se conservan como registro histórico de la corrida anterior.
+The original run (2026-11-12) was done against `ef39559`. The update section
+below re-validates everything against `662dc6e`; sections (a)–(d) are kept as a
+historical record of the earlier run.
 
-Límites respetados: sin ejecutar DLLs, sin GPU/Wine, sin instalar nada, sin
-tocar `artifacts/original`, `upstream/`, juegos ni prefijos. Compilación
-offline del shim con LLVM-MinGW permitida (precedente
-`docs/shim-cross-build.md`). En la corrida histórica los parches se
-regeneraron solo a `/tmp`; la actualización 2026-11-13 sí reemplazó los tres
-parches versionados tras adaptar los builders. Sin commit.
+Limits respected: no DLL execution, no GPU/Wine, nothing installed, no changes
+to `artifacts/original`, `upstream/`, games or prefixes. Offline compilation of
+the shim with LLVM-MinGW is allowed (precedent `docs/shim-cross-build.md`). In
+the historical run the patches were regenerated only in `/tmp`; the 2026-11-13
+update did replace the three versioned patches after adapting the builders.
+No commit.
 
-## Actualización 2026-11-13: base `662dc6e`
+## Update 2026-11-13: base `662dc6e`
 
-Drift `ef39559..662dc6e`: 178 commits, 150 archivos, +27.845/−6.289 líneas.
-El listado completo de commits/archivos queda en
-`analysis/upstream-drift-662dc6e.md` (ignorado por Git). Solapes con nuestros
-contextos:
+Drift `ef39559..662dc6e`: 178 commits, 150 files, +27,845/−6,289 lines.
+The full list of commits/files is in
+`analysis/upstream-drift-662dc6e.md` (git-ignored). Overlaps with our
+contexts:
 
-- `shim/src/dll/IgdextApiDll.cpp`: commit `8f45d12` ya copia los outputs de
-  contexto en ambos exports legacy. 0002 ahora conserva el helper compartido y
-  reemplaza esas copias inline; 0003 sigue reutilizando el helper.
-- `tools/cmk_pack.py`, `tools/cm-compile.sh`: nuevos límites de scratch/private
-  memory, opción `CM_OUT_DIR`, empaquetado CMK2 movido al driver y nombres
-  temporales por proceso. Nuestro formato CMK3 y `registry_gen` no cambian.
-- `patches/0001-anv-cm-kernel-injection.patch` (ambas variantes): reescritura
-  del lector/empaquetador en `anv_cm.c` nuevo, con `anv_cm_header_ok` y
-  `ANV_CM_HEADER_SIZE=472`. El builder se adaptó a esos anclajes; la validación
-  CMK3 (base explícita, tamaño push exacto, cobertura por rango) se conserva.
-- `layer/`: lector/empaquetador CMK2 nuevo para ANV sin parchear. Es una ruta
-  paralela y **no** entiende CMK3; fuera del alcance de estos parches.
-- `docs/`: reescritura y reorganización (`docs/dev/`). Los pines de este repo
-  se actualizaron por separado.
+- `shim/src/dll/IgdextApiDll.cpp`: commit `8f45d12` already copies the context
+  outputs into both legacy exports. 0002 now keeps the shared helper and
+  replaces those inline copies; 0003 still reuses the helper.
+- `tools/cmk_pack.py`, `tools/cm-compile.sh`: new scratch/private memory
+  limits, `CM_OUT_DIR` option, CMK2 packaging moved to the driver and
+  per-process temporary names. Our CMK3 format and `registry_gen` do not change.
+- `patches/0001-anv-cm-kernel-injection.patch` (both variants): rewrite of the
+  reader/packer in the new `anv_cm.c`, with `anv_cm_header_ok` and
+  `ANV_CM_HEADER_SIZE=472`. The builder was adapted to those anchors; the CMK3
+  validation (explicit base, exact push size, range coverage) is kept.
+- `layer/`: new CMK2 reader/packer for unpatched ANV. It is a parallel path and
+  **does not** understand CMK3; it is out of scope for these patches.
+- `docs/`: rewrite and reorganization (`docs/dev/`). The pins of this repo
+  were updated separately.
 
-Resultado de la revalidación:
+Result of the re-validation:
 
-| Pieza | Determinismo | `apply --check` | SHA-256 checked-in |
+| Piece | Determinism | `apply --check` | SHA-256 checked-in |
 |---|---|---|---|
-| 0002 | idéntico al builder | OK | `fc00a77d…93f263` |
-| 0003 | idéntico al builder | OK solo; orden 0002→0003 | `ef8112d4…554f0c` |
-| 0001 | idéntico al builder | OK | `88e134a0…d9f2e4` |
+| 0002 | identical to the builder | OK | `fc00a77d…93f263` |
+| 0003 | identical to the builder | OK only; order 0002→0003 | `ef8112d4…554f0c` |
+| 0001 | identical to the builder | OK | `88e134a0…d9f2e4` |
 
-- Fuente shim: SHA-256 `6d32d934…252696`, revisión
+- Shim source: SHA-256 `6d32d934…252696`, revision
   `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
-- `registry_gen()` sigue en **`3ddd809f`** (registry de 2 entradas sin cambios).
-- Cross-build del shim: 14/14, DLL 861.184 B
+- `registry_gen()` is still at **`3ddd809f`** (2-entry registry, no changes).
+- Shim cross-build: 14/14, DLL 861,184 B
   `0a0b5462…ca8cf8`, 79 exports, imports KERNEL32/ADVAPI32/UCRT.
-- Suite completa: **415 tests OK, 3 skips** (`python3 -m unittest discover -s tests`).
-- Sin commit; cambios dejados en el árbol de trabajo.
+- Full suite: **415 tests OK, 3 skips** (`python3 -m unittest discover -s tests`).
+- No commit; changes left in the working tree.
 
-## (a) Determinismo de builders + `apply --check` (corrida histórica ef39559)
+## (a) Builder determinism + `apply --check` (historical run ef39559)
 
-Comandos (solo lectura/escritura a `/tmp`, sin modificar el repo):
+Commands (read/write only in `/tmp`, without modifying the repo):
 
 ```sh
 python3 tools/build_context_output_patch.py > /tmp/opencode/regen0002.patch
@@ -70,31 +70,31 @@ git -C upstream/xess-xmx-linux apply --check "$PWD/patches/0002-shim-context-out
 git -C upstream/xess-xmx-linux apply --check "$PWD/patches/0003-shim-context-reuse.patch"
 ```
 
-Resultado 2026-11-12:
+Result 2026-11-12:
 
-| Pieza | Determinismo | `apply --check` | SHA-256 checked-in |
+| Piece | Determinism | `apply --check` | SHA-256 checked-in |
 |---|---|---|---|
-| 0002 | idéntico (`diff -q` limpio) | OK | `fa9c302b…7f8508` |
-| 0003 | idéntico | OK solo; el orden válido es 0002→0003 (ver stack) | `ef8112d4…554f0c` |
-| 0001 | idéntico | OK | `26383938…c38d70` |
+| 0002 | identical (`diff -q` clean) | OK | `fa9c302b…7f8508` |
+| 0003 | identical | OK only; the valid order is 0002→0003 (see stack) | `ef8112d4…554f0c` |
+| 0001 | identical | OK | `26383938…c38d70` |
 
-Fijado adicional:
+Additional pins:
 
-- Fuente shim `upstream/xess-xmx-linux/shim/src/dll/IgdextApiDll.cpp`
-  SHA-256 `aed09d4f…80ca96`, revisión `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
-- `build_full == build∘build_output` (0003 apilado sobre 0002) verificado en CPU.
-- Stack `patch -p1` 0002→0003 en árbol aislado: OK, con
-  `CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1)` y 3×
-  `liveHalf` presentes.
-- Los builders rechazan fuente modificada (`refusing unpinned source`).
-- Cubierto por `tests/test_xmx412_bridge_regen.py`
+- Shim source `upstream/xess-xmx-linux/shim/src/dll/IgdextApiDll.cpp`
+  SHA-256 `aed09d4f…80ca96`, revision `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+- `build_full == build∘build_output` (0003 stacked on 0002) verified on CPU.
+- Stack `patch -p1` 0002→0003 in an isolated tree: OK, with
+  `CopyExtensionInfo1OutputsToOld(*pExtensionInfo, extensionInfo1)` and 3×
+  `liveHalf` present.
+- The builders reject modified source (`refusing unpinned source`).
+- Covered by `tests/test_xmx412_bridge_regen.py`
   (`BuilderDeterminismTests`, `PatchApplyTests`): 17/17 OK.
 
-Sin deriva: ninguna regeneración difiere del parche versionado.
+No drift: no regeneration differs from the versioned patch.
 
-## (b) Cross-compilación del shim, stack 0002→0003 (14/14, sin errores)
+## (b) Shim cross-compilation, stack 0002→0003 (14/14, no errors)
 
-Secuencia exacta ejecutada (copia aislada en `/tmp`, sin tocar upstream):
+Exact sequence run (isolated copy in `/tmp`, upstream untouched):
 
 ```sh
 rm -rf /tmp/opencode/xmx412-shim-stack-v01 && mkdir -p /tmp/opencode/xmx412-shim-stack-v01
@@ -113,69 +113,69 @@ cmake -S /tmp/opencode/xmx412-shim-stack-v01/source \
 cmake --build /tmp/opencode/xmx412-shim-stack-v01/obj -j 4
 ```
 
-Resultado:
+Result:
 
 - Configure: `Clang 23.1.4`, `Generating done`, exit 0.
-- Build: **[14/14], 0 errores, 0 warnings** en el log
+- Build: **[14/14], 0 errors, 0 warnings** in the log
   (`/tmp/opencode/xmx412-shim-stack-v01-build.log`).
-- DLL: `obj/igdext64.dll`, 1.616.896 B,
+- DLL: `obj/igdext64.dll`, 1,616,896 B,
   SHA-256 `3aff7abf…3054d1`, PE32+ AMD64.
-- `x86_64-w64-mingw32-objdump -p`: **75 exports con nombre** (misma forma que
-  el baseline documentado), imports `KERNEL32.dll`, `ADVAPI32.dll` + familia
-  UCRT (`api-ms-win-crt-*`), sin `MSVCP` dinámico inesperado.
-- Fuentes de `/tmp/opencode/xmx412-shim-stack-v01/source` idénticas a
-  `/tmp/opencode/shim-cross-reuse-v01/source` (`diff -r` limpio).
+- `x86_64-w64-mingw32-objdump -p`: **75 named exports** (same shape as the
+  documented baseline), imports `KERNEL32.dll`, `ADVAPI32.dll` + the UCRT family
+  (`api-ms-win-crt-*`), no unexpected dynamic `MSVCP`.
+- Sources in `/tmp/opencode/xmx412-shim-stack-v01/source` identical to
+  `/tmp/opencode/shim-cross-reuse-v01/source` (`diff -r` clean).
 
-Nota sobre hashes: la DLL no se declara bit-reproducible. El build previo
-documentado (`8afc4973…`, mismo tamaño y 75 exports) difiere solo por
-timestamp/rutas embebidas; lo que se afirma es 14/14 + misma forma de
-exports/imports, no igualdad de hash. La variante MSVC/Windows-SDK no se
-compiló; UCRT sigue pendiente de validación runtime como ya se sabía.
+Note on hashes: the DLL is not declared bit-reproducible. The previous
+documented build (`8afc4973…`, same size and 75 exports) differs only in
+timestamp/embedded paths; what is claimed is 14/14 + the same exports/imports
+shape, not hash equality. The MSVC/Windows-SDK variant was not compiled; UCRT
+is still pending runtime validation, as already known.
 
-## (c) El registry aceptará una segunda entrada sin cambios de código
+## (c) The registry will accept a second entry without code changes
 
-`tools/pre_profile_registry.py` + `tools/build_anv_mapping_patch.py` son
-genéricos respecto al número de entradas: validan cada fila (claves,
-`code_sha256` único 64-hex, `0 <= base < expected <= 256` alineado a 4,
-fichero de perfil existente) y mezclan `registry_gen()` en
-`anv_cm_toolchain_gen`. Ninguna rama asume “1 entrada”.
+`tools/pre_profile_registry.py` + `tools/build_anv_mapping_patch.py` are
+generic with respect to the number of entries: they validate each row (keys,
+unique 64-hex `code_sha256`, `0 <= base < expected <= 256` aligned to 4,
+existing profile file) and mix `registry_gen()` into
+`anv_cm_toolchain_gen`. No branch assumes "1 entry".
 
-Prueba sintética (sin tocar `profiles/registry.json`; el fragmento real de
-`profiles/xmx412-pins.json` sigue todo `REQUIRED-TBD`):
+Synthetic test (without touching `profiles/registry.json`; the real fragment
+of `profiles/xmx412-pins.json` is still all `REQUIRED-TBD`):
 
-- Segunda entrada sintética en memoria: `kernel fsr4_pre_xmx`,
+- Second synthetic entry in memory: `kernel fsr4_pre_xmx`,
   `variant synthetic-412-native1080`, `code ab*32`, `input cd*32`,
   `zebin ef*32`, `profile profiles/fsr4-pre-native1080-bmg.json`
-  (reuso del fichero existente solo para pasar el check de existencia sin
-  crear archivos en el repo), `base 8`, `push 56`, `surfaces 11`.
-  **No es un pin 4.1.2.**
-- `load()` sobre fichero temporal con las 2 entradas: OK, 2 filas,
-  `find_profile` devuelve la vieja (`2e42d33c…` → `(4,52)`) y la sintética
-  (`ab*32` → `(8,56)`), `None` para `00*64`, `ff*64` y `REQUIRED-TBD`.
-- `registry_gen` sintético `b2c0cc64` ≠ `912cda6a`, estable y ligado al
-  contenido (mutar `expected_push_size` lo cambia).
-- Con `load_registry` mockeado a las 2 entradas, `adapt()` incrusta
-  `h = (h ^ 0xb2c0cc64u)` y ya no contiene `0x912cda6a`, más el comentario
+  (reuses the existing file only to pass the existence check, without creating
+  files in the repo), `base 8`, `push 56`, `surfaces 11`.
+  **It is not a 4.1.2 pin.**
+- `load()` on a temporary file with the 2 entries: OK, 2 rows,
+  `find_profile` returns the old one (`2e42d33c…` → `(4,52)`) and the synthetic
+  one (`ab*32` → `(8,56)`), `None` for `00*64`, `ff*64` and `REQUIRED-TBD`.
+- Synthetic `registry_gen` `b2c0cc64` ≠ `912cda6a`, stable and tied to the
+  content (mutating `expected_push_size` changes it).
+- With `load_registry` mocked to the 2 entries, `adapt()` embeds
+  `h = (h ^ 0xb2c0cc64u)` and no longer contains `0x912cda6a`, plus the comment
   `LOCAL profile generation`.
-- Fail-closed intacto: el fragmento `future_registry_entry_fragment` (todo
-  `REQUIRED-TBD`) sigue rechazado por `load()`; duplicados, base
-  desalineada (`5`) y perfil inexistente también son `ValueError`; ningún
-  digest 4.1.2 (`raw_sha256` de packs) hace hit en el registry real.
+- Fail-closed intact: the `future_registry_entry_fragment` fragment (all
+  `REQUIRED-TBD`) is still rejected by `load()`; duplicates, misaligned base
+  (`5`) and a nonexistent profile are also `ValueError`; no 4.1.2 digest
+  (`raw_sha256` of packs) hits the real registry.
 
-Si un builder necesitara un cambio para la 4.1.2 real, no se aplica aquí:
-se propondría sin editar. Hoy no hace falta: la capa registry/mapping no
-pide cambios. Advertencia conocida: `tools/build_pre_profile.py` sigue
-fijado a los hashes/BTIs del PRE 4.0.2x (`EXPECTED_INPUT/ZEBIN/BTIS`); el
-perfil 4.1.2 real necesitará su propio aislamiento/auditoría y, en su caso,
-nuevo tooling de generación — nunca copiar base-4/push-52 al hash nuevo.
+If a builder needed a change for the real 4.1.2, it is not applied here: it
+would be proposed without editing. Today it is not needed: the registry/mapping
+layer requires no changes. Known warning: `tools/build_pre_profile.py` is still
+pinned to the hashes/BTIs of PRE 4.0.2x (`EXPECTED_INPUT/ZEBIN/BTIS`); the real
+4.1.2 profile will need its own isolation/audit and, if applicable, new
+generation tooling — never copy base-4/push-52 to the new hash.
 
-Cubierto por `tests/test_xmx412_bridge_regen.py`
+Covered by `tests/test_xmx412_bridge_regen.py`
 (`RegistryTwoEntryTests`, `FailClosedTests`).
 
-## (d) Secuencia EXACTA para regenerar 0001 cuando exista el perfil 4.1.2
+## (d) EXACT sequence to regenerate 0001 once the 4.1.2 profile exists
 
-No ejecutada (el perfil no existe: todo `pre_xe2_412` es `REQUIRED-TBD`).
-Cuando `profiles/xmx412-pins.json` resuelva cada TBD, en este orden:
+Not executed (the profile does not exist: every `pre_xe2_412` item is `REQUIRED-TBD`).
+When `profiles/xmx412-pins.json` resolves every TBD, in this order:
 
 ```sh
 # 1. Aislar el envelope PRE Xe2 (pack 40102, clase native/1080p) y compilar
@@ -214,16 +214,16 @@ git -C upstream/xess-xmx-linux apply --check \
 python -m unittest tests.test_profile_selection tests.test_xmx412_bridge_regen -v
 ```
 
-Efecto esperado de (5): solo cambia el digest embebido
-(`0x912cda6a` → nuevo `registry_gen()`) en ambas variantes internas más el
-recuento de hunks; la ruta CMK2 global queda intacta y los hashes
-desconocidos siguen en legacy por miss.
+Expected effect of (5): only the embedded digest changes
+(`0x912cda6a` → new `registry_gen()`) in both internal variants plus the hunk
+count; the global CMK2 path stays intact, and unknown hashes remain on the
+legacy path on a miss.
 
-## Salidas de esta tarea
+## Outputs of this task
 
-- `tests/test_xmx412_bridge_regen.py`: 17 tests (determinismo, `apply --check`,
-  registry sintético de 2 entradas, fail-closed).
-- Este doc (`docs/xmx412-bridge-regen.md`).
-- Artefactos efímeros en `/tmp/opencode` (regeneraciones, árbol y build del
-  shim, logs): no versionados.
-- Ningún parche, perfil, registry ni builder modificado; sin commit.
+- `tests/test_xmx412_bridge_regen.py`: 17 tests (determinism, `apply --check`,
+  synthetic 2-entry registry, fail-closed).
+- This doc (`docs/xmx412-bridge-regen.md`).
+- Ephemeral artifacts in `/tmp/opencode` (regenerations, shim tree and build,
+  logs): not versioned.
+- No patch, profile, registry or builder modified; no commit.

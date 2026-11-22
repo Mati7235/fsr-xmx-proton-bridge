@@ -1,37 +1,37 @@
-# Reconstrucción de opciones y recursos del PRE
+# PRE options and resource reconstruction
 
-## En pocas palabras
+## In short
 
-PRE es la etapa inicial que prepara los datos antes del reescalado. Reconstruimos
-su pedido al controlador y el orden de sus casilleros de recursos, sin ejecutar
-el mod. Encontramos un desfase de un casillero en el mapeo automático del puente
-al compararlo con el código de referencia de VKD3D. Todavía no es una prueba en GPU.
+PRE is the initial stage that prepares the data before upscaling. We reconstructed
+its request to the driver and the order of its resource slots, without running
+the mod. We found a one-slot offset in the bridge's automatic mapping when
+comparing it with the VKD3D reference code. It is not yet a GPU test.
 
-También corregimos una sospecha anterior: las opciones encontradas junto al kernel
-viajan **dentro del bloque de bytecode**. Los dos punteros de opciones de la API
-son NULL en el PRE inspeccionado. No hay evidencia de que el filtro de opciones
-externas del helper elimine estas opciones embebidas.
+We also corrected an earlier suspicion: the options found next to the kernel
+travel **inside the bytecode block**. The two API options pointers are NULL in the
+inspected PRE. There is no evidence that the helper's external options filter
+removes these embedded options.
 
-## Avance posterior
+## Later progress
 
-La [compilación offline del PRE](offline-pre-compilation.md) ya confirmó los BTIs
-y el consumo de las opciones embebidas. Existe un perfil y un lector candidato
-CMK3, todavía no instalados ni validados en GPU. Las secciones de pendientes de
-este documento describen el estado previo a esa compilación.
+The [offline compilation of the PRE](offline-pre-compilation.md) has already confirmed the BTIs
+and the consumption of the embedded options. A candidate CMK3 profile and reader
+exist, not yet installed or validated on GPU. The pending sections of
+this document describe the state before that compilation.
 
-## Alcance y revisiones
+## Scope and revisions
 
 - DLL SHA-256: `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`.
-- xess-xmx-linux (análisis original): `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`;
-  base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
-- VKD3D de referencia: `ef9a02e873715c9e2da0d6db8a236aca8380b303`, clonado localmente
-  en `upstream/vkd3d-proton`. **No es identificación del Proton instalado**.
-- Solo se reconstruyó el PRE normal. Las otras etapas requieren su propio análisis.
-- Todos los datos siguientes son estáticos; no se cargó la DLL con Wine/LoadLibrary.
+- xess-xmx-linux (original analysis): `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`;
+  current base of the patch stack: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
+- Reference VKD3D: `ef9a02e873715c9e2da0d6db8a236aca8380b303`, cloned locally
+  in `upstream/vkd3d-proton`. **It does not identify the installed Proton**.
+- Only the normal PRE was reconstructed. The other stages require their own analysis.
+- All the following data is static; the DLL was not loaded with Wine/LoadLibrary.
 
-## 1. Los bloques CM tienen un pie con longitudes verificables
+## 1. The CM blocks have a footer with verifiable lengths
 
-Formato recuperado, sin incluir padding de alineación del pack:
+Recovered format, without including the pack's alignment padding:
 
 ```text
 SPIR-V [N bytes]
@@ -42,101 +42,101 @@ u64 little-endian: tamaño del pie completo
 11 bytes: "-vc-payload"
 ```
 
-El pie completo empieza en A e incluye el marcador final. No es necesario
-adivinar el fin del SPIR-V recorriendo instrucciones: el pie declara su longitud.
-Las cadenas son ASCII y cada pie tiene exactamente dos terminadores NUL.
+The full footer starts at A and includes the final marker. There is no need to
+guess the end of the SPIR-V by walking instructions: the footer declares its length.
+The strings are ASCII and each footer has exactly two NUL terminators.
 
-Valores observados:
+Observed values:
 
-| Pack | Cadena A | Cadena B | Pie |
+| Pack | String A | String B | Footer |
 |---|---|---|---:|
 | 40101 | `-vc-payload` | ` -target-features=+ocl_runtime` | 70 bytes |
-| 40102 | `-vc-payload -Xfinalizer '-noDPASMacro'` | la misma | 97 bytes |
-| 40103 | ambas variantes según registro | la misma | 70 o 97 bytes |
+| 40102 | `-vc-payload -Xfinalizer '-noDPASMacro'` | the same | 97 bytes |
+| 40103 | both variants depending on the record | the same | 70 or 97 bytes |
 
-El espacio inicial de B y las comillas simples de A se preservan. No normalizarlos
-ni reconstruir una línea de shell a partir de ellos.
+The leading space of B and the single quotes of A are preserved. Do not normalize
+them or rebuild a shell line from them.
 
-`tools/parse_cm_payloads.py` valida la coherencia de cada pie con el magic inicial,
-los límites del buffer y ambas cadenas. Recupera **252 + 252 + 186 = 690 bloques**.
-Todos los IR extraídos se desensamblaron con `spirv-dis`, sin errores. Esto **no**
-equivale a `spirv-val`, compilación IGC o corrección GPU.
+`tools/parse_cm_payloads.py` validates the consistency of each footer with the initial magic,
+the buffer bounds and both strings. It recovers **252 + 252 + 186 = 690 blocks**.
+All extracted IRs were disassembled with `spirv-dis`, without errors. This is **not**
+equivalent to `spirv-val`, IGC compilation or GPU correctness.
 
-El pack 40101 contiene además 18 contenedores DXBC detectados por magic y tamaño,
-y seis huecos adicionales con contenido no nulo aún no clasificado. No se afirma
-haber decodificado todo el formato del pack.
+Pack 40101 also contains 18 DXBC containers detected by magic and size, and
+six additional gaps with non-null content not yet classified. It is not claimed
+that the whole pack format has been decoded.
 
-### Los seis módulos que faltaban
+### The six missing modules
 
-Son POST reales y recuperables. El carver anterior interpretaba los primeros bytes
-de `-vc-payload` como una instrucción: word `0x2d63762d`, count falso 11619. Cuando
-había un hueco grande después del POST podía seguir avanzando por datos ajenos al
-SPIR-V. No era evidencia de corrupción de los kernels. El parser nuevo usa los
-pies y recupera las 18 variantes POST de 40101.
+They are real and recoverable POST modules. The earlier carver interpreted the first bytes
+of `-vc-payload` as an instruction: word `0x2d63762d`, false count 11619. When
+there was a large gap after the POST it could keep advancing through data unrelated to
+the SPIR-V. It was not evidence of kernel corruption. The new parser uses the
+footers and recovers the 18 POST variants of 40101.
 
-## 2. Qué envía realmente la DLL a la API
+## 2. What the DLL actually sends to the API
 
-Función PRE: `0x18002bb60..0x18002d447`.
+PRE function: `0x18002bb60..0x18002d447`.
 
-- `0x18002c8cf..0x18002c914`: construye el descriptor INTC.
-- Bytecode pointer en descriptor `+8`; longitud en `+16`.
-- ShaderInputType en `+24` = **2, CM_SPIRV**.
+- `0x18002c8cf..0x18002c914`: builds the INTC descriptor.
+- Bytecode pointer at descriptor `+8`; length at `+16`.
+- ShaderInputType at `+24` = **2, CM_SPIRV**.
 - CompileOptions `+32` = **NULL**.
 - InternalOptions `+40` = **NULL**.
-- `0x18002cb00`: llamada indirecta a CreateComputePipelineState.
+- `0x18002cb00`: indirect call to CreateComputePipelineState.
 
-La longitud se copia de la tabla de la variante seleccionada, sin recorte posterior.
-Se leyeron las tablas directamente de la DLL y se contrastaron con los pies:
+The length is copied from the table of the selected variant, with no later trimming.
+The tables were read directly from the DLL and cross-checked with the footers:
 
-| PRE native_1080 | IR | Pie | BytecodeLength real |
+| PRE native_1080 | IR | Footer | Real BytecodeLength |
 |---|---:|---:|---:|
 | Pack 40101 | 329008 | 70 | **329078** |
 | Pack 40102 | 330108 | 97 | **330205** |
 
-Las **18 variantes de ambos packs** coinciden exactamente con `IR + pie`, sin
-padding. Evidencia de tablas: RVA `0x56160`, stride `0x4f0`, PRE en `+0xd8`,
-offset en `+8` y longitud en `+0x10` del registro PRE; tabla alternativa RVA
-`0x613b0`, stride `0xf0`, offset `+0`, longitud `+8`.
+The **18 variants of both packs** match exactly `IR + pie`, without
+padding. Table evidence: RVA `0x56160`, stride `0x4f0`, PRE at `+0xd8`,
+offset at `+8` and length at `+0x10` of the PRE record; alternative table RVA
+`0x613b0`, stride `0xf0`, offset `+0`, length `+8`.
 
-El shim persiste todos los bytes de `CS.BytecodeLength` en DynKernelId
-(`shim/src/dll/D3D12Api.cpp:43-81`). Por tanto, en esta ruta no hay recorte explícito
-del pie. **Pendiente:** comprobar con IGC/ocloc que se interpreten las opciones
-embebidas y qué binario generan. No pasar al compilador el `.spv` recortado pensando
-que reproduce exactamente el pedido original: usar el `.cmspv` completo para esa comparación.
+The shim persists all the bytes of `CS.BytecodeLength` in DynKernelId
+(`shim/src/dll/D3D12Api.cpp:43-81`). Therefore, on this path there is no explicit trimming
+of the footer. **Pending:** verify with IGC/ocloc that the embedded options are interpreted and
+which binary they generate. Do not pass the trimmed `.spv` to the compiler assuming it reproduces
+the original request exactly: use the full `.cmspv` for that comparison.
 
-### Selección del pack Xe2
+### Xe2 pack selection
 
-La función de selección en `0x1800329d0` consulta OPTIONS2 y escribe el flag de
-contexto `+0x834` según `SIMD16Required` y éxito de la consulta (`0x180032d07..29`).
-El flag no es una comparación directa de GTGeneration. El valor de entorno
-`FSR4_XMX_DPAS`, si se procesa la ruta de override, lo reemplaza según sea 16 o no.
-Flag no nulo selecciona pack 40102; el diagnóstico de fallo lo llama pack Xe2.
-El loader `0x18001a450` relaciona selectores 0/1/2 con RCDATA 40101/40102/40103.
+The selection function at `0x1800329d0` queries OPTIONS2 and writes the context flag
+`+0x834` according to `SIMD16Required` and the success of the query (`0x180032d07..29`).
+The flag is not a direct comparison of GTGeneration. The environment value
+`FSR4_XMX_DPAS`, if the override path is processed, replaces it depending on whether it is 16 or not.
+A non-null flag selects pack 40102; the failure diagnostic calls it the Xe2 pack.
+The loader `0x18001a450` maps selectors 0/1/2 to RCDATA 40101/40102/40103.
 
-No fijar esos overrides para ocultar una detección incorrecta durante las pruebas.
+Do not pin those overrides to hide an incorrect detection during the tests.
 
-## 3. Mapa de recursos: qué casillero es cada cosa
+## 3. Resource map: which slot is which
 
-Una *root signature* es el listado de casilleros que el shader espera. Un
-*descriptor* es la ficha que apunta al recurso real. Un *sampler* indica cómo leer
-una textura (por ejemplo, interpolar y limitar coordenadas a los bordes).
+A *root signature* is the list of slots the shader expects. A
+*descriptor* is the card that points to the real resource. A *sampler* indicates how to read
+a texture (for example, interpolating and limiting coordinates to the edges).
 
-Construcción de root signature: `0x18002c13f..0x18002c4bd`.
+Root signature construction: `0x18002c13f..0x18002c4bd`.
 
-- Root 0: una constante de 32 bits, b0, espacio 0.
-- Roots 1..11: once tablas de recursos, un descriptor por tabla.
-- Root 12: tabla de sampler, un descriptor s0.
-- Visibilidad ALL; espacio 0; offset de rango 0; flags 0.
-- Root signature 1.0; **cero samplers estáticos**.
+- Root 0: one 32-bit constant, b0, space 0.
+- Roots 1..11: eleven resource tables, one descriptor per table.
+- Root 12: sampler table, one descriptor s0.
+- Visibility ALL; space 0; range offset 0; flags 0.
+- Root signature 1.0; **zero static samplers**.
 
-Ruta normal de dispatch, `0x1800163c0..0x180017b6e`, branch `dil == 0`:
-`SetComputeRootDescriptorTable` en `0x180017428` asigna roots 1..11 usando el array
-RVA `0x68988`; la asignación final en `0x180017543` usa root 12 para el heap sampler.
-La rama alternativa `dil != 0` usa otro esquema y no está cubierta por este mapa.
+Normal dispatch path, `0x1800163c0..0x180017b6e`, branch `dil == 0`:
+`SetComputeRootDescriptorTable` at `0x180017428` assigns roots 1..11 using the RVA array
+`0x68988`; the final assignment at `0x180017543` uses root 12 for the sampler heap.
+The alternative branch `dil != 0` uses another scheme and is not covered by this map.
 
-| Root | Registro | Tipo de parámetro esperado en PRE | Slot relativo en heap de recursos | Offset push de referencia |
+| Root | Register | Parameter type expected in PRE | Relative slot in resource heap | Reference push offset |
 |---:|---|---|---:|---:|
-| 0 | b0 | constante de un DWORD | — | 0 |
+| 0 | b0 | one-DWORD constant | — | 0 |
 | 1 | u0 | BufferSurface ReadWrite | 7 | 4 |
 | 2 | u1 | Image2D ReadWrite | 8 | 8 |
 | 3 | t0 | Image2D ReadOnly | 0 | 12 |
@@ -148,31 +148,31 @@ La rama alternativa `dil != 0` usa otro esquema y no está cubierta por este map
 | 9 | t6 | Image2D ReadOnly | 6 | 36 |
 | 10 | t7 | BufferSurface ReadWrite | 9 | 40 |
 | 11 | t8 | BufferSurface ReadWrite | 10 | 44 |
-| 12 | s0 | sampler (heap separado) | 0 del heap sampler | 48 |
+| 12 | s0 | sampler (separate heap) | 0 of the sampler heap | 48 |
 
-**Límite:** el orden y los slots de las tablas están reconstruidos. La columna de
-tipos corresponde al orden de parámetros del entry point; no es todavía una
-comprobación de BTIs del zebin compilado. No identificamos aún cada textura como
-'color', 'profundidad', 'vectores de movimiento', etc. No inventar esos nombres.
-Tampoco confundir acceso ReadWrite del tipo CM con rango UAV: t7/t8 son rangos SRV
-según la root signature, aunque su tipo SPIR-V se declare ReadWrite.
+**Limit:** the order and slots of the tables are reconstructed. The type column
+matches the entry point parameter order; it is not yet a check of the BTIs of the
+compiled zebin. We have not yet identified each texture as
+'color', 'depth', 'motion vectors', etc. Do not invent those names.
+Nor confuse the CM-type ReadWrite access with UAV range: t7/t8 are SRV ranges
+according to the root signature, even though their SPIR-V type is declared ReadWrite.
 
-Slots relativos = base GPU G + incremento S * slot. No son direcciones físicas
-reales ni índices absolutos de la sesión del usuario.
+Relative slots = GPU base G + increment S * slot. They are not real physical addresses
+nor absolute indices of the user's session.
 
-## 4. Desfase concreto al compararlo con el puente
+## 4. Concrete offset when compared with the bridge
 
-En VKD3D de referencia, `libs/vkd3d/state.c:670-731,891-919`:
+In reference VKD3D, `libs/vkd3d/state.c:670-731,891-919`:
 
-- La constante aporta 4 bytes.
-- Todas las tablas, incluida la del sampler, aportan un DWORD cada una.
-- Tamaño push total = **4 + 12*4 = 52 bytes**.
-- Las tablas de recursos ocupan `[4,48)`; el sampler ocupa `[48,52)`.
+- The constant contributes 4 bytes.
+- All tables, including the sampler one, contribute one DWORD each.
+- Total push size = **4 + 12*4 = 52 bytes**.
+- The resource tables occupy `[4,48)`; the sampler occupies `[48,52)`.
 
-`libs/vkd3d/command.c:7711-7717,7760-7766` repackea las tablas por orden y emite esos
-DWORDs en el rango. La cuenta de tablas no excluye samplers.
+`libs/vkd3d/command.c:7711-7717,7760-7766` repacks the tables by order and emits those
+DWORDs in the range. The table count does not exclude samplers.
 
-El parche ANV actual usa (`patches/0001-anv-cm-kernel-injection.patch:700-720`):
+The current ANV patch uses (`patches/0001-anv-cm-kernel-injection.patch:700-720`):
 
 ```text
 base = push_size - 4 * nsurf
@@ -180,43 +180,43 @@ base = push_size - 4 * nsurf
      = 8
 ```
 
-Por eso leería offsets `[8,12,...,48]`, correspondientes a roots **2..12**, en vez
-de `[4,8,...,44]`, roots **1..11**. Se omite u0 y se trata el índice de la tabla s0
-como si apuntara al heap de recursos.
+Therefore it would read offsets `[8,12,...,48]`, corresponding to roots **2..12**, instead of
+`[4,8,...,44]`, roots **1..11**. u0 is skipped and the index of table s0
+is treated as if it pointed to the resource heap.
 
-Es una incompatibilidad estática concreta **bajo este layout de referencia y el
-orden de superficies asumido por el packer**. Falta corroborar el layout de la
-versión real de Proton y el orden de BTIs antes de considerarla demostrada en runtime.
+It is a concrete static incompatibility **under this reference layout and the
+surface order assumed by the packer**. It remains to corroborate the layout of the
+real Proton version and the BTI order before considering it proven at runtime.
 
-### Sampler: coincidencia parcial, no otro bloqueo demostrado
+### Sampler: partial match, not another proven blocker
 
-Template en RVA `0x72a20`: Filter `0x15` = MIN_MAG_MIP_LINEAR y AddressU/V/W `3` = CLAMP.
-Creación en `0x18002cc23..0x18002cc8b`; LOD bias 0, anisotropía 1, comparación ALWAYS,
-border 0, MinLOD 0, MaxLOD FLT_MAX según asignaciones del descriptor.
+Template at RVA `0x72a20`: Filter `0x15` = MIN_MAG_MIP_LINEAR and AddressU/V/W `3` = CLAMP.
+Creation at `0x18002cc23..0x18002cc8b`; LOD bias 0, anisotropy 1, comparison ALWAYS,
+border 0, MinLOD 0, MaxLOD FLT_MAX according to the descriptor assignments.
 
-ANV no toma ese sampler dinámico: sin sampler estático usa fallback linear/clamp.
-Coinciden filtro y modos de borde, pero no es soporte general de samplers dinámicos
-ni equivalencia completa del estado (por ejemplo ANV MaxLOD=14). Falta contrastar
-qué instrucciones de muestreo usa PRE y cómo interpreta sus coordenadas.
+ANV does not take that dynamic sampler: without a static sampler it uses a linear/clamp fallback.
+Filter and border modes match, but this is not general dynamic sampler support
+nor full state equivalence (for example ANV MaxLOD=14). It remains to check
+which sampling instructions PRE uses and how it interprets its coordinates.
 
-## 5. Adaptación mínima propuesta (no aplicada)
+## 5. Proposed minimal adaptation (not applied)
 
-1. Canal explícito de metadata por kernel/layout para que el helper/packer indique
-   dónde empieza la tabla de superficies y su orden; **no** cambiar globalmente
-   todos los kernels XeSS a base 4.
-2. Para este PRE de referencia, base esperada 4 y once superficies; excluir el
-   DWORD de sampler. Confirmar orden `arg_index -> BTI` con IGC primero.
-3. Separar selección de heap/slot de recursos y tratamiento de sampler. No usar
-   el índice sampler para acceder al heap de recursos.
-4. Mantener el blob CM completo con sus opciones embebidas al compilar offline.
-5. Corregir de forma independiente la información de GPU que no se copia al
-   llamador en CreateDeviceExtensionContext/Context1.
+1. Explicit metadata channel per kernel/layout so that the helper/packer indicates
+   where the surface table starts and its order; **do not** change all
+   XeSS kernels globally to base 4.
+2. For this reference PRE, expected base 4 and eleven surfaces; exclude the
+   sampler DWORD. Confirm the `arg_index -> BTI` order with IGC first.
+3. Separate resource heap/slot selection from sampler handling. Do not use
+   the sampler index to access the resource heap.
+4. Keep the full CM blob with its embedded options when compiling offline.
+5. Independently fix the GPU information that is not copied to the
+   caller in CreateDeviceExtensionContext/Context1.
 
-No basta con copiar DLLs. El siguiente hito útil es compilar este PRE offline y
-examinar su zebin: argumentos, BTIs, GRFs, payloads y efectos de las opciones.
-No requiere ejecutar Cyberpunk ni la DLL del mod.
+Copying DLLs is not enough. The next useful milestone is to compile this PRE offline and
+examine its zebin: arguments, BTIs, GRFs, payloads and effects of the options.
+It does not require running Cyberpunk nor the mod's DLL.
 
-## Reproducción de esta etapa
+## Reproduction of this stage
 
 ```bash
 # Requiere los packs ya descomprimidos de la primera investigación.
@@ -230,8 +230,8 @@ python tools/reconstruct_pre.py \
 python -m unittest discover -s tests -v
 ```
 
-El parser conserva dos archivos por registro: `.spv` para desensamblado y `.cmspv`
-con el pie completo para reproducir la entrada al compilador. Reportes generados:
+The parser keeps two files per record: `.spv` for disassembly and `.cmspv`
+with the full footer to reproduce the input to the compiler. Generated reports:
 `analysis/cm-payloads-*/manifest.json`, `analysis/cm-payloads-verification.json`,
 `analysis/pre-reconstruction.json`, `analysis/recovered-six.json`.
-Los archivos de terceros y derivados no se incorporan a Git.
+Third-party and derived files are not added to Git.

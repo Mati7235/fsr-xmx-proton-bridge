@@ -1,35 +1,35 @@
-# Compilación cruzada del shim, sin ejecución
+# Cross-compilation of the shim, without execution
 
-Se compiló el shim completo desde Linux para Windows x86-64. Esto comprueba
-compilación/enlace, **no** que Wine/Proton cargue la DLL ni que FSR funcione.
-No se instaló el toolchain, no se ejecutó la DLL y no se alteró ningún prefijo.
+The full shim was compiled from Linux for Windows x86-64. This checks
+compilation/linking, **not** that Wine/Proton loads the DLL or that FSR works.
+The toolchain was not installed, the DLL was not run and no prefix was altered.
 
-## Procedencia
+## Provenance
 
-- Upstream: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3` (revalidación
-  2026-11-13); la baseline histórica de este documento se tomó sobre
+- Upstream: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3` (re-validation
+  2026-11-13); the historical baseline of this document was taken on
   `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
 - Toolchain: LLVM-MinGW `20261020`, UCRT, Ubuntu 22.04 x86-64, Clang 23.1.4.
-- Archivo original local:
+- Local original file:
   `artifacts/original/llvm-mingw-20261020-ucrt-ubuntu-22.04-x86_64.tar.xz`.
-- SHA-256 comprobado contra el digest del release de GitHub:
+- SHA-256 checked against the digest of the GitHub release:
   `55064b60b991a1e1e8090b8c2f84e82b22cfe5903d12c159d65064cf5e8ae335`.
 - Release: <https://github.com/mstorsjo/llvm-mingw/releases/tag/20261020>.
-- Extracción local con `tarfile`, filtro `data`, dentro de
+- Local extraction with `tarfile`, `data` filter, inside
   `artifacts/extracted/llvm-mingw-20261020-ucrt/`.
 
-El archivo original permanece inmutable. Toolchain, fuentes upstream y DLLs
-generadas quedan ignorados por Git; no se redistribuyen aquí.
+The original file stays immutable. Toolchain, upstream sources and generated
+DLLs are git-ignored; they are not redistributed here.
 
-## Baseline y configuración
+## Baseline and configuration
 
-Se copió `upstream/xess-xmx-linux/shim/` a
-`build/shim-cross-baseline-v01/source/`, sin modificar el checkout upstream.
-La primera compilación falló en `Trace.cpp:62`: `__try` no reconocido.
-Se habilitaron las extensiones Microsoft de Clang mediante `-fms-extensions`;
-no se eliminó ni reemplazó el bloque de manejo de excepciones.
+`upstream/xess-xmx-linux/shim/` was copied to
+`build/shim-cross-baseline-v01/source/`, without modifying the upstream checkout.
+The first build failed at `Trace.cpp:62`: `__try` not recognized.
+Clang's Microsoft extensions were enabled with `-fms-extensions`;
+the exception-handling block was neither removed nor replaced.
 
-Comandos de configuración, una vez preparada la copia de fuentes:
+Configuration commands, once the source copy is prepared:
 
 ```sh
 TC="$PWD/artifacts/extracted/llvm-mingw-20261020-ucrt/llvm-mingw-20261020-ucrt-ubuntu-22.04-x86_64/bin"
@@ -42,40 +42,40 @@ cmake -S build/shim-cross-baseline-v01/source \
 cmake --build build/shim-cross-baseline-v01/obj -j 4
 ```
 
-Los 13 objetos y el enlace terminaron correctamente. La inspección estática con
-`llvm-readobj --file-headers --coff-imports` identifica una DLL PE32+ AMD64.
-La DLL baseline tiene 1.615.360 bytes y SHA-256
+The 13 objects and the link finished correctly. Static inspection with
+`llvm-readobj --file-headers --coff-imports` identifies a PE32+ AMD64 DLL.
+The baseline DLL is 1,615,360 bytes and has SHA-256
 `43dec833e340cc75ad36d29200e2c5958c6ded8beb1eca5753c7d94d40f92e01`.
-Ese hash identifica esta ejecución: no se declara una build bit-a-bit reproducible.
-El reporte local `build/shim-cross-baseline-v01/report.json` registra hashes de
-fuentes, DLL e imports; `pe-inspection.txt` conserva la inspección completa.
+That hash identifies this run: a bit-for-bit reproducible build is not declared.
+The local report `build/shim-cross-baseline-v01/report.json` records the hashes of
+sources, DLL and imports; `pe-inspection.txt` keeps the full inspection.
 
-## Límites de esta build
+## Limits of this build
 
-### Variante con corrección de contexto
+### Context-correction variant
 
-Se copió el baseline a `build/shim-cross-context-v01/source/` y se aplicó
-`patches/0002-shim-context-output.patch` con `patch -p2` desde esa copia.
-Solo cambió `src/dll/IgdextApiDll.cpp`. Se repitieron la configuración y el build
-anteriores sustituyendo `shim-cross-baseline-v01` por `shim-cross-context-v01`.
+The baseline was copied to `build/shim-cross-context-v01/source/` and
+`patches/0002-shim-context-output.patch` was applied with `patch -p2` from that
+copy. Only `src/dll/IgdextApiDll.cpp` changed. The configuration and build
+above were repeated, replacing `shim-cross-baseline-v01` with `shim-cross-context-v01`.
 
-Los 13 objetos y el enlace terminaron correctamente. La DLL parcheada tiene
-1.615.872 bytes y SHA-256
+The 13 objects and the link finished correctly. The patched DLL is 1,615,872
+bytes and has SHA-256
 `c5b5620f5b8dca1fa44ad853e30cae31a6541a779d896c90810802cc4afbde0d`.
-El parche usado tiene SHA-256
+The patch used has SHA-256
 `fa9c302b4cc3cc9ac4fff746c41c17d94a06e879e37f50da60f116f3337d8508`.
-Los 75 exports (nombre y ordinal) y la lista de DLLs importadas coinciden con el
-baseline. No se afirma que las direcciones o todo el PE sean idénticos.
-El reporte y la inspección están en `build/shim-cross-context-v01/report.json`
-y `pe-inspection.txt`. Ver [corrección y tests CPU](context-output-fix.md).
+The 75 exports (name and ordinal) and the list of imported DLLs match the
+baseline. It is not claimed that the addresses or the whole PE are identical.
+The report and inspection are in `build/shim-cross-context-v01/report.json`
+and `pe-inspection.txt`. See [context correction and CPU tests](context-output-fix.md).
 
-### Revalidación sobre 662dc6e (stack 0002→0003)
+### Re-validation on 662dc6e (stack 0002→0003)
 
-La copia aislada debe incluir `common/`, porque el shim nuevo incluye
-`../../../common/lowlat_check.h`. Se copiaron `shim/` y `common/` a
-`/tmp/opencode/xmx662-shim-stack/tree/`, se aplicaron los parches nuevos con
-`patch -p2` desde `tree/shim`, y se configuró/compiló con el mismo LLVM-MinGW
-`20261020` UCRT y `-fms-extensions`.
+The isolated copy must include `common/`, because the new shim includes
+`../../../common/lowlat_check.h`. `shim/` and `common/` were copied to
+`/tmp/opencode/xmx662-shim-stack/tree/`, the new patches were applied with
+`patch -p2` from `tree/shim`, and it was configured/built with the same LLVM-MinGW
+`20261020` UCRT and `-fms-extensions`.
 
 ```sh
 cp -a upstream/xess-xmx-linux/shim /tmp/opencode/xmx662-shim-stack/tree/shim
@@ -93,26 +93,26 @@ cmake -S /tmp/opencode/xmx662-shim-stack/tree/shim \
 cmake --build /tmp/opencode/xmx662-shim-stack/obj -j 4
 ```
 
-Resultado: **14/14 objetos + enlace, 0 errores, 0 warnings**. DLL
-`igdext64.dll` de 861.184 bytes, SHA-256
+Result: **14/14 objects + link, 0 errors, 0 warnings**. DLL
+`igdext64.dll` of 861,184 bytes, SHA-256
 `0a0b54623be219a7a809eb1b628ebfcc4583bff472c097500be840f69bca8cf8`,
-PE32+ AMD64, **79 exports con nombre**, imports `KERNEL32.dll`,
-`ADVAPI32.dll` y familia UCRT `api-ms-win-crt-*`. La DLL es más pequeña que la
-baseline de `ef39559` porque upstream eliminó las tablas de kernels estáticos y
-movió el empaquetado CMK2 al driver. Los parches usados son 0002
-(`fc00a77dd81b9efc6ef3bd61affaa594752c50ebbb27f5a95bad13d39f93f263`) y 0003
+PE32+ AMD64, **79 named exports**, imports `KERNEL32.dll`,
+`ADVAPI32.dll` and the UCRT family `api-ms-win-crt-*`. The DLL is smaller than the
+`ef39559` baseline because upstream removed the static kernel tables and
+moved the CMK2 packaging to the driver. The patches used are 0002
+(`fc00a77dd81b9efc6ef3bd61affaa594752c50ebbb27f5a95bad13d39f93f263`) and 0003
 (`ef8112d46f70f6242de9509926a35e66c6fe417a50947adff86c5caf855f054c`).
-No se ejecutó la DLL. El reporte local queda en
-`build/shim-cross-662dc6e/report.json` (ignorado por Git), junto con los logs y
-la inspección PE.
+The DLL was not run. The local report is in
+`build/shim-cross-662dc6e/report.json` (git-ignored), together with the logs and
+the PE inspection.
 
-### Validación pendiente
+### Pending validation
 
-La variante UCRT enlaza el runtime C++ estáticamente según el CMake upstream,
-pero **mantiene imports de las API de UCRT**, además de KERNEL32 y ADVAPI32.
-No equivale a la distribución MSVC con CRT totalmente estático de upstream.
-No se comprobó disponibilidad de esos imports en ningún prefijo.
+The UCRT variant statically links the C++ runtime according to the upstream CMake, but
+**keeps imports of the UCRT APIs**, in addition to KERNEL32 and ADVAPI32.
+It is not equivalent to upstream's MSVC distribution with a fully static CRT.
+The availability of those imports in any prefix was not checked.
 
-No hay prueba de carga, llamadas reales de contexto, detección de GPU ni
-inyección bajo Proton. No copiar este artefacto a un juego como si estuviera
-validado; una prueba runtime posterior requiere autorización y entorno descartable.
+There is no proof of loading, real context calls, GPU detection or injection
+under Proton. Do not copy this artifact into a game as if it were validated; a
+later runtime test requires authorization and a disposable environment.

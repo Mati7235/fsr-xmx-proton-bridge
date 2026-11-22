@@ -1,72 +1,71 @@
-# Primera prueba manual: DPAS y mapa de recursos
+# First manual test: DPAS and resource map
 
-**Primera ejecución manual positiva en B580:** ver
-[resultado y límites](first-synthetic-gpu-result.md). No prueba FSR,
-Proton, OptiScaler ni Cyberpunk: usa un kernel sintético propio.
+**First positive manual run on B580:** see
+[result and limits](first-synthetic-gpu-result.md). It does not test FSR,
+Proton, OptiScaler or Cyberpunk: it uses a custom synthetic kernel.
 
-## Antes de ejecutarla
+## Before running it
 
-- Guardá tu trabajo y cerrá juegos/cargas GPU. Un fallo puede colgar la GPU o la
-  sesión de escritorio. El timeout no garantiza recuperación.
-- No uses `sudo`, no copies archivos a Steam y no cambies drivers del sistema.
-- Ejecutá el comando solo si aceptás iniciar este experimento GPU. El agente no
-  lo ejecutó por vos.
+- Save your work and close games/GPU loads. A failure can hang the GPU or the
+  desktop session. The timeout does not guarantee recovery.
+- Do not use `sudo`, do not copy files to Steam and do not change system drivers.
+- Run the command only if you accept starting this GPU experiment. The agent did
+  not run it for you.
 
-Desde cualquier directorio, en este equipo:
+From any directory, on this machine:
 
 ```bash
 python3 /home/matias/Proyectos/fsr-xmx-proton-bridge/build/lab-test-v02/run-manual.py --run-gpu
 ```
 
-Sin `--run-gpu`, el lanzador se niega a ejecutar el harness. No hay instalación
-ni cambios persistentes de entorno. El comando prepara HOME, caché y directorios
-nuevos dentro de `build/lab-test-v02/runs/`, fija solo el ICD local y deshabilita
-layers. Reserva un `WINEPREFIX` vacío nuevo para cumplir el aislamiento del
-laboratorio: el harness es nativo, no inicializa Wine ni usa prefijos existentes.
-**Esto no aísla el hardware ni el driver del kernel.**
+Without `--run-gpu`, the launcher refuses to run the harness. There is no installation
+or persistent environment change. The command prepares HOME, cache and new directories
+inside `build/lab-test-v02/runs/`, sets only the local ICD and disables layers.
+It reserves a new empty `WINEPREFIX` to meet the laboratory isolation requirement:
+the harness is native, it does not initialize Wine or use existing prefixes.
+**This does not isolate the hardware or the kernel driver.**
 
-## Qué comprueba
+## What it checks
 
-Antes de crear el proceso, el lanzador verifica SHA-256 del harness, driver,
-ICD y archivos del probe. Si cambiaron, aborta: no edites el manifiesto para
-saltarte el control. La preparación también reprodujo la auditoría restringida
-del payload y comparó todo el CMK3 con el paquete esperado.
+Before creating the process, the launcher verifies the SHA-256 of the harness, driver,
+ICD and probe files. If they changed, it aborts: do not edit the manifest to skip
+the check. The preparation also reproduced the restricted audit of the payload and
+compared the full CMK3 against the expected package.
 
-En GPU, el harness exige PCI `8086:e20b`, canary, layout DIRECT con stride no
-cero, logs de inyección/despacho y 128 resultados por cada uno de los once
-recursos. Comprueba además que los cinco slots restantes no cambien. No se
-considera éxito solo crear el pipeline o ver un marcador.
+On the GPU, the harness requires PCI `8086:e20b`, a canary, DIRECT layout with a
+non-zero stride, injection/dispatch logs and 128 results for each of the eleven
+resources. It also checks that the remaining five slots do not change. Creating the
+pipeline or seeing a marker alone is not considered success.
 
-Si termina correctamente, el harness imprime:
+If it completes correctly, the harness prints:
 
 ```text
 GPU probe passed its gating, canary, injection-log, deterministic readback, and untouched-buffer checks.
 ```
 
-El lanzador imprime el código de salida y el directorio de la ejecución. Los
-resultados se guardan en `build/lab-test-v02/runs/<ejecución>/evidence/`:
+The launcher prints the exit code and the run directory. The results are saved in
+`build/lab-test-v02/runs/<ejecución>/evidence/`:
 
-- `icd-selection.txt`: configuración solicitada del loader.
-- `anv_canary`, `canary-driver.log`, `canary-evidence.txt`: control del driver.
-- `probe-driver.log`: evidencia de inyección y despacho.
-- `probe-readback.txt`: valores y slots intactos comprobados.
+- `icd-selection.txt`: requested loader configuration.
+- `anv_canary`, `canary-driver.log`, `canary-evidence.txt`: driver control.
+- `probe-driver.log`: injection and dispatch evidence.
+- `probe-readback.txt`: values and untouched slots checked.
 
-Mandame la salida de la terminal y esos logs, incluso si parece funcionar. Un
-archivo parcial de readback no demuestra éxito; revisar el código de salida y
-la evidencia completa. Si falla o se cuelga, no lo pruebes directamente en
-Cyberpunk ni cambies las comprobaciones para forzarlo a pasar.
+Send me the terminal output and those logs, even if it seems to work. A partial
+readback file does not demonstrate success; check the exit code and the complete
+evidence. If it fails or hangs, do not test it directly in Cyberpunk and do not change
+the checks to force it to pass.
 
-## Repreparación offline
+## Offline re-preparation
 
-Si recompilás o cambian hashes, podés generar una preparación nueva sin ejecutar
-GPU, desde la raíz del repositorio:
+If you rebuild or hashes change, you can generate a new preparation without running
+the GPU, from the repository root:
 
 ```bash
 python3 tools/prepare_lab_test.py
 ```
 
-Usará Mesa local, harness local y `build/lab-probe-v10`. El directorio de salida
-es nuevo y el programa imprime el comando manual correspondiente. No instala ni
-redistribuye binarios. Esta preparación no valida la resolución dinámica de
-dependencias ni el runtime: esas comprobaciones siguen formando parte del
-experimento.
+It will use the local Mesa, the local harness and `build/lab-probe-v10`. The output
+directory is new and the program prints the corresponding manual command. It does not
+install or redistribute binaries. This preparation does not validate dynamic
+dependency resolution or the runtime: those checks remain part of the experiment.

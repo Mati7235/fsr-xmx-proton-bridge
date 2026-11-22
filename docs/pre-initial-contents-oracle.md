@@ -1,155 +1,155 @@
-# PRE native_1080: contenidos iniciales requeridos y oracle independiente (Fase 2, CPU-only)
+# PRE native_1080: required initial contents and independent oracle (Phase 2, CPU-only)
 
-Estado: spec cerrada en CPU. No se ejecutó GPU, DLL, juego ni prefijo.
-No autoriza dispatch PRE. Todo lo marcado `TRACE_FASE1_REQUIRED` solo puede
-venir de la traza Fase 1 (prefijo desechable, misma ruta `native_1080`).
+Status: spec closed on CPU. No GPU, DLL, game or prefix was run.
+It does not authorize PRE dispatch. Everything marked `TRACE_FASE1_REQUIRED` can
+only come from the Phase 1 trace (disposable prefix, same `native_1080` path).
 
-Fijado por `tools/inspect_pre_initial_contents.py` + `tests/test_pre_initial_contents.py`:
+Pinned by `tools/inspect_pre_initial_contents.py` + `tests/test_pre_initial_contents.py`:
 
 ```bash
 python tools/inspect_pre_initial_contents.py analysis/fsr-resources/xe2-first.spvasm
 python -m unittest discover -s tests -p test_pre_initial_contents.py -v
 ```
 
-Hashes fijados: DLL `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`,
-SPIR-V textual `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e`,
+Pinned hashes: DLL `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`,
+textual SPIR-V `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e`,
 zebin `3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2`.
 
-## (a) Tabla de contenido requerido por recurso
+## (a) Table of required content per resource
 
-Leyenda: ESTÁTICO = demostrado sin ejecutar nada; `TRACE_FASE1_REQUIRED` =
-solo la traza del llamador puede fijarlo. No se inventan formatos ni semántica
-de escena: t0…t6 nunca se nombran color/depth/motion.
+Legend: STATIC = demonstrated without running anything; `TRACE_FASE1_REQUIRED` =
+only the caller's trace can pin it. No formats or scene semantics are invented:
+t0…t6 are never named color/depth/motion.
 
-| Recurso | Formato / permisos | Tamaño | Bytes iniciales | Valores deterministas válidos | Procedencia |
+| Resource | Format / permissions | Size | Initial bytes | Valid deterministic values | Provenance |
 |---|---|---|---|---|---|
-| arg0 u0 (root 1, BTI 8, heap slot 7, push 4) | `BufferSurfaceINTEL ReadWrite`; vista UAV `BUFFER R8_UINT`, `FirstElement 0`, `NumElements = Width`. Guard DLL: `Dimension == BUFFER (1)`, `factor²·0x7e9000 <= Width <= 0xffffffff`; native_1080 factor 1 → **mínimo 8.294.400 B** | Width runtime (≥ 8.294.400 B) | Traza: regiones de entrada/scratch + plano de escritura. No inicializar como readback vacío | Cualquier byte `0x00…0xFF` es válido para `R8_UINT`; los bytes reales de escena los da la traza | Vista ESTÁTICA; Width y bytes `TRACE_FASE1_REQUIRED` |
-| arg1 u1 (root 2, BTI 9, heap slot 8, push 8) | `Image 2D ReadWrite`, `OpTypeImage … Unknown`. Descriptor copiado (`CopyDescriptorsSimple` en `0x18001727e`); destino del typed quad store (máscara `7` = canales `.xyz`, superficie `%9780` desde arg 1) | `TRACE_FASE1_REQUIRED` (`D3D12_RESOURCE_DESC` completa + `UAV desc`) | Traza pre-dispatch | Ningún filler definible antes de conocer formato/dims/mip/sample | Binding ESTÁTICO; formato/dims/contenido `TRACE_FASE1_REQUIRED` |
-| arg2…8 t0…t6 (roots 3…9, BTI 1…7, heap slots 0…6, push 12…36) | `Image 2D ReadOnly`, `Unknown`. Siete copias vía helper `0x180002df0` con índices fuente runtime | `TRACE_FASE1_REQUIRED` por imagen | Traza pre-dispatch | Deben estar en rango del formato trazado; formato aún desconocido → sin filler fijado aquí | Pool de 10 nombres stock ESTÁTICO (lista abajo); asignación slot←nombre y formato/dims/contenido `TRACE_FASE1_REQUIRED` |
-| arg9 t7 (root 10, BTI 10, heap slot 9, push 40; recurso `ctx+0xa80`) | CM `BufferSurface ReadWrite`; vista D3D SRV `BUFFER R8_UINT`, `FirstElement 0`, `NumElements 0x840`, mapping `0x1688` | Ventana visible **2.112 B**; backing allocation traza | Traza | Cualquier byte válido `R8_UINT`; bytes reales de traza | Extensión ESTÁTICA; backing y bytes `TRACE_FASE1_REQUIRED` |
-| arg10 t8 (root 11, BTI 11, heap slot 10, push 44; recurso `ctx+0xa98`) | CM `BufferSurface ReadWrite`; vista D3D SRV `BUFFER R8_UINT`, `NumElements 0x80`, mapping `0x1688` | **128 B** de header, totalmente visibles | Traza: 128 B íntegros, flags y base preservados verbatim | Sin header inventado; ver reglas de flags/base abajo | Extensión ESTÁTICA; contenido `TRACE_FASE1_REQUIRED` |
-| arg11 s0 (root 12, sampler heap 0, push 48) | Sampler MIN/MAG/MIP linear, CLAMP U/V/W, bias 0, maxAniso 1, `ALWAYS`, `MinLOD 0`, `MaxLOD FLT_MAX` | n/a (estado) | n/a | Estado fijado; el fallback ANV coincide parcialmente y no es equivalente | ESTÁTICO; comportamiento de muestreo pendiente de formatos/coords trazados |
-| b0 (root 0) | Constante de 1 DWORD, espacio 0 | 4 B | `0` (`SetComputeRoot32BitConstant(0,0,0)` en `0x1800173e0`) | Fijo a cero; no es campo de dimensiones | ESTÁTICO |
+| arg0 u0 (root 1, BTI 8, heap slot 7, push 4) | `BufferSurfaceINTEL ReadWrite`; UAV view `BUFFER R8_UINT`, `FirstElement 0`, `NumElements = Width`. DLL guard: `Dimension == BUFFER (1)`, `factor²·0x7e9000 <= Width <= 0xffffffff`; native_1080 factor 1 → **minimum 8,294,400 B** | runtime Width (≥ 8,294,400 B) | Trace: input/scratch regions + write plane. Do not initialize as an empty readback | Any byte `0x00…0xFF` is valid for `R8_UINT`; the real scene bytes come from the trace | STATIC view; Width and bytes `TRACE_FASE1_REQUIRED` |
+| arg1 u1 (root 2, BTI 9, heap slot 8, push 8) | `Image 2D ReadWrite`, `OpTypeImage … Unknown`. Descriptor copied (`CopyDescriptorsSimple` at `0x18001727e`); destination of the typed quad store (mask `7` = channels `.xyz`, surface `%9780` from arg 1) | `TRACE_FASE1_REQUIRED` (full `D3D12_RESOURCE_DESC` + `UAV desc`) | Pre-dispatch trace | No definable filler before knowing format/dims/mip/sample | Binding STATIC; format/dims/content `TRACE_FASE1_REQUIRED` |
+| arg2…8 t0…t6 (roots 3…9, BTI 1…7, heap slots 0…6, push 12…36) | `Image 2D ReadOnly`, `Unknown`. Seven copies via helper `0x180002df0` with runtime source indices | `TRACE_FASE1_REQUIRED` per image | Pre-dispatch trace | Must be in the range of the traced format; format still unknown → no filler fixed here | Stock pool of 10 names STATIC (list below); slot←name assignment and format/dims/content `TRACE_FASE1_REQUIRED` |
+| arg9 t7 (root 10, BTI 10, heap slot 9, push 40; resource `ctx+0xa80`) | CM `BufferSurface ReadWrite`; D3D SRV `BUFFER R8_UINT`, `FirstElement 0`, `NumElements 0x840`, mapping `0x1688` | Visible window **2,112 B**; backing allocation from trace | Trace | Any valid `R8_UINT` byte; real trace bytes | Extension STATIC; backing and bytes `TRACE_FASE1_REQUIRED` |
+| arg10 t8 (root 11, BTI 11, heap slot 10, push 44; resource `ctx+0xa98`) | CM `BufferSurface ReadWrite`; D3D SRV `BUFFER R8_UINT`, `NumElements 0x80`, mapping `0x1688` | **128 B** header, fully visible | Trace: 128 B intact, flags and base preserved verbatim | No invented header; see flag/base rules below | Extension STATIC; content `TRACE_FASE1_REQUIRED` |
+| arg11 s0 (root 12, sampler heap 0, push 48) | Sampler MIN/MAG/MIP linear, CLAMP U/V/W, bias 0, maxAniso 1, `ALWAYS`, `MinLOD 0`, `MaxLOD FLT_MAX` | n/a (state) | n/a | State pinned; the ANV fallback partially matches and is not equivalent | STATIC; sampling behavior pending traced formats/coords |
+| b0 (root 0) | Constant of 1 DWORD, space 0 | 4 B | `0` (`SetComputeRoot32BitConstant(0,0,0)` at `0x1800173e0`) | Fixed to zero; not a dimensions field | STATIC |
 
-Grid y constantes: `w=1920,h=1080 → (120,540,1)` es candidato derivado de
-guards (`WorkgroupId.x < 120`, `y < 540`); tamaño local y máscara runtime
-siguen abiertos (ver `docs/pre-dispatch-dimensions.md`). `b0 = 0` siempre.
+Grid and constants: `w=1920,h=1080 → (120,540,1)` is a candidate derived from
+the guards (`WorkgroupId.x < 120`, `y < 540`); local size and runtime mask
+remain open (see `docs/pre-dispatch-dimensions.md`). `b0 = 0` always.
 
-### Relación byte-104 vs plano OWORD de arg0 y header de 128 B (arg10)
+### Relation of byte 104 to the OWORD plane of arg0 and the 128 B header (arg10)
 
-IR fijado (`analysis/fsr-resources/xe2-first.spvasm`):
+Pinned IR (`analysis/fsr-resources/xe2-first.spvasm`):
 
-- El header de 128 B se carga desde arg10 (`:5213`/`5220`, variantes
-  alineada/no-alineada según rama `3/7/9`, sin semántica asignada a esa rama).
-- Campos usados observados, sin nombres semánticos: floats en DWORD-offsets
-  8–44, 56, 60, 84; enteros/direcciones en 64–80; flags en byte 100; **base
-  (u32) en byte 104** (`:5190-5325`).
-- Bit `0x400` de flags (`:5225-5227`): si está set, salida temprana por
-  `:1685` sin trabajo. Un dispatch productivo lo requiere limpio, pero el
-  valor manda la traza: si viene set, lo esperado es salida temprana.
-- Bit `0x2000` (`:5593-5602`): selecciona entre `base` y `base+16` para una
-  lectura float4 de 16 B desde arg0 (`:5606-5612`, variantes `:5627`/:5634).
-  En este camino `base` es **desplazamiento en bytes relativo a arg0**, no VA.
-- Bit `0x200` (`:15970-15973`): si está set, salida temprana sin el store
-  final. Bit `0x1000` (`:5574-5583`) y campo `(flags & 0x18) >> 3`
-  (`:5325-5328`) son selectores observados sin semántica asignada.
-- Plano de escritura: índice OWORD `wg_y·960 + wg_x·8` (`:15977-15993`),
-  extremo exclusivo `518400 OWORD = 8.294.400 B` con grid completa 120×540.
+- The 128 B header is loaded from arg10 (`:5213`/`5220`, aligned/unaligned
+  variants depending on branch `3/7/9`, with no semantics assigned to that branch).
+- Observed fields used, without semantic names: floats at DWORD offsets
+  8–44, 56, 60, 84; integers/addresses at 64–80; flags at byte 100; **base
+  (u32) at byte 104** (`:5190-5325`).
+- Flag bit `0x400` (`:5225-5227`): if set, early exit via `:1685` with no work.
+  A productive dispatch requires it clear, but the trace value decides: if it
+  comes set, the expected result is an early exit.
+- Bit `0x2000` (`:5593-5602`): selects between `base` and `base+16` for a 16 B
+  float4 read from arg0 (`:5606-5612`, variants `:5627`/:5634).
+  On this path `base` is a **byte offset relative to arg0**, not a VA.
+- Bit `0x200` (`:15970-15973`): if set, early exit without the final store.
+  Bit `0x1000` (`:5574-5583`) and field `(flags & 0x18) >> 3`
+  (`:5325-5328`) are observed selectors with no semantics assigned.
+- Write plane: OWORD index `wg_y·960 + wg_x·8` (`:15977-15993`),
+  exclusive end `518400 OWORD = 8.294.400 B` with full 120×540 grid.
 
-Reglas de aceptación (sin inventar valores):
+Acceptance rules (without inventing values):
 
-1. Traza conserva los 128 B de arg10 verbatim; flags y base son los trazados.
-2. `[base, base+32)` (cubre ambas selecciones `base`/`base+16` + 16 B de
-   lectura) debe caber en el `Width` trazado de arg0.
-3. La traza debe localizar ventana de lectura `[base, base+32)` y plano de
-   escritura por OWORD y demostrar que no hay alias destructivo
-   (lectura-antes-de-escritura o regiones disjuntas documentadas).
-4. Si `0x400` o `0x200` vienen set en la traza, el resultado esperado es la
-   salida temprana correspondiente, no una imagen.
+1. The trace keeps the 128 B of arg10 verbatim; flags and base are the traced ones.
+2. `[base, base+32)` (covers both selections `base`/`base+16` + the 16 B
+   read) must fit within the traced `Width` of arg0.
+3. The trace must locate the read window `[base, base+32)` and the OWORD write
+   plane, and demonstrate there is no destructive alias (read-before-write or
+   documented disjoint regions).
+4. If `0x400` or `0x200` come set in the trace, the expected result is the
+   corresponding early exit, not an image.
 
-### Reglas de sustitución depth/exposure (sin expandirlas)
+### Depth/exposure substitution rules (without expanding them)
 
-De `docs/pre-dispatch-ghidra.md:38-44`, verbatim y sin asignar t_i a escena:
-sin `r_depth` y con bit0 de flags, retorno 0. Con `flags&0x18==0`, se exige
-`r_input_exposure` (bit2 limpio) o `r_auto_exposure_texture` (bit2 set).
-`depth/exposure/auto-exposure` sustituyen fuentes por defecto. El orden exacto
-slot←nombre sale de tablas runtime (`+0x8efc`) e índices del caller: mecanismo
-establecido, tabla fija pendiente de traza de valores.
+From `docs/pre-dispatch-ghidra.md:38-44`, verbatim and without assigning t_i to a scene:
+without `r_depth` and with bit0 of the flags, return 0. With `flags&0x18==0`,
+`r_input_exposure` (bit2 clear) or `r_auto_exposure_texture` (bit2 set) is required.
+`depth/exposure/auto-exposure` substitute the default sources. The exact
+slot←name order comes from runtime tables (`+0x8efc`) and the caller's indices:
+the mechanism is established, the fixed table is pending the value trace.
 
-Pool stock fijado (pares UTF-16LE en la DLL, asignación runtime):
+Pinned stock pool (UTF-16LE pairs in the DLL, runtime assignment):
 `MLSR_Optimized_Constants`, `ScratchBuffer`, `rw_reprojected_color`,
 `r_history_color`, `r_velocity`, `r_input_color`, `r_recurrent_0`, `r_depth`,
 `r_input_exposure`, `r_auto_exposure_texture`.
 
-## (b) Oracle independiente, por orden
+## (b) Independent oracle, in order
 
-Los probes sintéticos (DPAS y de imagen/sampler,
-`docs/first-synthetic-gpu-result.md`, `docs/first-image-gpu-result.md`) solo
-validan sus propios kernels: 1.408 valores y 64 muestras + centinelas. **No
-validan el PRE** ni sus vistas tipadas, y no son oracle.
+The synthetic probes (DPAS and image/sampler,
+`docs/first-synthetic-gpu-result.md`, `docs/first-image-gpu-result.md`) only
+validate their own kernels: 1,408 values and 64 samples + sentinels. **They do
+not validate the PRE** nor its typed views, and they are not an oracle.
 
-1. **Rango 1 — captura en referencia que funcione.** Mismo DLL/input/zebin,
-   `native_1080`, 1920×1080, constantes `MLSR_Optimized_Constants`, resolución
-   de los 10 nombres stock, en una implementación ya validada como correcta
-   (no basta `S_OK`/overlay/magenta). Debe registrar, correlacionado por
-   ID/descriptor con roots/slots: `D3D12_RESOURCE_DESC` + heap + tamaño/offset
-   por recurso; cada `CreateSRV/UAV` y `CopyDescriptors*` con formato,
-   mip/layer/rango y slot final; identidad de slots 0–10 justo antes del
-   dispatch; header de 128 B de arg10 + bytes de arg0 en `[base, base+32)`;
-   handles de root-tables, bases/incremento de heaps, sampler, grid de
-   `Dispatch`, estados/transiciones; dumps pre **y** post con canarios;
-   ejecutable/versiones/hashes; captura original preservada. Una captura del
-   puente que aún falla es evidencia de entradas, nunca oracle
+1. **Range 1 — capture on a reference that works.** Same DLL/input/zebin,
+   `native_1080`, 1920×1080, constants `MLSR_Optimized_Constants`, resolution
+   of the 10 stock names, on an implementation already validated as correct
+   (`S_OK`/overlay/magenta is not enough). It must record, correlated by
+   ID/descriptor with roots/slots: `D3D12_RESOURCE_DESC` + heap + size/offset
+   per resource; each `CreateSRV/UAV` and `CopyDescriptors*` with format,
+   mip/layer/range and final slot; identity of slots 0–10 right before the
+   dispatch; the 128 B header of arg10 + arg0 bytes in `[base, base+32)`;
+   root-table handles, heap bases/increments, sampler, `Dispatch` grid,
+   states/transitions; pre **and** post dumps with canaries; executable/
+   versions/hashes; original capture preserved. A bridge capture that still
+   fails is evidence of inputs, never an oracle
    (`docs/pre-reference-options.md:8-17`).
-2. **Rango 2 — CPU validada contra el Rango 1.** Reimplementación CPU que
-   reproduzca el Rango 1 byte/bit dentro de tolerancias justificadas en al
-   menos un input fijado, antes de usarse. Traducir operaciones aisladas del
-   shader sin esa validación no es oracle (`docs/pre-reference-options.md:10-12`).
-3. **Rango 3 — contraste L0/OCL solo como bindings.** Mismo zebin vía Level
-   Zero u OpenCL, entradas idénticas, comparación de bytes. Comparte kernel y
-   posiblemente núcleo del compilador (NEO), así que solo contrasta ABI de
-   bindings/backend, nunca demuestra corrección de FSR
+2. **Range 2 — CPU validated against Range 1.** A CPU reimplementation that
+   reproduces Range 1 byte/bit within justified tolerances on at least one
+   fixed input, before it is used. Translating isolated shader operations
+   without that validation is not an oracle
+   (`docs/pre-reference-options.md:10-12`).
+3. **Range 3 — L0/OCL contrast only as bindings.** Same zebin via Level
+   Zero or OpenCL, identical inputs, byte comparison. It shares the kernel and
+   possibly the compiler core (NEO), so it only contrasts the bindings/backend
+   ABI, and never proves FSR correctness
    (`docs/pre-reference-options.md:19-33,42-51`).
 
-Tolerancias (justificadas por formato, ninguna inventada):
+Tolerances (justified per format, none invented):
 
-- Buffers `R8_UINT` (arg0/9/10 como vistos): **tolerancia 0, bit-exacto**.
-  `DXGI_FORMAT_R8_UINT` es entero sin signo de 8 bits; vistas tipadas y
-  accesos OWORD son bit-exactos, sin redondeo ni filtrado en este camino.
-  Un byte distinto = fallo.
-- Imágenes (`Unknown`): **sin tolerancia fijada hasta la traza.** Tras fijar
-  formato DXGI/Vulkan: enteros → 0; UNORM/SNORM/SRGB → paso de cuantización
-  de la spec del formato; FLOAT → redondeo IEEE-754 de la secuencia trazada.
-  Ningún épsilon se pre-elige aquí.
-- **NaN = fallo.** Cualquier NaN en una región comparada (o
-  referencia-finita vs prueba-NaN) es fallo funcional: `NaN != todo`,
-  incluso sí mismo; entradas finitas de escena no deben producir NaN.
-  Inf = fallo salvo que la referencia Rango 1 lo contenga en el mismo elemento.
+- `R8_UINT` buffers (arg0/9/10 as seen): **tolerance 0, bit-exact**.
+  `DXGI_FORMAT_R8_UINT` is an 8-bit unsigned integer; typed views and OWORD
+  accesses are bit-exact, with no rounding or filtering on this path.
+  One differing byte = failure.
+- Images (`Unknown`): **no tolerance fixed until the trace.** After fixing the
+  DXGI/Vulkan format: integers → 0; UNORM/SNORM/SRGB → the quantization step of
+  the format's spec; FLOAT → IEEE-754 rounding of the traced sequence. No
+  epsilon is pre-chosen here.
+- **NaN = failure.** Any NaN in a compared region (or finite-reference vs
+  NaN-test) is a functional failure: `NaN != todo` (NaN is not equal to anything, not even itself); finite
+  scene inputs must not produce NaN. Inf = failure unless the Range 1 reference
+  contains it in the same element.
 
-## (c) Tests CPU y gates de aceptación
+## (c) CPU tests and acceptance gates
 
-`tools/inspect_pre_initial_contents.py` fija el plan estático (offsets del
-header, bits de flags, plano OWORD, guards, máscara 7) con hash del IR, expone
-`resource_table()` (12 filas, desconocidos como `TRACE_FASE1_REQUIRED`),
-`oracle_policy()` (orden 1>2>3, R8=0, imágenes TBD, NaN=fallo) y
-`validate_trace_candidate()` (enumera faltantes de Fase 1 y rechaza claves
-`scene_role` inventadas). `tests/test_pre_initial_contents.py` (15 tests)
-fija todo eso con fixtures más el módulo fijado; no contiene datos de escena.
+`tools/inspect_pre_initial_contents.py` pins the static plan (header offsets,
+flag bits, OWORD plane, guards, mask 7) with the IR hash, exposes
+`resource_table()` (12 rows, unknowns as `TRACE_FASE1_REQUIRED`),
+`oracle_policy()` (order 1>2>3, R8=0, images TBD, NaN=failure) and
+`validate_trace_candidate()` (lists missing Phase 1 items and rejects invented
+`scene_role` keys). `tests/test_pre_initial_contents.py` (15 tests)
+pins all of that with fixtures plus the pinned module; it contains no scene data.
 
-Gates de aceptación Fase 2 (todos deben pasar; ninguno autoriza GPU por sí solo):
+Phase 2 acceptance gates (all must pass; none authorizes GPU on its own):
 
-- G0 Hashes fijados (DLL, IR, zebin) y suite CPU en verde.
-- G1 Traza Fase 1 completa: `validate_trace_candidate()` vacío (formatos,
-  dims, vistas, `Width` arg0, header 128 B + `[base, base+32)`, grid, local
-  size/máscara con evidencia del launcher).
-- G2 Contenidos iniciales fijados según tabla; header/flags/base verbatim;
-  no-alias lectura/escritura en arg0 demostrado; `b0=0`; sampler fijado.
-- G3 Local size, threadcount/modo dispatch y máscara efectiva probados con
-  evidencia runtime (nunca `1×1×1`, `simd_size` ni anchos SIMD16 como sustituto).
-- G4 Oracle Rango 1 capturado con checklist completa; Rango 2 validado antes
-  de usarse; Rango 3 etiquetado solo como contraste de bindings.
-- G5 Comparación con tolerancias de formato (R8 bit-exacto, imágenes según
-  formato trazado), NaN=fallo, canarios/guard-regions intactos, sin
-  lecturas/escrituras fuera de rango.
-- G6 Sin GPU en Fase 2; Fase 1 y siguientes en prefijo desechable, sin tocar
-  Steam/prefijo real, drivers ni servicios (AGENTS.md).
+- G0 Pinned hashes (DLL, IR, zebin) and CPU suite green.
+- G1 Phase 1 trace complete: `validate_trace_candidate()` empty (formats,
+  dims, views, arg0 `Width`, 128 B header + `[base, base+32)`, grid, local
+  size/mask with launcher evidence).
+- G2 Initial contents pinned per the table; header/flags/base verbatim;
+  no read/write alias on arg0 demonstrated; `b0=0`; sampler pinned.
+- G3 Local size, dispatch threadcount/mode and effective mask tested with
+  runtime evidence (never `1×1×1`, `simd_size` or SIMD16 widths as a substitute).
+- G4 Range 1 oracle captured with the full checklist; Range 2 validated before
+  use; Range 3 labeled only as a bindings contrast.
+- G5 Comparison with format tolerances (R8 bit-exact, images per the traced
+  format), NaN=failure, canaries/guard regions intact, no reads/writes out of range.
+- G6 No GPU in Phase 2; Phase 1 and later in a disposable prefix, without touching
+  the real Steam/prefix, drivers or services (AGENTS.md).

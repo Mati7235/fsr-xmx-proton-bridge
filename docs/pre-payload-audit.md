@@ -1,130 +1,130 @@
-# Auditoría estática de los cuatro campos de payload del PRE
+# Static audit of the four PRE payload fields
 
-## Conclusión sin jerga
+## Conclusion in plain terms
 
-Los cuatro campos que parecían direcciones faltantes **no se leen antes de ser
-sobrescritos o de terminar el kernel**, según el análisis del código nativo
-revisado, **suponiendo una máscara de ejecución completa y constante**.
+The four fields that looked like missing addresses **are not read before being
+overwritten or before the kernel ends**, according to the analysis of the reviewed
+native code, **assuming a full and constant execution mask**.
 
-Para este PRE compilado no hay evidencia de que debamos inventar direcciones GPU
-y colocarlas en esos campos. Mantenerlos en cero es compatible con este resultado
-estático condicionado. Esto **no autoriza una prueba runtime** ni generaliza a
-otros kernels, compiladores, variantes o máscaras de ejecución.
+For this compiled PRE there is no evidence that we must invent GPU addresses and place
+them in those fields. Keeping them at zero is consistent with this conditional static
+result. This **does not authorize a runtime test** nor generalize to other kernels,
+compilers, variants or execution masks.
 
-Antes solo sabíamos que el compilador los declaraba y que upstream los dejaba en
-cero. Eso era un pendiente de investigación, **no un fallo funcional demostrado**.
+Before, we only knew that the compiler declared them and that upstream left them at
+zero. That was a research item to follow up, **not a demonstrated functional failure**.
 
-## Alcance e identidades
+## Scope and identities
 
-Mismos input, opciones y compilador que en [la compilación offline](offline-pre-compilation.md):
+Same input, options and compiler as in [the offline compilation](offline-pre-compilation.md):
 PRE Xe2 40102 native_1080, B580 target 0xe20b, IGC 2.10.10+18926.
 
-- CM completo: `76942f6cff52b09ea8fef63adfce8b4119fcd45c8c0586c913eedb9e35fe773b`.
+- Complete CM: `76942f6cff52b09ea8fef63adfce8b4119fcd45c8c0586c913eedb9e35fe773b`.
 - Zebin: `3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2`.
-- Código nativo: `2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f`.
-- Disassembly IGA emitido por ocloc:
+- Native code: `2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f`.
+- IGA disassembly emitted by ocloc:
   `a9c82bbfccc535959e73ddd6b80fb209ed8a12bf8607927f62078b43b6215660`.
-- SPIR-V textual del `.spv` embebido:
+- Textual SPIR-V of the embedded `.spv`:
   `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e`.
 
-La asociación de los desensamblados con el binario se estableció ejecutando solo
-los desensambladores offline sobre el zebin fijado. El auditor rechaza cambios de
-hash; no pretende verificar por sí mismo un decodificador ISA general. También
-comprueba que el `.spv` embebido coincida byte a byte con el comienzo del CM input.
-No carga la DLL ni hace dispatch GPU.
+The association of the disassemblies with the binary was established by running only the
+offline disassemblers on the pinned zebin. The auditor rejects hash changes; it does not
+aim to verify by itself a general ISA decoder. It also checks that the embedded `.spv`
+matches the start of the CM input byte for byte. It does not load the DLL nor dispatch on
+the GPU.
 
-## Evidencia IR y código nativo
+## IR and native code evidence
 
-### 1. Los tres argumentos de buffer son superficies opacas
+### 1. The three buffer arguments are opaque surfaces
 
-En SPIR-V, los parámetros de argumentos 0, 9 y 10 tienen tipo
-`OpTypeBufferSurfaceINTEL ReadWrite`, no un puntero genérico de 64 bits.
-El entry wrapper los pasa en el mismo orden a la función principal. En esa función,
-cada uno tiene **un único uso directo**: `llvm.genx.address.convert.i32.p1intel.buffer_rw_t`.
+In SPIR-V, the parameters of arguments 0, 9 and 10 have type
+`OpTypeBufferSurfaceINTEL ReadWrite`, not a generic 64-bit pointer. The entry wrapper
+passes them in the same order to the main function. In that function, each one has
+**a single direct use**: `llvm.genx.address.convert.i32.p1intel.buffer_rw_t`.
 
-Esa conversión produce un SurfaceIndex. **No significa que los recursos sean
-inútiles:** el kernel sí accede a ellos mediante BTIs 8, 10 y 11. La auditoría no
-confunde el argumento de recurso con los ocho bytes extra declarados por el backend.
-`private_base_stateless` es un campo implícito, no otro parámetro del entry point.
+That conversion produces a SurfaceIndex. **This does not mean the resources are useless:**
+the kernel does access them through BTIs 8, 10 and 11. The audit does not confuse the
+resource argument with the eight extra bytes declared by the backend.
+`private_base_stateless` is an implicit field, not another parameter of the entry point.
 
-### 2. El prólogo carga los 32 bytes, pero no basta con ver esa carga
+### 2. The prologue loads the 32 bytes, but seeing that load is not enough
 
-Según el desensamblado, el prólogo carga el bloque cross-thread en el GRF `r2`.
-Los offsets relativos y tamaños son:
+According to the disassembly, the prologue loads the cross-thread block into GRF `r2`.
+The relative offsets and sizes are:
 
-| Campo | Bytes del bloque |
+| Field | Bytes of the block |
 |---|---|
 | private_base_stateless | 0..7 |
-| puntero extra de arg 0 | 8..15 |
-| puntero extra de arg 9 | 16..23 |
-| puntero extra de arg 10 | 24..31 |
+| extra pointer of arg 0 | 8..15 |
+| extra pointer of arg 9 | 16..23 |
+| extra pointer of arg 10 | 24..31 |
 
-El primer mensaje carga IDs locales en `r1` desde base + 32 + thread*64; el segundo
-carga los ocho DWORDs cross-thread en `r2` desde la base. Esa disposición coincide
-con el código de payload del parche ANV upstream. No prueba una ejecución observada.
+The first message loads local IDs into `r1` from base + 32 + thread*64; the second loads
+the eight cross-thread DWORDs into `r2` from the base. That layout matches the payload
+code of the upstream ANV patch. It does not prove an observed execution.
 
-### 3. Seguimiento por byte y ramas
+### 3. Byte tracking and branches
 
-`tools/audit_pre_payload.py` mantiene el conjunto de bytes originales todavía
-presentes en `r2`. En cada instrucción:
+`tools/audit_pre_payload.py` keeps the set of original bytes still present in `r2`. For
+each instruction:
 
-1. Comprueba las lecturas **antes** de aplicar escrituras.
-2. Elimina solamente bytes sobrescritos de manera incondicional bajo la máscara asumida.
-3. No elimina bytes por un `mov`/`send` predicado.
-4. Para `sel`, el predicado selecciona el valor; no suprime la escritura del destino.
-5. Une con **unión** los bytes vivos de todas las ramas; admite backedges hasta punto fijo.
-6. Termina una ruta en EOT o cuando ya no queda ningún byte original.
+1. It checks the reads **before** applying writes.
+2. It removes only bytes unconditionally overwritten under the assumed mask.
+3. It does not remove bytes for a predicated `mov`/`send`.
+4. For `sel`, the predicate selects the value; it does not suppress the write to the destination.
+5. It takes the **union** of the live bytes of all branches; it accepts backedges up to a fixed point.
+6. It ends a path at EOT or when no original byte remains.
 
-Resultado: **160 instrucciones visitadas con algún byte original vivo; cero
-lecturas posibles de esos bytes** bajo los supuestos declarados. Las rutas que
-abandonan temprano el kernel pueden terminar con bytes aún presentes, pero no leídos.
+Result: **160 instructions visited with some original byte still live; zero possible
+reads of those bytes** under the declared assumptions. Paths that leave the kernel early
+may end with bytes still present, but not read.
 
-Algunos puntos de sobrescritura registrados en el ASM fijado:
+Some overwrite points recorded in the pinned ASM:
 
-- Líneas 20 y 23: reemplazo de los bytes 0..3 mediante selecciones.
-- Línea 143: una escritura de cuatro DWORDs reemplaza bytes restantes de 4..15 en esa ruta.
-- Línea 179: escritura vectorial reemplaza los bytes restantes en una ruta posterior.
-- Línea 379: respuesta de sampler reemplaza los bytes restantes en otra ruta.
+- Lines 20 and 23: replacement of bytes 0..3 via selects.
+- Line 143: a four-DWORD write replaces the remaining bytes 4..15 on that path.
+- Line 179: a vector write replaces the remaining bytes on a later path.
+- Line 379: a sampler response replaces the remaining bytes on another path.
 
-El análisis no solo busca nombres de registros ni mensajes stateless. Si detectara
-un uso original como dato aritmético, también lo marcaría como lectura posible.
-Una lectura posible sería un pendiente, no una prueba de que afecte al resultado.
+The analysis does not only look for register names or stateless messages. If it detected
+an original use as arithmetic data, it would also mark it as a possible read. A possible
+read would be an open item, not proof that it affects the result.
 
-### 4. No confundir padding del send con datos leídos
+### 4. Do not confuse send padding with data that is read
 
-Un mensaje transpuesto `d32x4t.a32` usa una dirección escalar de 32 bits y cuatro
-componentes de datos. Que el payload reserve un GRF de 64 bytes no significa que
-lea todas sus posiciones. El auditor modela esos tamaños reales; para fuentes de
-sampler/typed sends usa el rango físico como aproximación conservadora.
+A transposed message `d32x4t.a32` uses a scalar 32-bit address and four data components.
+That the payload reserves a 64-byte GRF does not mean it reads all of its positions. The
+auditor models those real sizes; for sampler/typed send sources it uses the physical range
+as a conservative approximation.
 
-Fundamento de semántica, fuentes Intel fijadas a la misma versión:
+Semantic basis, Intel sources pinned to the same version:
 
 - [SEL](https://github.com/intel/intel-graphics-compiler/blob/v2.10.10/documentation/visa/instructions/SEL.md):
-  `dst[i] = Pred[i] ? src0[i] : src1[i]` para canales con EM habilitado.
+  `dst[i] = Pred[i] ? src0[i] : src1[i]` for channels with EM enabled.
 - [LSC_UNTYPED](https://github.com/intel/intel-graphics-compiler/blob/v2.10.10/documentation/visa/instructions/LSC_UNTYPED.md):
-  transpose consume una dirección y componentes sucesivos; requiere SIMD1.
+  transpose consumes one address and successive components; requires SIMD1.
 
-## Condiciones que siguen abiertas
+## Conditions still open
 
-- **Máscara de ejecución:** el resultado supone todos los canales relevantes activos,
-  sin cambios de EM durante el kernel. Un canal deshabilitado podría preservar bytes
-  que una lectura posterior con otra máscara alcanzara. El driver upstream fuerza
-  dispatch SIMD32 y escala local_size.x por 32; falta compilar/validar la ruta real.
-- **Decodificación:** tamaños y operación de los mensajes proceden del IGA incluido
-  en la toolchain fijada. El auditor no verifica cada bit del descriptor de manera independiente.
-- **Tamaño de GRF:** solo se modelan los 64 bytes de este target Xe2.
-- **IR:** se verifica el uso directo de los parámetros, no un análisis semántico
-  completo de cada función; la prueba de los bytes extra se apoya en código nativo.
-- **Alcance:** un solo kernel/input/output revisado. Otros outputs se rechazan.
-- Sampler dinámico, dimensiones locales, layout runtime VKD3D y copia de contexto
-  siguen pendientes. No se instaló ni compiló Mesa ni se cambiaron archivos del juego.
+- **Execution mask:** the result assumes all relevant channels are active, with no EM
+  changes during the kernel. A disabled channel could preserve bytes that a later read
+  under another mask would reach. The upstream driver forces SIMD32 dispatch and scales
+  local_size.x by 32; the real path still needs to be compiled and validated.
+- **Decoding:** message sizes and operation come from the IGA included in the pinned
+  toolchain. The auditor does not independently verify every bit of the descriptor.
+- **GRF size:** only the 64 bytes of this Xe2 target are modeled.
+- **IR:** the direct use of the parameters is verified, not a complete semantic analysis
+  of every function; the proof of the extra bytes relies on native code.
+- **Scope:** a single reviewed kernel/input/output. Other outputs are rejected.
+- Dynamic sampler, local dimensions, VKD3D runtime layout and context copy remain
+  pending. Mesa was not installed nor compiled, and no game files were changed.
 
-El perfil mantiene estado experimental y `runtime_approved=false`. No se añadió
-un parche para rellenar direcciones no usadas ni se relajaron canaries.
+The profile keeps its experimental status and `runtime_approved=false`. No patch was
+added to fill unused addresses, and the canaries were not relaxed.
 
-## Reproducción
+## Reproduction
 
-Desde la raíz, con el zebin y toolchain locales ya verificados:
+From the root, with the zebin and local toolchain already verified:
 
 ```bash
 mkdir -p analysis/pre-payload
@@ -150,10 +150,10 @@ cmp profiles/fsr4-pre-native1080-payload-audit.json analysis/pre-payload/report.
 python -m unittest discover -s tests -v
 ```
 
-El desensamblador informó `Warnings: unexpected padding at end of kernel` y exit 0.
-Se conservó el log. Hay instrucciones `illegal` de padding después del EOT, sin
-ruta alcanzable desde el prólogo. El auditor rechaza alcanzarlas con bytes vivos.
+The disassembler reported `Warnings: unexpected padding at end of kernel` and exit 0.
+The log was kept. There are `illegal` padding instructions after the EOT, with no path
+reachable from the prologue. The auditor refuses to reach them with live bytes.
 
-Los tests incluyen lecturas reales, escrituras parciales y predicadas, uniones de
-ramas, loops, lectura previa a escritura, respuestas de carga cortas y padding de
-mensajes. Esas pruebas verifican el analizador limitado, no la salida de imagen GPU.
+The tests include real reads, partial and predicated writes, branch unions, loops,
+read-before-write, short load responses and message padding. Those tests verify the
+limited analyzer, not the GPU image output.

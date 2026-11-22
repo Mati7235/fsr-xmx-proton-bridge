@@ -1,190 +1,189 @@
-# PRE native_1080: spec de captura correlacionada para una futura traza autorizada
+# PRE native_1080: correlated capture spec for a future authorized trace
 
-## Estado y alcance
+## Status and scope
 
-Fase 1, CPU-only. Este documento **no autoriza** ningún dispatch PRE ni ninguna
-ejecución GPU/Wine. Solo define qué debe registrar una futura traza autorizada
-del caller (ruta `native_1080`) en un prefijo descartable, para resolver los
-datos de runtime que el análisis estático no puede establecer: tamaños
-asignados, formatos de imagen, bytes iniciales y valores efectivos del dispatch.
+Phase 1, CPU-only. This document **does not authorize** any PRE dispatch or any
+GPU/Wine execution. It only defines what a future authorized trace of the
+caller (`native_1080` path) must record in a disposable prefix, to resolve the
+runtime data that static analysis cannot establish: allocated sizes, image
+formats, initial bytes and the effective dispatch values.
 
-Contexto estático fijado (verificado localmente por SHA-256 el 2026-11-12):
+Pinned static context (verified locally by SHA-256 on 2026-11-12):
 
-| Artefacto | SHA-256 |
+| Artifact | SHA-256 |
 |---|---|
 | DLL `amd_fidelityfx_upscaler_dx12.dll` | `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53` |
 | `analysis/fsr-xmx-disassembly.txt` | `4007779c416772def4eecdd20acefb5d52deb6c8d0f0f895473761653f4e66b0` |
-| `d3d12.h` local (LLVM-MinGW) | `23935395fe8939ac0ca71c5b34cd7b21a689ff5e9641846563613f24bc0dd85e` |
-| `dxgiformat.h` local | `8a4e770d3022aff667b7d4f03f0cf5a068ecde87f357c9791f275954c1461c48` |
-| envelope CM PRE (`cm-payloads-0001/module-0000.cmspv`) | `76942f6cff52b09ea8fef63adfce8b4119fcd45c8c0586c913eedb9e35fe773b` |
-| zebin PRE Xe2 (`offline-pre/full/pre_bmg.bin`) | `3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2` |
-| código nativo (`code_sha256` del perfil) | `2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f` |
+| local `d3d12.h` (LLVM-MinGW) | `23935395fe8939ac0ca71c5b34cd7b21a689ff5e9641846563613f24bc0dd85e` |
+| local `dxgiformat.h` | `8a4e770d3022aff667b7d4f03f0cf5a068ecde87f357c9791f275954c1461c48` |
+| PRE CM envelope (`cm-payloads-0001/module-0000.cmspv`) | `76942f6cff52b09ea8fef63adfce8b4119fcd45c8c0586c913eedb9e35fe773b` |
+| PRE Xe2 zebin (`offline-pre/full/pre_bmg.bin`) | `3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2` |
+| native code (`code_sha256` of the profile) | `2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f` |
 | `offline-pre/full/ze_info.yaml` | `5546d5172c3094110fe25fd34922bcf1d4842fb1b0e97b9a42afc32c2ffe8f7c` |
-| desensamblado IGA `.text.fsr4_pre_xmx` | `a9c82bbfccc535959e73ddd6b80fb209ed8a12bf8607927f62078b43b6215660` |
+| IGA disassembly of `.text.fsr4_pre_xmx` | `a9c82bbfccc535959e73ddd6b80fb209ed8a12bf8607927f62078b43b6215660` |
 | IR `fsr-resources/xe2-first.spvasm` | `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e` |
 
-Referencias de análisis: dispatch y procedencia en
-[`pre-dispatch-ghidra.md`](pre-dispatch-ghidra.md) (función `FUN_1800163c0`,
-fórmula de grid, bindings stock por nombre, fail-stops, helper `0x180002df0`,
-vtables contra `d3d12.h`); contrato en
-[`pre-controlled-test-contract.md`](pre-controlled-test-contract.md); vistas
-tipadas en [`pre-resource-descriptors.md`](pre-resource-descriptors.md).
+Analysis references: dispatch and provenance in
+[`pre-dispatch-ghidra.md`](pre-dispatch-ghidra.md) (function `FUN_1800163c0`,
+grid formula, stock bindings by name, fail-stops, helper `0x180002df0`,
+vtables against `d3d12.h`); contract in
+[`pre-controlled-test-contract.md`](pre-controlled-test-contract.md); typed
+views in [`pre-resource-descriptors.md`](pre-resource-descriptors.md).
 
-## Objetivo de la traza
+## Goal of the trace
 
-Registrar, correlacionado por ID de recurso/descriptor, todo lo que la ruta
-normal `0x1800163c0..0x180017b6e` consume justo antes del primer dispatch PRE
-`native_1080`, y volcar bytes pre/post sin modificar el estado observado. La
-traza es evidencia de entrada, no oracle funcional ni prueba de corrección.
+Record, correlated by resource/descriptor ID, everything the normal path
+`0x1800163c0..0x180017b6e` consumes right before the first PRE `native_1080`
+dispatch, and dump pre/post bytes without modifying the observed state. The
+trace is input evidence, not a functional oracle nor a proof of correctness.
 
-## Mapa de slots que la traza debe resolver
+## Slot map the trace must resolve
 
-Slots relativos al heap/tabla que usa la ruta normal (no índices absolutos):
+Slots relative to the heap/table used by the normal path (not absolute indices):
 
-| Slot heap recursos | Arg | Root | BTI | Contenido esperado (estático) |
+| Resource heap slot | Arg | Root | BTI | Expected content (static) |
 |---|---|---|---|---|
-| 0–6 | 2–8 / t0–t6 | 3–9 | 1–7 | imágenes ReadOnly, copiadas por helper `0x180002df0`; source index en runtime |
-| 7 | 0 / u0 | 1 | 8 | UAV `R8_UINT BUFFER`, `NumElements = Width` (`GetDesc` exige `Dimension == 1`) |
-| 8 | 1 / u1 | 2 | 9 | imagen destino ReadWrite, copiada en `0x18001727e` |
-| 9 | 9 / t7 | 10 | 10 | SRV `R8_UINT BUFFER`, `NumElements = 0x840` (2.112 B), recurso en contexto `+0xa80` |
-| 10 | 10 / t8 | 11 | 11 | SRV `R8_UINT BUFFER`, `NumElements = 0x80` (128 B), recurso en contexto `+0xa98` |
-| heap sampler 0 | 11 / s0 | 12 | — | sampler linear/CLAMP (ver §6) |
+| 0–6 | 2–8 / t0–t6 | 3–9 | 1–7 | ReadOnly images, copied by helper `0x180002df0`; source index at runtime |
+| 7 | 0 / u0 | 1 | 8 | UAV `R8_UINT BUFFER`, `NumElements = Width` (`GetDesc` requires `Dimension == 1`) |
+| 8 | 1 / u1 | 2 | 9 | ReadWrite destination image, copied at `0x18001727e` |
+| 9 | 9 / t7 | 10 | 10 | SRV `R8_UINT BUFFER`, `NumElements = 0x840` (2,112 B), resource in context `+0xa80` |
+| 10 | 10 / t8 | 11 | 11 | SRV `R8_UINT BUFFER`, `NumElements = 0x80` (128 B), resource in context `+0xa98` |
+| sampler heap 0 | 11 / s0 | 12 | — | linear/CLAMP sampler (see §6) |
 
-Además `SetComputeRoot32BitConstant(rootIndex=0, value=0, destOffset=0)`:
-**b0 = 0**; y `SetComputeRootDescriptorTable` 1…11 desde el array RVA
-`0x68988` (`0x180017410..0x180017435`), root 12 con handle GPU del heap sampler
-(`0x180017543`).
+Also `SetComputeRoot32BitConstant(rootIndex=0, value=0, destOffset=0)`:
+**b0 = 0**; and `SetComputeRootDescriptorTable` 1…11 from the RVA array
+`0x68988` (`0x180017410..0x180017435`), root 12 with the GPU handle of the
+sampler heap (`0x180017543`).
 
-## Bloques de captura (todos correlacionados por ID)
+## Capture blocks (all correlated by ID)
 
-### 1. Creación de recursos
+### 1. Resource creation
 
-Por cada recurso enlazado a los slots 0–10, registrar el evento de creación
-efectivo (`CreateCommittedResource`, placed/reserved o importación):
+For each resource bound to slots 0–10, record the effective creation event
+(`CreateCommittedResource`, placed/reserved or import):
 
-- `D3D12_RESOURCE_DESC` completo: `Dimension`, `Width`, `Height`,
+- Full `D3D12_RESOURCE_DESC`: `Dimension`, `Width`, `Height`,
   `DepthOrArraySize`, `MipLevels`, `Format`, `SampleDesc`,
   `Layout`, `Flags`.
-- `D3D12_HEAP_PROPERTIES` + `D3D12_HEAP_FLAGS`, tamaño y offset de asignación
-  cuando aplique.
-- ID de recurso (puntero de objeto + secuencia de creación) que se usará para
-  correlacionar vistas, copias y barriers. Seguir aliases y copias, no solo
-  direcciones de handles.
+- `D3D12_HEAP_PROPERTIES` + `D3D12_HEAP_FLAGS`, size and allocation offset
+  when applicable.
+- Resource ID (object pointer + creation sequence) to be used to correlate
+  views, copies and barriers. Follow aliases and copies, not only handle addresses.
 
-### 2. Vistas y copias de descriptores
+### 2. Views and descriptor copies
 
-- Cada `CreateShaderResourceView` / `CreateUnorderedAccessView`: recurso
-  asociado (ID del §1), `D3D12_*_VIEW_DESC` completo (formato, dimensión,
+- Each `CreateShaderResourceView` / `CreateUnorderedAccessView`: associated
+  resource (ID from §1), full `D3D12_*_VIEW_DESC` (format, dimension,
   `FirstElement`, `NumElements`, `StructureByteStride`, `Flags`,
-  `Shader4ComponentMapping`), mip/layer/rango, slot destino y heap.
-- Cada `CopyDescriptors*` (incluido el helper `0x180002df0` y el sitio
-  `0x18001727e`): heap origen, índice origen, incremento de descriptor,
-  heap destino, slot destino 0–10, y el ID del recurso que el descriptor
-  origen designaba. Para t0–t6 anotar además el registro de selección
+  `Shader4ComponentMapping`), mip/layer/range, destination slot and heap.
+- Each `CopyDescriptors*` (including the helper `0x180002df0` and the site
+  `0x18001727e`): source heap, source index, descriptor increment, destination
+  heap, destination slot 0–10, and the ID of the resource the source descriptor
+  designated. For t0–t6 also note the selection register
   (`[rsp+0x78]`, `[rsp+0x7c]`, `esi`, `[rbp-0x80]`, `[rbp-0x7c]`, `edi`, `ebx`).
-- Valores fijados que deben coincidir: arg 9 SRV `R8_UINT`, `0x1688`,
+- Pinned values that must match: arg 9 SRV `R8_UINT`, `0x1688`,
   `0x840`; arg 10 SRV `R8_UINT`, `0x1688`, `0x80`; arg 0 UAV `R8_UINT`,
-  `FirstElement = 0`, `NumElements = Width`. Cualquier desviación se registra
-  como hallazgo, no se "corrige" la spec.
+  `FirstElement = 0`, `NumElements = Width`. Any deviation is recorded as a
+  finding; the spec is not "corrected".
 
-### 3. Identidad pre-dispatch (`GetDesc` y resolución de handles)
+### 3. Pre-dispatch identity (`GetDesc` and handle resolution)
 
-Justo antes del dispatch, para cada heap slot 0–10:
+Right before the dispatch, for each heap slot 0–10:
 
-- `GetDesc` del recurso enlazado (el mismo `+0x50` que la DLL usa para arg 0).
-- Resolución handle CPU/GPU → ID de recurso del §1; detectar aliasing
-  (dos slots al mismo recurso) y descriptores obsoletos.
-- Para arg 0, verificar la guarda estática: `Dimension == 1` y
-  `Width >= factor² * 0x7e9000` (native_1080: factor 1, mínimo 8.294.400 B),
-  `Width <= 0xffffffff`. Registrar el `Width` efectivo: es el tamaño que
-  dimensiona el UAV, no suponer asignación exacta.
+- `GetDesc` of the bound resource (the same `+0x50` the DLL uses for arg 0).
+- CPU/GPU handle → resource ID resolution from §1; detect aliasing
+  (two slots to the same resource) and stale descriptors.
+- For arg 0, verify the static guard: `Dimension == 1` and
+  `Width >= factor² * 0x7e9000` (native_1080: factor 1, minimum 8,294,400 B),
+  `Width <= 0xffffffff`. Record the effective `Width`: it is the size that
+  dimensions the UAV; do not assume an exact allocation.
 
-### 4. Bytes de buffers: arg 9, arg 10 y regiones de arg 0
+### 4. Buffer bytes: arg 9, arg 10 and arg 0 regions
 
-- Arg 10: header completo de 128 B tal cual lo carga el kernel, con bytes
-  legibles y flags originales. Campos usados por el IR (offsets 8–84 DWORDs,
-  dirección/bytes en 64–80, flags byte 100, base en byte 104). La base de
-  byte 104 es **desplazamiento relativo al buffer arg 0** condicionado por el
-  bit `0x2000` (`base` frente a `base+16`), no una VA.
-- Arg 9: los 2.112 B visibles por el SRV.
-- Arg 0: como mínimo el registro float4 de 16 B en `base + {0,16}` y el plano
-  de escritura OWORD (`índice = wg_y*960 + wg_x*8`, 16 B por OWORD, extremo
-  exclusivo 8.294.400 B para grid 120×540). Recomendado: volcado completo
-  pre/post del backing resource, ya que contiene regiones de entrada/scratch
-  y salida cuyas relaciones exactas dependen del header arg 10. No
-  inicializarlo como buffer vacío de readback.
-- Volcar pre **y** post dispatch sin modificar el estado observado; preservar
-  la captura original íntegra.
+- Arg 10: the full 128 B header exactly as the kernel loads it, with readable
+  bytes and original flags. Fields used by the IR (DWORD offsets 8–84,
+  address/bytes at 64–80, flags byte 100, base at byte 104). The base at byte
+  104 is a **byte offset relative to the arg 0 buffer** conditioned on bit
+  `0x2000` (`base` versus `base+16`), not a VA.
+- Arg 9: the 2,112 B visible through the SRV.
+- Arg 0: at minimum the 16 B float4 record at `base + {0,16}` and the OWORD
+  write plane (`índice = wg_y*960 + wg_x*8`, 16 B per OWORD, exclusive end
+  8,294,400 B for a 120×540 grid). Recommended: full pre/post dump of the
+  backing resource, since it contains input/scratch regions and output whose
+  exact relationships depend on the arg 10 header. Do not initialize it as an
+  empty readback buffer.
+- Dump pre **and** post dispatch without modifying the observed state; keep the
+  original capture intact.
 
-### 5. Handles GPU, bases e incrementos
+### 5. GPU handles, bases and increments
 
-- `GetGPUDescriptorHandleForHeapStart` de ambos heaps (recursos y sampler),
-  bases CPU/GPU, `GetDescriptorHandleIncrementSize` por tipo de heap.
-- Tabla root efectiva: los 11 handles GPU pasados a
-  `SetComputeRootDescriptorTable` + handle del sampler a root 12, con la
-  correspondencia slot→arg→BTI de la tabla de arriba.
-- Incremento origen usado por el helper (`ctx+0x1b40` + `sourceIndex *
-  incremento`).
+- `GetGPUDescriptorHandleForHeapStart` of both heaps (resources and sampler),
+  CPU/GPU bases, `GetDescriptorHandleIncrementSize` per heap type.
+- Effective root table: the 11 GPU handles passed to
+  `SetComputeRootDescriptorTable` + the sampler handle to root 12, with the
+  slot→arg→BTI correspondence from the table above.
+- Source increment used by the helper (`ctx+0x1b40` + `sourceIndex *
+  increment`).
 
-### 6. Descriptor del sampler
+### 6. Sampler descriptor
 
-`D3D12_SAMPLER_DESC` completo del slot 0 del heap sampler: valores estáticos
-esperados MIN/MAG/MIP linear, CLAMP U/V/W, bias 0, `MaxAnisotropy` 1,
-comparación ALWAYS, `MinLOD` 0, `MaxLOD` FLT_MAX. Registrar cualquier
-desviación y el heap/tabla reales usados en root 12.
+Full `D3D12_SAMPLER_DESC` of slot 0 of the sampler heap: expected static
+values MIN/MAG/MIP linear, CLAMP U/V/W, bias 0, `MaxAnisotropy` 1,
+ALWAYS comparison, `MinLOD` 0, `MaxLOD` FLT_MAX. Record any deviation and the
+actual heap/table used at root 12.
 
-### 7. Secuencia de contexto y blobs
+### 7. Context sequence and blobs
 
-- Frontera pública: `ffxCreateContext` (`0x180001290`), `ffxDispatch`
-  (`0x1800013b0`), `ffxQuery` (`0x180001400`); wrapper interno
-  `0x1800058a1..0x1800058e6` y sitio llamante `0x1800058be`
+- Public boundary: `ffxCreateContext` (`0x180001290`), `ffxDispatch`
+  (`0x1800013b0`), `ffxQuery` (`0x180001400`); internal wrapper
+  `0x1800058a1..0x1800058e6` and calling site `0x1800058be`
   (`rcx=estado, rdx=registro, r8=interfaz D3D12`).
-- Registrar si el dispatch PRE **reutiliza** un contexto/dispositivo/cola ya
-  creado (limitación conocida del parche de contexto, ver
-  [`context-output-fix.md`](context-output-fix.md)) o crea uno nuevo, y con
-  qué parámetros (`CreateDeviceExtensionContext` 4.20.0,
-  `CheckFeatureSupport` OPTIONS1/XMX y OPTIONS2/SIMD16Required).
-- Registrar llamadas a `GetCachedBlob` y su resultado (en el shim de
-  referencia es E_NOTIMPL; su carácter obligatorio no está establecido).
-- Registrar constantes/modelos observados (`4.0.2x`/`4.0.2xm`, lectura de
-  `fsr-original.dll`) solo como procedencia, sin atribuir semántica.
-- Registrar cualquier fail-stop emitido (cadenas en
-  [`pre-dispatch-ghidra.md`](pre-dispatch-ghidra.md): params no listos,
-  binding stock faltante, constantes incompletas, ABI `0x5058`, layout
-  ScratchBuffer, geometría no disponible, anillo de paridad lleno).
+- Record whether the PRE dispatch **reuses** an already-created
+  context/device/queue (known limitation of the context patch, see
+  [`context-output-fix.md`](context-output-fix.md)) or creates a new one, and
+  with which parameters (`CreateDeviceExtensionContext` 4.20.0,
+  `CheckFeatureSupport` OPTIONS1/XMX and OPTIONS2/SIMD16Required).
+- Record calls to `GetCachedBlob` and their result (in the reference shim it
+  is E_NOTIMPL; whether it is mandatory is not established).
+- Record observed constants/models (`4.0.2x`/`4.0.2xm`, reading of
+  `fsr-original.dll`) only as provenance, without attributing semantics.
+- Record any fail-stop emitted (strings in
+  [`pre-dispatch-ghidra.md`](pre-dispatch-ghidra.md): params not ready, missing
+  stock binding, incomplete constants, ABI `0x5058`, ScratchBuffer layout,
+  geometry not available, parity ring full).
 
-### 8. Grid del dispatch y transiciones
+### 8. Dispatch grid and transitions
 
-- Argumentos de `ID3D12GraphicsCommandList::Dispatch`: fórmula estática
-  `x = (w+15)>>4`, `x += x&1`, `y = h>>1` con `w = *(ctx+0x840)`,
-  `h = *(ctx+0x844)`; para 1920×1080: `(120, 540, 1)`. Modos de
-  `FUN_18001c9c0`: 2–3 → sin dispatch PRE; 4 → `(1,1,1)`; 5 → `(x,1,1)`;
-  6 → `(x,0x44,1)`. Registrar `w/h` efectivos y el modo observado.
-- `ResourceBarrier` con estados (`0x40`/`0x400`/`0x800`) alrededor de las
-  copias, `SetDescriptorHeaps`, `SetPipelineState`, y estado/transiciones de
-  cada recurso pre/post.
-- El tamaño local CM/hardware y la máscara de ejecución **no** son argumentos
-  de `Dispatch`: requieren evidencia separada del driver/launcher (ver
-  [`pre-dispatch-dimensions.md`](pre-dispatch-dimensions.md)). No sustituirlos
-  por `1×1×1`, `SubgroupSize 1` ni el selector Vulkan.
+- `ID3D12GraphicsCommandList::Dispatch` arguments: static formula
+  `x = (w+15)>>4`, `x += x&1`, `y = h>>1` with `w = *(ctx+0x840)`,
+  `h = *(ctx+0x844)`; for 1920×1080: `(120, 540, 1)`. `FUN_18001c9c0` modes:
+  2–3 → no PRE dispatch; 4 → `(1,1,1)`; 5 → `(x,1,1)`;
+  6 → `(x,0x44,1)`. Record the effective `w/h` and the observed mode.
+- `ResourceBarrier` with states (`0x40`/`0x400`/`0x800`) around the copies,
+  `SetDescriptorHeaps`, `SetPipelineState`, and the state/transitions of each
+  resource pre/post.
+- The CM/hardware local size and the execution mask are **not** `Dispatch`
+  arguments: they require separate evidence from the driver/launcher (see
+  [`pre-dispatch-dimensions.md`](pre-dispatch-dimensions.md)). Do not substitute
+  them with `1×1×1`, `SubgroupSize 1` or the Vulkan selector.
 
-## Correlación por ID y preservación
+## Correlation by ID and preservation
 
-- Cada fila de evidencia cita `resource_id`, `heap_id:slot`, evento y
-  secuencia. Un handle sin ID de recurso correlacionado es captura incompleta.
-- Nombres de stock wide observados (10, por procedencia, no por semántica):
+- Each evidence row cites `resource_id`, `heap_id:slot`, event and sequence. A
+  handle without a correlated resource ID is an incomplete capture.
+- Observed stock wide names (10, by provenance, not by semantics):
   `MLSR_Optimized_Constants`, `ScratchBuffer`, `rw_reprojected_color`,
   `r_history_color`, `r_velocity`, `r_input_color`, `r_recurrent_0`,
   `r_depth`, `r_input_exposure`, `r_auto_exposure_texture`.
-- Guardar bytes pre/post, captura original y versiones registradas
-  ([checklist](pre-trace-version-checklist.md)) bajo `runs/<id>/evidence/`.
-- No renombrar t0…t8 a color/depth/etc.; no reinterpretar el `7` de la
-  máscara `.xyz` del store como binding; u1 (arg 1/BTI 9) es el destino del
-  store, t6 (arg 8/BTI 7) no se convierte en UAV por ese store.
+- Store pre/post bytes, the original capture and registered versions
+  ([checklist](pre-trace-version-checklist.md)) under `runs/<id>/evidence/`.
+- Do not rename t0…t8 to color/depth/etc.; do not reinterpret the `7` in the
+  store's `.xyz` mask as a binding; u1 (arg 1/BTI 9) is the store destination,
+  t6 (arg 8/BTI 7) is not turned into a UAV by that store.
 
-## Lo que esta captura no establece
+## What this capture does not establish
 
-Formato/contenido inicial de las 8 imágenes, oracle de salida PRE, corrección
-funcional, equivalencia Proton/VKD3D ni validez de reutilizar estos valores
-fuera del `native_1080` trazado. El criterio de aprobación sigue siendo el del
-[contrato controlado](pre-controlled-test-contract.md).
+Initial format/content of the 8 images, PRE output oracle, functional
+correctness, Proton/VKD3D equivalence, nor the validity of reusing these values
+outside the traced `native_1080`. The approval criterion remains the one in the
+[controlled contract](pre-controlled-test-contract.md).

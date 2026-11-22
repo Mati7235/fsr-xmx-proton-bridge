@@ -1,111 +1,103 @@
-# Metodología de readback: qué prueba cada comparación y qué no
+# Readback methodology: what each comparison proves and what it does not
 
-Herramienta: `tools/fsr_readback_compare.py` (solo CPU, solo biblioteca
-estándar con ruta rápida opcional en numpy). Esta nota define cómo leer sus
-resultados cuando tengamos capturas RenderDoc de FSR 4 XMX. No usa em dashes.
+Tool: `tools/fsr_readback_compare.py` (CPU only, standard library only with an
+optional fast path in numpy). This note defines how to read its results once we
+have RenderDoc captures of FSR 4 XMX. It does not use em dashes.
 
-## 1. Determinismo bit a bit entre dos corridas (`diff` sin tolerancia)
+## 1. Bit-for-bit determinism between two runs (`diff` without tolerance)
 
-Qué prueba: repetibilidad. Dos capturas con las mismas entradas, mismo
-driver, mismos pesos y misma resolución deben producir bytes idénticos.
-`diff a.bin b.bin` sale con 0 e `identical: True` solo si los archivos son
-bit a bit iguales.
+What it proves: repeatability. Two captures with the same inputs, same
+driver, same weights and same resolution must produce identical bytes.
+`diff a.bin b.bin` exits with 0 and `identical: True` only if the files are
+bit-for-bit equal.
 
-Qué no prueba: corrección. Un upscaler puede ser perfectamente determinista
-y aun así producir una imagen incorrecta (pesos equivocados, LUT corrupta,
-desplazamiento de UV constante). Determinismo es condición necesaria para
-depurar, no evidencia de calidad.
+What it does not prove: correctness. An upscaler can be perfectly deterministic
+and still produce a wrong image (wrong weights, corrupted LUT, constant UV
+offset). Determinism is a necessary condition for debugging, not evidence of quality.
 
-Notas de lectura:
+Reading notes:
 
-- `--tolerance ABS` separa dos preguntas distintas: "difiere en bits" de
-  "difiere más allá de una tolerancia". Con tolerancia, la salida 0
-  significa acuerdo dentro del umbral aunque haya bits distintos (por
-  ejemplo tras reconversión de formato). Sin tolerancia, cualquier bit
-  distinto da salida 1.
-- `-0.0` contra `0.0` difiere en bits pero tiene error absoluto 0; la
-  herramienta lo reporta como diferencia de bits dentro de tolerancia 0.
-- NaN contra cualquier valor (incluso otro NaN con distinto payload) cuenta
-  como diferencia con error infinito. Dos corridas deterministas nunca
-  deberían producir NaN divergentes; si aparecen, el problema está antes
-  (ver `inspect`).
+- `--tolerance ABS` separates two different questions: "differs in bits" from
+  "differs beyond a tolerance". With tolerance, output 0 means agreement within
+  the threshold even if there are different bits (for example after format
+  conversion). Without tolerance, any differing bit gives output 1.
+- `-0.0` against `0.0` differs in bits but has absolute error 0; the tool
+  reports it as a bit difference within tolerance 0.
+- NaN against any value (even another NaN with a different payload) counts as a
+  difference with infinite error. Two deterministic runs should never produce
+  diverging NaNs; if they appear, the problem is earlier (see `inspect`).
 
-## 2. Plausibilidad de calidad contra una referencia (`metrics`)
+## 2. Quality plausibility against a reference (`metrics`)
 
-Qué prueba: plausibilidad. `metrics candidato.bin referencia.bin` calcula
-PSNR y SSIM por canal y en luminancia. La referencia aquí es un upscaling de
-comparación disponible en Linux (XeSS o TAAU nativo), no AMD. Un PSNR alto y
-un SSIM cercano a 1 indican que el candidato reconstruye detalle de forma
-similar a un upscaler razonable.
+What it proves: plausibility. `metrics candidato.bin referencia.bin` computes
+PSNR and SSIM per channel and on luminance. The reference here is a comparison
+upscaling available on Linux (XeSS or native TAAU), not AMD. A high PSNR and an
+SSIM close to 1 indicate that the candidate reconstructs detail in a way
+similar to a reasonable upscaler.
 
-Qué no prueba: equivalencia con AMD. Ningún umbral de PSNR/SSIM contra XeSS
-demuestra que FSR 4 XMX sea correcto, porque no tenemos su salida en
-hardware AMD para comparar. Solo descarta fallos gruesos (pantalla plana,
-ruido, resolución a la mitad, canales permutados).
+What it does not prove: equivalence with AMD. No PSNR/SSIM threshold against
+XeSS demonstrates that FSR 4 XMX is correct, because we do not have its output
+on AMD hardware to compare against. It only rules out gross failures (flat
+screen, noise, half resolution, permuted channels).
 
-Decisiones de diseño relevantes:
+Relevant design decisions:
 
-- Pico de señal: por defecto 1.0 para formatos float y 255.0 para formatos
-  de 8 bits; se puede forzar con `--peak`. El PSNR siempre se reporta junto
-  al MSE para que el número sea reinterpretable con otro pico.
-- SSIM: media sobre ventanas box de 8x8 sin solapamiento (los bordes usan
-  ventanas parciales), con K1=0.01, K2=0.03 y L igual al pico. Se eligió
-  box 8x8 en lugar de gaussiana 11x11 porque es exacta con memoria O(1) en
-  Python puro; la gaussiana 11x11 con solape exigiría convoluciones que en
-  stdlib puro tardarían minutos a 1080p. La ventana usada queda impresa en
-  cada corrida (`ssim_window:`).
-- Luminancia: Rec.709 (0.2126 R + 0.7152 G + 0.0722 B) para RGB/RGBA; para
-  formatos de 1 o 2 canales se usa el primer canal. El alfa se reporta por
-  canal pero nunca entra en la luminancia: un alfa roto no debe hundir la
-  métrica de calidad de imagen, y un alfa idéntico no debe inflarla.
-- NaN/Inf hacen fallar `metrics` con salida 2 y mensaje explícito. PSNR y
-  SSIM no están definidos con no finitos, y promediarlos los ocultaría; el
-  flujo correcto es `inspect` primero, `metrics` después.
+- Peak signal: by default 1.0 for float formats and 255.0 for 8-bit formats;
+  it can be forced with `--peak`. PSNR is always reported together with the
+  MSE so the number can be reinterpreted with another peak.
+- SSIM: mean over non-overlapping 8x8 box windows (edges use partial windows),
+  with K1=0.01, K2=0.03 and L equal to the peak. A box 8x8 was chosen over an
+  11x11 Gaussian because it is exact with O(1) memory in pure Python; an 11x11
+  Gaussian with overlap would require convolutions that would take minutes in
+  pure stdlib at 1080p. The window used is printed in every run (`ssim_window:`).
+- Luminance: Rec.709 (0.2126 R + 0.7152 G + 0.0722 B) for RGB/RGBA; for
+  1- or 2-channel formats the first channel is used. Alpha is reported per
+  channel but never enters the luminance: broken alpha must not sink the image
+  quality metric, and identical alpha must not inflate it.
+- NaN/Inf make `metrics` fail with exit 2 and an explicit message. PSNR and
+  SSIM are not defined with non-finite values, and averaging them would hide
+  that; the correct flow is `inspect` first, `metrics` afterwards.
 
-## 3. Por qué no hay oracle bit-exacto de FSR 4 sin hardware AMD
+## 3. Why there is no bit-exact oracle for FSR 4 without AMD hardware
 
-Un oracle bit-exacto exigiría reproducir la misma aritmética que el
-hardware: mismo orden de operaciones en cada reducción, mismo redondeo de
-cada instrucción matricial XMX, mismos pesos cuantizados y mismo
-microcódigo de driver. Nada de eso es público para FSR 4, y la red neuronal
-solo existe como binarios para Windows sobre XMX. En una GPU distinta
-(RDNA, NVIDIA, Intel iGPU) las instrucciones equivalentes reordenan y
-redondean distinto, así que ni siquiera una reimplementación perfecta del
-algoritmo daría bytes iguales.
+A bit-exact oracle would require reproducing the same arithmetic as the
+hardware: same order of operations in every reduction, same rounding of each
+XMX matrix instruction, same quantized weights and the same driver
+microcode. None of that is public for FSR 4, and the neural network only exists
+as Windows binaries over XMX. On a different GPU (RDNA, NVIDIA, Intel iGPU) the
+equivalent instructions reorder and round differently, so not even a perfect
+reimplementation of the algorithm would give identical bytes.
 
-Qué haría falta para tenerlo: una captura de salida de referencia generada
-en hardware AMD real con entradas fijas (el par entrada/salida como
-vectores de test), o la publicación por parte de AMD de vectores de
-referencia. Con eso, `diff` con tolerancia 0 contra el oracle sería la
-prueba de equivalencia; sin eso, el techo probatorio es el punto 2.
+What would be needed to have it: a reference output capture generated on real
+AMD hardware with fixed inputs (the input/output pair as test vectors), or AMD
+publishing reference vectors. With that, `diff` with tolerance 0 against the
+oracle would be the equivalence proof; without it, the evidentiary ceiling is point 2.
 
-## 4. Cómo se combina con la evidencia de inyección existente
+## 4. How it combines with the existing injection evidence
 
-El criterio de éxito del proyecto sigue siendo conjuntivo. Cada pata
-descarta una clase distinta de falso positivo:
+The project's success criterion remains conjunctive. Each leg discards a
+different class of false positive:
 
-1. Inyección (`review_image_result.py` y evidencias de driver): prueba que
-   nuestro código corrió en el dispatch correcto y que la salida cruda del
-   buffer coincide con el contrato sintético. No dice nada de calidad
-   visual.
-2. Determinismo (`diff`): prueba que el upscaler es repetible entre
-   corridas. Sin esto, cualquier métrica de calidad es ruido.
-3. Plausibilidad (`metrics` contra XeSS o TAAU): prueba que la imagen
-   reconstruida se parece a un upscaling razonable. Sin esto, un pipeline
-   determinista pero visualmente roto pasaría.
-4. Ojo humano sobre recortes: ninguna métrica sustituye mirar bordes,
-   texto y zonas de alta frecuencia, donde PSNR/SSIM globales promedian y
-   esconden artefactos locales.
+1. Injection (`review_image_result.py` and driver evidence): proves that our
+   code ran on the correct dispatch and that the raw buffer output matches the
+   synthetic contract. It says nothing about visual quality.
+2. Determinism (`diff`): proves that the upscaler is repeatable between runs.
+   Without this, any quality metric is noise.
+3. Plausibility (`metrics` against XeSS or TAAU): proves that the reconstructed
+   image resembles a reasonable upscaling. Without this, a deterministic but
+   visually broken pipeline would pass.
+4. Human eye on crops: no metric replaces looking at edges, text and
+   high-frequency areas, where global PSNR/SSIM average out and hide local artifacts.
 
-Ninguna de estas patas por separado, ni siquiera las cuatro juntas, prueba
-equivalencia con FSR 4 en hardware AMD. Prueban que el puente hace un
-upscaling repetible y visualmente plausible bajo control del test.
+None of these legs alone, not even all four together, proves equivalence with
+FSR 4 on AMD hardware. They prove that the bridge performs repeatable and
+visually plausible upscaling under the test's control.
 
-## 5. Cómo se obtienen los volcados
+## 5. How the dumps are obtained
 
-El mod ya trae readback GPU propio, así que no hace falta RenderDoc para
-esto. `run-full-test.sh` (en el run descartable, ignorado por Git) arma el
-entorno y resume los resultados.
+The mod already has its own GPU readback, so RenderDoc is not needed for
+this. `run-full-test.sh` (in the disposable run, git-ignored) sets up the
+environment and summarizes the results.
 
 ```bash
 cd build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
@@ -114,29 +106,29 @@ cd build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
 ./run-full-test.sh int8 oracle2 --oracle-all --proton-log
 ```
 
-Las dos corridas deben ser la misma zona, resolución y preset: el volcado
-es one-shot en el primer frame útil, así que escenas distintas dan tensores
-distintos por contenido, no por el modelo.
+The two runs must be the same area, resolution and preset: the dump is
+one-shot on the first useful frame, so different scenes give different tensors
+by content, not by model.
 
-Variables que usa, verificadas en el binario del mod:
+Variables it uses, verified in the mod binary:
 
-| Variable | Efecto |
+| Variable | Effect |
 |---|---|
-| `FSR4_XMX_P1..P12_OracleCaptureReadback=1` | arma el volcado one-shot del pase |
-| `MLSR-XMX-PASSn-ORACLE-DUMP=<ruta Windows>` | directorio de `pN_input.bin` / `pN_output.bin` |
-| `MLSR-XMX-PRE-PARITY=1` y `MLSR-XMX-PRE-PARITY-DIR` | paridad del tensor PRE contra el camino stock |
-| `MLSR-XMX-PRE-HOSTPARITY=1`, `MLSR-XMX-PRE-POSTSTORE-PARITY=1` | verificaciones de hash adicionales |
+| `FSR4_XMX_P1..P12_OracleCaptureReadback=1` | arms the one-shot dump of the pass |
+| `MLSR-XMX-PASSn-ORACLE-DUMP=<ruta Windows>` | directory for `pN_input.bin` / `pN_output.bin` |
+| `MLSR-XMX-PRE-PARITY=1` and `MLSR-XMX-PRE-PARITY-DIR` | parity of the PRE tensor against the stock path |
+| `MLSR-XMX-PRE-HOSTPARITY=1`, `MLSR-XMX-PRE-POSTSTORE-PARITY=1` | additional hash checks |
 
-Los nombres con guiones no se pueden pasar con `export`: el script los
-inyecta con `env` al lanzar Proton.
+Names with hyphens cannot be passed with `export`: the script injects them with
+`env` when launching Proton.
 
-El `summary.txt` de cada corrida informa `oracle-armed`, `oracle-captured`,
-`oracle-files`, `pre-parity-exact` y `pre-parity-mismatch`. Después:
+The `summary.txt` of each run reports `oracle-armed`, `oracle-captured`,
+`oracle-files`, `pre-parity-exact` and `pre-parity-mismatch`. Afterwards:
 
 ```bash
 python3 tools/fsr_readback_compare.py inspect results/oracle1-*/oracle/p9_output.bin --format rgba32f --width 1920 --height 1080
 python3 tools/fsr_readback_compare.py diff results/oracle1-*/oracle/p9_output.bin results/oracle2-*/oracle/p9_output.bin
 ```
 
-Si el formato y las dimensiones del tensor no coinciden con lo supuesto,
-`inspect` falla con exit 2 en vez de inventar una interpretación.
+If the tensor's format and dimensions do not match what was assumed,
+`inspect` fails with exit 2 instead of inventing an interpretation.

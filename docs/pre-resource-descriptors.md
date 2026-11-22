@@ -1,55 +1,54 @@
-# PRE native_1080: reconstrucción estática de recursos
+# PRE native_1080: static reconstruction of resources
 
-## Resultado
+## Result
 
-Análisis de la DLL fijada `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`
-y del PRE Xe2 `40102/native_1080`. Es estático: no se ejecutó la DLL, no hubo
-captura nueva ni dispatch PRE. La prueba sintética de imagen/sampler reportada por
-el usuario (64 valores correctos y 1.984 words centinela intactos) solo valida ese
-probe; no proporciona descriptores ni datos de los recursos PRE.
+Analysis of the pinned DLL `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`
+and of the PRE Xe2 `40102/native_1080`. It is static: the DLL was not executed, there
+was no new capture, and there was no PRE dispatch. The synthetic image/sampler test
+reported by the user (64 correct values and 1,984 sentinel words intact) only validates
+that probe; it does not provide descriptors or data for the PRE resources.
 
-**Conclusión acotada:** la ruta normal sí materializa vistas D3D12 para buffers
-PRE y copia descriptores de imágenes. Los headers locales LLVM-MinGW fijados
-permiten identificar los métodos COM y los layouts usados. Aun así, los formatos
-y dimensiones de las imágenes fuente, el tamaño real de los backing resources y
-los bytes iniciales no se deducen de estas vistas. La DLL contiene operaciones
-D3D12 indirectas; la ausencia de imports directos no implicaba que no creara
-vistas o copiara descriptores.
+**Bounded conclusion:** the normal path does materialize D3D12 views for PRE buffers and
+copies image descriptors. The pinned local LLVM-MinGW headers allow identifying the COM
+methods and the layouts used. Even so, the formats and dimensions of the source images,
+the real size of the backing resources, and the initial bytes cannot be deduced from
+these views. The DLL contains indirect D3D12 operations; the absence of direct imports
+did not imply that it did not create views or copy descriptors.
 
-## Mapa exacto que sí se recupera
+## Exact map that is recovered
 
-La ruta normal del dispatch es `0x1800163c0..0x180017b6e` (`dil == 0`); carga el
-array RVA `0x68988` y enlaza roots 1–11 en `0x180017410..0x180017435`, y root 12
-con el heap de sampler en `0x180017543`. El mapa de argumentos/BTIs se contrastó
-con `analysis/offline-pre/full/ze_info.yaml` y el SPIR-V fijado:
+The normal dispatch path is `0x1800163c0..0x180017b6e` (`dil == 0`); it loads the RVA
+array `0x68988` and binds roots 1–11 at `0x180017410..0x180017435`, and root 12 with the
+sampler heap at `0x180017543`. The argument/BTI map was cross-checked with
+`analysis/offline-pre/full/ze_info.yaml` and the pinned SPIR-V:
 
-| Recurso PRE | Arg | Root/register | Heap/slot relativo | Clase de descriptor en la firma | Formato/tamaño recuperado |
+| PRE resource | Arg | Root/register | Relative heap/slot | Descriptor class in the signature | Recovered format/size |
 |---|---:|---|---|---|---|
-| buffer mixto | 0 | 1 / u0 | recursos / 7 | UAV `BUFFER`, `R8_UINT`, `FirstElement=0`; `NumElements=resource.Width` | `GetDesc` exige `Dimension=BUFFER (1)` y `Width <= 0xffffffff`; el mínimo depende de un factor de la tabla de variante. Para native_1080, factor 1: `Width >= 8.294.400 bytes`. Width exacto es runtime. |
-| imagen destino | 1 | 2 / u1 | recursos / 8 | Image2D ReadWrite | Se copia un descriptor de imagen a slot 8 mediante `CopyDescriptorsSimple`; source descriptor y formato no se recuperan en esta secuencia. |
-| imagen t0 | 2 | 3 / t0 | recursos / 0 | Image2D ReadOnly | Descriptor fuente copiado por helper `0x180002df0`, source index recibido en el caller; formato/dimensiones de origen pendientes. |
-| imagen t1 | 3 | 4 / t1 | recursos / 1 | Image2D ReadOnly | Descriptor fuente copiado por helper `0x180002df0`, source index recibido en el caller; formato/dimensiones de origen pendientes. |
-| imagen t2 | 4 | 5 / t2 | recursos / 2 | Image2D ReadOnly | Descriptor fuente copiado por helper `0x180002df0`, source index recibido en el caller; formato/dimensiones de origen pendientes. |
-| imagen t3 | 5 | 6 / t3 | recursos / 3 | Image2D ReadOnly | Descriptor fuente copiado por helper `0x180002df0`, source index recibido en el caller; formato/dimensiones de origen pendientes. |
-| imagen t4 | 6 | 7 / t4 | recursos / 4 | Image2D ReadOnly | Descriptor fuente copiado por helper `0x180002df0`, source index recibido en el caller; formato/dimensiones de origen pendientes. |
-| imagen t5 | 7 | 8 / t5 | recursos / 5 | Image2D ReadOnly | Descriptor fuente copiado por helper `0x180002df0`, source index recibido en el caller; formato/dimensiones de origen pendientes. |
-| imagen t6 | 8 | 9 / t6 | recursos / 6 | Image2D ReadOnly | Descriptor fuente copiado por helper `0x180002df0`, source index recibido en el caller; formato/dimensiones de origen pendientes. |
-| buffer | 9 | 10 / t7 | recursos / 9 | SRV `BUFFER`, `R8_UINT`, first element 0, 2.112 elementos / bytes | Recurso procede de contexto `+0xa80`; la vista cubre 2.112 B. Asignación backing y contenido inicial no deducidos. |
-| buffer header | 10 | 11 / t8 | recursos / 10 | SRV `BUFFER`, `R8_UINT`, first element 0, 128 elementos / bytes | Recurso procede de contexto `+0xa98`; vista/header de 128 B. Asignación backing y bytes del header son runtime. |
-| sampler | 11 | 12 / s0 | heap sampler / 0 | sampler | MIN/MAG/MIP linear; CLAMP U/V/W; bias 0, max anisotropy 1, comparison ALWAYS, MinLOD 0, MaxLOD FLT_MAX. |
+| mixed-access buffer | 0 | 1 / u0 | resources / 7 | UAV `BUFFER`, `R8_UINT`, `FirstElement=0`; `NumElements=resource.Width` | `GetDesc` requires `Dimension=BUFFER (1)` and `Width <= 0xffffffff`; the minimum depends on a factor from the variant table. For native_1080, factor 1: `Width >= 8.294.400 bytes`. The exact Width is runtime. |
+| destination image | 1 | 2 / u1 | resources / 8 | Image2D ReadWrite | An image descriptor is copied to slot 8 via `CopyDescriptorsSimple`; the source descriptor and format are not recovered in this sequence. |
+| image t0 | 2 | 3 / t0 | resources / 0 | Image2D ReadOnly | Source descriptor copied by helper `0x180002df0`, source index received from the caller; source format/dimensions pending. |
+| image t1 | 3 | 4 / t1 | resources / 1 | Image2D ReadOnly | Source descriptor copied by helper `0x180002df0`, source index received from the caller; source format/dimensions pending. |
+| image t2 | 4 | 5 / t2 | resources / 2 | Image2D ReadOnly | Source descriptor copied by helper `0x180002df0`, source index received from the caller; source format/dimensions pending. |
+| image t3 | 5 | 6 / t3 | resources / 3 | Image2D ReadOnly | Source descriptor copied by helper `0x180002df0`, source index received from the caller; source format/dimensions pending. |
+| image t4 | 6 | 7 / t4 | resources / 4 | Image2D ReadOnly | Source descriptor copied by helper `0x180002df0`, source index received from the caller; source format/dimensions pending. |
+| image t5 | 7 | 8 / t5 | resources / 5 | Image2D ReadOnly | Source descriptor copied by helper `0x180002df0`, source index received from the caller; source format/dimensions pending. |
+| image t6 | 8 | 9 / t6 | resources / 6 | Image2D ReadOnly | Source descriptor copied by helper `0x180002df0`, source index received from the caller; source format/dimensions pending. |
+| buffer | 9 | 10 / t7 | resources / 9 | SRV `BUFFER`, `R8_UINT`, first element 0, 2,112 elements / bytes | Resource comes from context `+0xa80`; the view covers 2,112 B. Backing allocation and initial contents not deduced. |
+| buffer header | 10 | 11 / t8 | resources / 10 | SRV `BUFFER`, `R8_UINT`, first element 0, 128 elements / bytes | Resource comes from context `+0xa98`; view/header of 128 B. Backing allocation and header bytes are runtime. |
+| sampler | 11 | 12 / s0 | sampler heap / 0 | sampler | MIN/MAG/MIP linear; CLAMP U/V/W; bias 0, max anisotropy 1, comparison ALWAYS, MinLOD 0, MaxLOD FLT_MAX. |
 
-Los números de slots son relativos al heap/tabla que usa la ruta normal, no
-índices absolutos. `t7` y `t8` son SRV por la root signature aunque sus tipos CM
-sean ReadWrite. La imagen destino es arg 1/u1/BTI 9, no arg 8/t6; el `7` de la
-máscara `0,0,7` del store typed-quad habilita canales `.xyz`, no es un binding.
+Slot numbers are relative to the heap/table used by the normal path, not absolute
+indices. `t7` and `t8` are SRVs according to the root signature even though their CM
+types are ReadWrite. The destination image is arg 1/u1/BTI 9, not arg 8/t6; the `7` in
+the `0,0,7` mask of the typed-quad store enables the `.xyz` channels, it is not a binding.
 
-## Datos de buffers demostrables
+## Recoverable buffer data
 
 ### Arg 0 / u0
 
-El PRE genera un write de 128 bytes por grupo, en unidades OWORD, con índice
-`wg_y * 960 + wg_x * 8` (SPIR-V `:15977-15993`). Con el dominio aceptado por los
-guards, `wg_x < 120`, `wg_y < 540`, el extremo exclusivo del último write es:
+PRE generates a 128-byte write per group, in OWORD units, at index
+`wg_y * 960 + wg_x * 8` (SPIR-V `:15977-15993`). With the domain accepted by the guards,
+`wg_x < 120`, `wg_y < 540`, the exclusive end of the last write is:
 
 ```text
 ((539 * 960) + (119 * 8) + 8) OWORD * 16 bytes/OWORD
@@ -57,104 +56,99 @@ guards, `wg_x < 120`, `wg_y < 540`, el extremo exclusivo del último write es:
 = 8,294,400 bytes
 ```
 
-El store final tiene esa cobertura si se despacha grid completa 120×540 y los
-grupos pasan su guard. Además, la DLL hace `ID3D12Resource::GetDesc` del buffer
-seleccionado como arg 0 y compara `Dimension` con `edx=1`, es decir
-`D3D12_RESOURCE_DIMENSION_BUFFER`. **El factor en `eax` es otro valor:** se
-carga del campo `+0x24` de `tabla[selector - 1]`, con stride `0x4f0` y selector
-en el DWORD `contexto+0x830`, o vale 1
-por defecto (`0x180016984..0x1800169df`). No confundir los dos registros.
-Después comprueba `Width >= factor² * 0x7e9000` y
-`Width <= 0xffffffff` (`0x180016973..0x180016a0e`; el `GetDesc` indirecto está en
-`+0x50`). La extracción directa de la tabla fijada identifica `native_1080`
-como selector 1, con factor 1, por lo que su límite inferior es **8.294.400 B**.
-Las variantes 2160/4320 tienen factores 2/4, no otras dimensiones de recurso.
-Luego usa `Width` como `NumElements` de un UAV
-`R8_UINT` en heap slot 7 (`0x180017184..0x1800171ff`). Esto sí demuestra una
-restricción de capacidad del recurso en esta ruta, pero no su Width exacto de
-runtime; no implica RGBA8. Arg 0 también tiene lecturas y scratch seleccionados
-por arg 10. No inicializarlo como readback vacío.
+The final store has that coverage if the full 120×540 grid is dispatched and the groups
+pass their guard. In addition, the DLL calls `ID3D12Resource::GetDesc` on the buffer
+selected as arg 0 and compares `Dimension` with `edx=1`, that is,
+`D3D12_RESOURCE_DIMENSION_BUFFER`. **The factor in `eax` is a different value:** it is
+loaded from field `+0x24` of `tabla[selector - 1]`, with stride `0x4f0` and the selector
+in the DWORD `contexto+0x830`, or it is 1 by default (`0x180016984..0x1800169df`). Do not
+confuse the two registers. It then checks `Width >= factor² * 0x7e9000` and
+`Width <= 0xffffffff` (`0x180016973..0x180016a0e`; the indirect `GetDesc` is at
+`+0x50`). Direct extraction from the pinned table identifies `native_1080` as selector 1,
+with factor 1, so its lower bound is **8,294,400 B**. The 2160/4320 variants have factors
+2/4, not other resource dimensions. It then uses `Width` as the `NumElements` of an
+`R8_UINT` UAV in heap slot 7 (`0x180017184..0x1800171ff`). This does demonstrate a
+capacity restriction on the resource in this path, but not its exact runtime Width; it
+does not imply RGBA8. Arg 0 also has reads and scratch selected by arg 10. Do not
+initialize it as an empty readback.
 
 ### Arg 10 / t8
 
-El shader carga 128 bytes desde arg 10 como header. Los campos usados incluyen
-DWORDs en offsets 8–84, campos de dirección/bytes en 64–80, flags en byte 100 y
-base en byte 104 (SPIR-V `:5190-5325`, `:5573-5602`). Bit `0x400` de flags es
-guard; bit `0x2000` decide entre `base` y `base+16` para la lectura float4. Un
-float4 de 16 bytes se lee desde arg 0 usando como byte offset `base` o
-`base+16` (`:5573-5614`, particularmente el `oword.ld.unaligned` en
-`:5606-5612`). Por tanto, en este camino del IR, `base` **no se consume como VA**:
-es desplazamiento relativo al buffer arg 0, condicionado por el flag `0x2000`.
-Esto identifica una relación entre recursos, no la longitud/alineación asignada
-de arg 0 ni la validez de los datos que el host coloque allí. Los otros offsets
-del header tampoco deben recibir nombres semánticos sin ABI del caller.
+The shader loads 128 bytes from arg 10 as a header. The fields used include DWORDs at
+offsets 8–84, address/byte fields at 64–80, flags at byte 100, and a base at byte 104
+(SPIR-V `:5190-5325`, `:5573-5602`). Bit `0x400` of the flags is a guard; bit `0x2000`
+chooses between `base` and `base+16` for the float4 read. A 16-byte float4 is read from
+arg 0 using `base` or `base+16` as the byte offset (`:5573-5614`, particularly the
+`oword.ld.unaligned` at `:5606-5612`). Therefore, in this IR path, `base` **is not
+consumed as a VA**: it is an offset relative to the arg 0 buffer, conditioned by the
+`0x2000` flag. This identifies a relationship between resources, not the assigned
+length/alignment of arg 0 nor the validity of the data the host places there. The other
+header offsets must not receive semantic names without the caller's ABI either.
 
-### Arg 9 / t7 y arg 10 / t8
+### Arg 9 / t7 and arg 10 / t8
 
-`ID3D12Device::CreateShaderResourceView` se llama con recurso desde estado
-`+0xa80` para slot 9 y `+0xa98` para slot 10 (`0x1800172e1..0x180017367`). Ambas
-descripciones son `Format=0x3e` (`DXGI_FORMAT_R8_UINT`),
-`ViewDimension=1` (`D3D12_SRV_DIMENSION_BUFFER`),
+`ID3D12Device::CreateShaderResourceView` is called with the resource from state `+0xa80`
+for slot 9 and `+0xa98` for slot 10 (`0x1800172e1..0x180017367`). Both descriptions have
+`Format=0x3e` (`DXGI_FORMAT_R8_UINT`), `ViewDimension=1` (`D3D12_SRV_DIMENSION_BUFFER`),
 `Shader4ComponentMapping=0x1688` (`D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING`),
-`FirstElement=0`, `StructureByteStride=0`, `Flags=0`. `NumElements` es 0x840
-(2.112 bytes) para arg 9 y 0x80 (128 bytes) para arg 10. El primer elemento es
-typed, no `RAW` (los flags son cero). Los SRV limitan el rango visible, pero no
-informan el Width de cada backing resource ni su contenido inicial. Arg 10
-contiene al menos los 128 bytes que el kernel carga; los DWORDs de ese header son
-entradas del caller, no valores inicializados por este descriptor.
+`FirstElement=0`, `StructureByteStride=0`, `Flags=0`. `NumElements` is 0x840
+(2,112 bytes) for arg 9 and 0x80 (128 bytes) for arg 10. The first element is typed,
+not `RAW` (the flags are zero). SRVs limit the visible range, but they do not report the
+Width of each backing resource nor its initial contents. Arg 10 contains at least the 128
+bytes that the kernel loads; the DWORDs of that header are entries supplied by the caller,
+not values initialized by this descriptor.
 
-## Caller graph: APIs, handle tables y creación de vistas
+## Caller graph: APIs, handle tables and view creation
 
-El dump fijado (`analysis/fsr-xmx-disassembly.txt`, SHA-256
-`4007779c416772def4eecdd20acefb5d52deb6c8d0f0f895473761653f4e66b0`) da un
-call-xref directo a `0x1800163c0`: `0x1800058be` dentro de la ruta de contexto en
-`0x1800058a1..0x1800058e6`. Esa función es un wrapper interno, no una frontera
-exportada. El límite público FFX incluye `ffxCreateContext` (`0x180001290`),
-`ffxDispatch` (`0x1800013b0`) y `ffxQuery` (`0x180001400`); el wrapper llama al
-setup/dispatch PRE con `rcx=estado`, `rdx=registro` y `r8=interfaz D3D12`
-(convención x64). Los descriptores de imagen fuente se leen/copian desde el heap
-de origen del contexto; este bloque de copia no muestra quién creó esas imágenes.
+The pinned dump (`analysis/fsr-xmx-disassembly.txt`, SHA-256
+`4007779c416772def4eecdd20acefb5d52deb6c8d0f0f895473761653f4e66b0`) gives a direct
+call-xref to `0x1800163c0`: `0x1800058be` inside the context path at
+`0x1800058a1..0x1800058e6`. That function is an internal wrapper, not an exported
+boundary. The public FFX boundary includes `ffxCreateContext` (`0x180001290`),
+`ffxDispatch` (`0x1800013b0`) and `ffxQuery` (`0x180001400`); the wrapper calls the PRE
+setup/dispatch with `rcx=estado`, `rdx=registro` and `r8=interfaz D3D12` (x64
+convention). The source image descriptors are read/copied from the context's source heap;
+this copy block does not show who created those images.
 
-La atribución de vtable se contrasta con `ID3D12Device`/`ID3D12DescriptorHeap`
-de los headers locales fijados (SHA más abajo): `+0x48` en descriptor heap es
-`GetCPUDescriptorHandleForHeapStart`; `+0x90`, `+0x98` y `+0xc0` en device son
-`CreateShaderResourceView`, `CreateUnorderedAccessView` y
-`CopyDescriptorsSimple`. El `0x3e` que se escribe en `0x1800171c2`/`0x1800172fd`
-es el campo `Format` D3D12, no un tipo de callback ni una solicitud FFX.
+The vtable attribution is cross-checked against `ID3D12Device`/`ID3D12DescriptorHeap` in
+the pinned local headers (SHA below): `+0x48` on the descriptor heap is
+`GetCPUDescriptorHandleForHeapStart`; `+0x90`, `+0x98` and `+0xc0` on the device are
+`CreateShaderResourceView`, `CreateUnorderedAccessView` and `CopyDescriptorsSimple`. The
+`0x3e` written at `0x1800171c2`/`0x1800172fd` is the D3D12 `Format` field, not a callback
+type nor an FFX request.
 
-- El buffer arg 0 recibe un UAV `R8_UINT` tipo `BUFFER`, `FirstElement=0`,
-  `NumElements=resource.Width`, stride/counter/flags cero, en el heap slot 7.
-  La ruta llama `GetDesc`, exige dimensión BUFFER y aplica el límite de capacidad
-  dependiente del factor de variante documentado arriba.
-- Arg 9 / t7: `CreateShaderResourceView` con recurso `[context+0xa80]`, SRV
-  `R8_UINT BUFFER`, `NumElements=0x840`, destinado a heap slot 9.
-- Arg 10 / t8: análogo con `[context+0xa98]`, `NumElements=0x80`, slot 10.
-- Args 2–8 / t0–t6: en `0x18001711b..0x18001717f` se invoca siete veces al
-  helper `0x180002df0`, con destino 0..6 y source indices seleccionados en
-  `r8d`: slot0 toma `[rsp+0x78]`, slot1 `[rsp+0x7c]`, slot2 `esi`, slot3
-  `[rbp-0x80]`, slot4 `[rbp-0x7c]`, slot5 `edi` y slot6 `ebx`. Esos valores
-  se seleccionan en el dispatch desde el registro de recursos (`r13`), no son
-  constantes de formato. El helper obtiene el
-  CPU-handle inicial del heap de origen en `[context+0x1b40]`, suma
-  `sourceIndex * descriptorIncrement` y llama `ID3D12Device::CopyDescriptorsSimple`
-  (`+0xc0`) para copiarlo al heap PRE interno. Así se establece procedencia por
-  descriptor, no el formato o las dimensiones de la textura fuente.
-- Arg 1 / u1, heap slot 8: la rama normal llama también a
-  `CopyDescriptorsSimple` (`0x18001727e`) con índice de destino 8; el origen es
-  otro descriptor de imagen. La fuente no se materializa como `D3D12_*_VIEW_DESC`
-  en este bloque, por lo que el formato de la imagen no se deriva aquí.
+- The arg 0 buffer receives an `R8_UINT` UAV of type `BUFFER`, `FirstElement=0`,
+  `NumElements=resource.Width`, stride/counter/flags zero, in heap slot 7. The path calls
+  `GetDesc`, requires BUFFER dimension and applies the capacity limit that depends on the
+  variant factor documented above.
+- Arg 9 / t7: `CreateShaderResourceView` with resource `[context+0xa80]`, SRV
+  `R8_UINT BUFFER`, `NumElements=0x840`, destined for heap slot 9.
+- Arg 10 / t8: analogous with `[context+0xa98]`, `NumElements=0x80`, slot 10.
+- Args 2–8 / t0–t6: at `0x18001711b..0x18001717f` the helper `0x180002df0` is invoked
+  seven times, with destination 0..6 and source indices selected in `r8d`: slot 0 takes
+  `[rsp+0x78]`, slot 1 `[rsp+0x7c]`, slot 2 `esi`, slot 3 `[rbp-0x80]`, slot 4
+  `[rbp-0x7c]`, slot 5 `edi` and slot 6 `ebx`. Those values are selected in the dispatch
+  from the resource register (`r13`); they are not format constants. The helper obtains
+  the initial CPU handle of the source heap at `[context+0x1b40]`, adds
+  `sourceIndex * descriptorIncrement` and calls `ID3D12Device::CopyDescriptorsSimple`
+  (`+0xc0`) to copy it into the internal PRE heap. This establishes the provenance per
+  descriptor, not the format or dimensions of the source texture.
+- Arg 1 / u1, heap slot 8: the normal branch also calls `CopyDescriptorsSimple`
+  (`0x18001727e`) with destination index 8; the source is another image descriptor. The
+  source is not materialized as a `D3D12_*_VIEW_DESC` in this block, so the image format
+  is not derived here.
 
-El loop `0x180017410..0x180017435` enlaza las 11 tablas; root 12 enlaza sampler.
-El único call-xref directo a `0x1800163c0` sigue siendo `0x1800058be`. La DLL
-selecciona recursos guardados en contexto y crea/copia sus vistas, pero no se
-recupera de este dump quién creó los recursos origen ni los bytes iniciales de
-imágenes/buffers. La reconstrucción no ha completado la cadena desde la entrada
-pública hasta cada creador/handle; no demuestra que esa cadena esté ausente de
-la DLL. Un registro de los valores efectivos del dispatch requeriría captura.
+The loop at `0x180017410..0x180017435` binds the 11 tables; root 12 binds the sampler.
+The only direct call-xref to `0x1800163c0` remains `0x1800058be`. The DLL selects resources
+stored in the context and creates/copies their views, but this dump does not recover who
+created the source resources nor the initial bytes of the images/buffers. The
+reconstruction has not completed the chain from the public entry point to each
+creator/handle; it does not demonstrate that this chain is absent from the DLL. A record
+of the effective dispatch values would require a capture.
 
-El extractor `tools/reconstruct_pre_resources.py` fija hashes de DLL, dump y
-headers, recupera los SRV/UAV, la relación contexto/heap slots y ventanas de las
-copias de descriptores, sin cargar la DLL:
+The extractor `tools/reconstruct_pre_resources.py` pins DLL, dump and header hashes,
+recovers the SRV/UAV, the relationship between context and heap slots, and the windows of
+the descriptor copies, without loading the DLL:
 
 ```bash
 python tools/reconstruct_pre_resources.py \
@@ -163,82 +157,74 @@ python tools/reconstruct_pre_resources.py \
 python -m unittest discover -s tests -p test_pre_resources.py -v
 ```
 
-Los tests opcionales con artefactos locales contrastan la tabla de las 18
-variantes y compilan assertions contra los headers Windows reales: offsets de
-vtables y estructuras, `R8_UINT=62`, `BUFFER=1` y component mapping `0x1688`.
-Es compilación sintáctica, no ejecución de una DLL. El reporte local completo
-se conserva en `analysis/pre-resource-descriptors.json`.
+The optional tests with local artifacts cross-check the table of the 18 variants and
+compile assertions against the real Windows headers: vtable and structure offsets,
+`R8_UINT=62`, `BUFFER=1` and component mapping `0x1688`. This is syntactic compilation,
+not execution of a DLL. The full local report is kept in
+`analysis/pre-resource-descriptors.json`.
 
-## Qué bloquea dimensiones y formatos de imagen
+## What constrains image dimensions and formats
 
-El IR fija imágenes 2D y el guard de grid `120×540×1`; no fija ancho/alto de las
-imágenes, DXGI/Vulkan format, número de canales físicos, mip/layer, sample count,
-permisos concretos del descriptor ni bytes asignados. `native_1080` es selector
-de variante del kernel, no una descripción D3D12 de cada recurso. Las
-operaciones sample/load del IR demuestran uso, no la descripción elegida por el
-host. El descriptor dinámico que apunta al recurso no aparece materializado en
-la root signature ni en la tabla constante de slots.
+The IR fixes 2D images and the grid guard `120×540×1`; it does not fix the width/height of
+the images, the DXGI/Vulkan format, the number of physical channels, mip/layer, sample
+count, the concrete descriptor permissions, or the allocated bytes. `native_1080` is a
+variant selector of the kernel, not a D3D12 description of each resource. The sample/load
+operations of the IR demonstrate usage, not the description chosen by the host. The
+dynamic descriptor pointing to the resource does not appear materialized in the root
+signature nor in the constant slot table.
 
-La investigación estática de la DLL localiza la creación de la root signature
-en `0x18002c13f..0x18002c4bd`, sampler en `0x18002cc23..0x18002cc8b`, y el
-dispatch normal arriba indicado. La inspección de imports PE (`llvm-objdump -p`)
-no encuentra imports directos de `CreateCommittedResource`,
-`CreateShaderResourceView` ni `CreateUnorderedAccessView`. Eso solo describe la
-tabla de imports. El dump sí muestra llamadas directas mediante vtables D3D12
-para crear vistas y copiar descriptores. No resuelve una llamada de asignación
-`CreateCommittedResource` ni descarta otros caminos de creación. «No localicé un
-import» no equivale a «la DLL no asigna recursos».
+The static investigation of the DLL locates the creation of the root signature at
+`0x18002c13f..0x18002c4bd`, the sampler at `0x18002cc23..0x18002cc8b`, and the normal
+dispatch indicated above. Inspection of the PE imports (`llvm-objdump -p`) finds no direct
+imports of `CreateCommittedResource`, `CreateShaderResourceView` or
+`CreateUnorderedAccessView`. That only describes the import table. The dump does show
+direct calls through D3D12 vtables to create views and copy descriptors. It does not
+resolve a `CreateCommittedResource` allocation call nor rule out other creation paths.
+"I did not find an import" is not equivalent to "the DLL does not allocate resources".
 
-## Oracle requerido y captura mínima
+## Required oracle and minimal capture
 
-Queda pendiente seguir los índices de origen hasta las rutinas que crean y
-llenan cada vista/recurso; no se ha demostrado que sea imposible resolverlo
-estáticamente. Una alternativa es una traza autorizada del host en el mismo
-camino `native_1080`, antes del primer dispatch PRE. Debe registrar, correlacionado por
-ID de recurso/descriptor:
+It remains pending to follow the source indices to the routines that create and fill each
+view/resource; it has not been shown to be impossible to resolve statically. An
+alternative is an authorized host trace on the same `native_1080` path, before the first
+PRE dispatch. It must record, correlated by resource/descriptor ID:
 
-1. `CreateCommittedResource` / placed/reserved resource o importación, con
-   `D3D12_RESOURCE_DESC` completo (dimension, width, height, depth/array, mip,
-   format, sample count, layout, flags), heap properties y tamaño/offset de
-   asignación cuando aplique.
-2. Cada `CreateShaderResourceView`/`CreateUnorderedAccessView` y
-   `CopyDescriptors*`: resource asociado, `D3D12_*_VIEW_DESC`, formato,
-   mip/layer/rango, slot final y heap. También seguir aliases/copies, no solo
-   direcciones de handles.
-3. `GetDesc`/identidad de los recursos enlazados a heapslots 0–10 justo antes
-   del dispatch; valores/bytes de entrada de buffers args 0/9/10. Para arg 10,
-    conservar el header de 128 bytes y los bytes de arg 0 referenciados por el
-    offset del byte 104, con límites legibles y flags originales; no tratarlo
-    como una dirección virtual.
-4. Root-table GPU handles, heap bases/incremento, sampler desc, grid de
-   `Dispatch` y estado/transiciones de recursos. El tamaño local CM/hardware
-   requiere evidencia separada: no es un argumento de `ID3D12GraphicsCommandList::Dispatch`.
-   Volcar datos pre y
-   post dispatch sin modificar el estado observado.
+1. `CreateCommittedResource` / placed/reserved resource or import, with the complete
+   `D3D12_RESOURCE_DESC` (dimension, width, height, depth/array, mip, format, sample count,
+   layout, flags), heap properties and allocation size/offset where applicable.
+2. Each `CreateShaderResourceView`/`CreateUnorderedAccessView` and `CopyDescriptors*`:
+   associated resource, `D3D12_*_VIEW_DESC`, format, mip/layer/range, final slot and heap.
+   Also follow aliases/copies, not only handle addresses.
+3. `GetDesc`/identity of the resources bound to heap slots 0–10 just before the dispatch;
+   input values/bytes of the buffers in args 0/9/10. For arg 10, keep the 128-byte header
+   and the bytes of arg 0 referenced by the offset at byte 104, with readable limits and
+   original flags; do not treat it as a virtual address.
+4. GPU root-table handles, heap bases/increment, sampler desc, `Dispatch` grid and
+   resource state/transitions. The local CM/hardware size requires separate evidence: it
+   is not an argument of `ID3D12GraphicsCommandList::Dispatch`. Dump pre- and
+   post-dispatch data without modifying the observed state.
 
-Una traza D3D12 instrumentada en un **prefijo desechable** o documentación
-verificable del llamador puede completar las descripciones/identidades que los
-descriptores copiados no transportan. Esa traza es evidencia de entrada, no un
-oracle de corrección funcional ni prueba de que Proton/VKD3D haya implementado
-correctamente PRE. Registrar ejecutable/versiones/hashes, correlacionar IDs y
-handles con roots/slots, guardar bytes pre/post y preservar la captura original;
-el resultado del probe sintético no es sustituto.
+An instrumented D3D12 trace in a **disposable prefix** or verifiable documentation of the
+caller can complete the descriptions/identities that the copied descriptors do not carry.
+That trace is input evidence, not a functional correctness oracle, nor proof that
+Proton/VKD3D correctly implemented PRE. Record executable/versions/hashes, correlate IDs
+and handles with roots/slots, save pre/post bytes and preserve the original capture; the
+result of the synthetic probe is not a substitute.
 
-Una vez identificados los recursos origen, se pueden fijar tamaños/layouts y
-crear un input reproducible. Aún hará falta comparar salida PRE con una
-implementación de referencia independiente (o CPU oracle validado contra ella)
-para afirmar corrección funcional; una captura de descriptores, inyección,
-no-corrupción de guards o ausencia de errores no lo sustituye.
+Once the source resources are identified, sizes/layouts can be fixed and a reproducible
+input can be created. A comparison of the PRE output against an independent reference
+implementation (or a CPU oracle validated against it) will still be needed to claim
+functional correctness; a descriptor capture, injection, non-corruption of guards or
+absence of errors does not replace it.
 
-## Corroboración independiente con REA
+## Independent corroboration with REA
 
-Ver [evidencia estática REA](rea-static-evidence.md): imports completos sin
-creación directa de recursos, 5 exports FFX y 5 recursos con hashes idénticos
-al manifiesto local. Con Ghidra 12.2 disponible, el [dispatch quedó
-decompilado](pre-dispatch-ghidra.md): bindings stock por nombre, fórmula de
-grid, fail-stops y helper de copia.
+See [static REA evidence](rea-static-evidence.md): complete imports without direct
+resource creation, 5 FFX exports and 5 resources with hashes identical to the local
+manifest. With Ghidra 12.2 available, the [dispatch was decompiled](pre-dispatch-ghidra.md):
+stock bindings by name, grid formula, fail-stops and the copy helper.
 
-## Reproducción y evidencia fijada
+## Reproduction and pinned evidence
 
 ```bash
 sha256sum artifacts/extracted/fsr-xmx/amd_fidelityfx_upscaler_dx12.dll \
@@ -246,12 +232,15 @@ sha256sum artifacts/extracted/fsr-xmx/amd_fidelityfx_upscaler_dx12.dll \
 llvm-objdump -p artifacts/extracted/fsr-xmx/amd_fidelityfx_upscaler_dx12.dll
 ```
 
-Resultados al redactar: DLL SHA-256 `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`;
+Results at the time of writing: DLL SHA-256 `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`;
 disassembly SHA-256 `4007779c416772def4eecdd20acefb5d52deb6c8d0f0f895473761653f4e66b0`.
-Referencias adicionales: `docs/pre-resource-map.md:123-150`,
+Additional references: `docs/pre-resource-map.md:123-150`,
 `docs/pre-controlled-test-contract.md:20-65,88-108`,
 `analysis/offline-pre/full/ze_info.yaml:15-160`,
 `analysis/fsr-resources/xe2-first.spvasm:5166-5185,5190-5325,5573-5634,15977-15993`,
-`analysis/pre-dispatch-snippet.txt:76-89`. Headers contrastados: `artifacts/extracted/llvm-mingw-20261020-ucrt/llvm-mingw-20261020-ucrt-ubuntu-22.04-x86_64/generic-w64-mingw32/include/d3d12.h` SHA-256 `23935395fe8939ac0ca71c5b34cd7b21a689ff5e9641846563613f24bc0dd85e` y `dxgiformat.h` SHA-256 `8a4e770d3022aff667b7d4f03f0cf5a068ecde87f357c9791f275954c1461c48`. El SHA del disassembly identifica
-el archivo usado para las direcciones, no acredita independientemente la
-corrección de su decodificación.
+`analysis/pre-dispatch-snippet.txt:76-89`. Headers cross-checked:
+`artifacts/extracted/llvm-mingw-20261020-ucrt/llvm-mingw-20261020-ucrt-ubuntu-22.04-x86_64/generic-w64-mingw32/include/d3d12.h`
+SHA-256 `23935395fe8939ac0ca71c5b34cd7b21a689ff5e9641846563613f24bc0dd85e` and `dxgiformat.h`
+SHA-256 `8a4e770d3022aff667b7d4f03f0cf5a068ecde87f357c9791f275954c1461c48`. The disassembly
+SHA identifies the file used for the addresses; it does not independently certify the
+correctness of its decoding.
