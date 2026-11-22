@@ -15,7 +15,7 @@ EXPECTED_IR_SHA256 = '7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968
 
 TRACE_REQUIRED = 'TRACE_FASE1_REQUIRED'
 
-# Static view facts from docs/pre-resource-descriptors.md (R8_UINT = 0x3e).
+# Static view facts from docs/xmx412-dispatch.md (R8_UINT = 0x3e).
 R8_UINT_ENUM = 0x3E
 ARG9_VISIBLE_BYTES = 0x840  # 2112
 ARG10_VISIBLE_BYTES = 0x80  # 128
@@ -135,7 +135,7 @@ def oracle_policy():
              'why_second': 'translating isolated shader ops without that validation is not an oracle'},
             {'rank': 3, 'name': 'l0_ocl_same_zebin_bindings_contrast',
              'what': 'same zebin via Level Zero / OpenCL with identical inputs, byte-compared',
-             'why_last': 'same kernel and possibly same NEO compiler core: contrasts bindings/backend only, never proves FSR math (docs/pre-reference-options.md)'},
+             'why_last': 'same kernel and possibly same NEO compiler core: contrasts bindings/backend only, never proves FSR math (docs/xmx412-dispatch.md)'},
         ],
         'tolerances': {
             'R8_UINT_buffers': {'value': 0, 'justification': 'DXGI_FORMAT_R8_UINT is an 8-bit unsigned integer; typed BUFFER views and oword accesses are bit-exact, no rounding or filtering exists in this path'},

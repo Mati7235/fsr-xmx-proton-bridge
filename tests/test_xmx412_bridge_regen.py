@@ -14,7 +14,7 @@ The synthetic second entry is NOT a 4.1.2 pin: its digests are placeholders
 (``ab/cd/ef * 32``) and its profile path reuses the existing reviewed file
 only to satisfy the ``load()`` existence check without creating repo files.
 Real 4.1.2 promotion stays blocked until ``profiles/xmx412-pins.json``
-resolves every REQUIRED-TBD (see docs/xmx412-bridge-regen.md).
+resolves every REQUIRED-TBD (see docs/shim-bridge.md).
 """
 from __future__ import annotations
 
