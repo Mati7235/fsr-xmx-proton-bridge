@@ -17,7 +17,7 @@ everything lives under your home folder. Design and decisions: `docs/installer-d
 
 ```text
 MANIFEST                                  VERSION=...
-SHA256SUMS                                <hash>  <ruta relativa>
+SHA256SUMS                                <hash>  <relative path>
 icd/intel_icd.json
 lib/libvulkan_intel.so
 igdext64.dll

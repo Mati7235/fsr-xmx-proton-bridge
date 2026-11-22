@@ -11,6 +11,7 @@ TOOL_NAME="GE-Proton-XMX"
 declare -A PROF=()
 PROF_FILE=""
 FAIL_COUNT=0
+GAME_NOT_ENABLED=0
 
 say() { printf '%s\n' "$*"; }
 info() { printf '        %s\n' "$*"; }

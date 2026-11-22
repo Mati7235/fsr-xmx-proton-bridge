@@ -1,8 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SELF="$SELF_DIR/$(basename "${BASH_SOURCE[0]}")"
+resolve_self() {
+  local path="$1" dir target
+  case "$path" in
+    */*) ;;
+    *) path="$(command -v -- "$path" 2>/dev/null || printf '%s' "$path")" ;;
+  esac
+  while [ -L "$path" ]; do
+    dir="$(cd "$(dirname "$path")" && pwd -P)"
+    target="$(readlink "$path")"
+    case "$target" in
+      /*) path="$target" ;;
+      *) path="$dir/$target" ;;
+    esac
+  done
+  dir="$(cd "$(dirname "$path")" && pwd -P)"
+  printf '%s/%s' "$dir" "$(basename "$path")"
+}
+
+SELF="$(resolve_self "${BASH_SOURCE[0]}")"
+SELF_DIR="$(dirname "$SELF")"
 . "$SELF_DIR/lib/common.sh"
 
 usage() {
@@ -43,7 +61,7 @@ usage_install() {
 Usage: fsr-xmx install --from <folder>
 
 The folder must contain SHA256SUMS, MANIFEST, icd/intel_icd.json,
-lib/libvulkan_intel.so, igdext64.dll, cabinet.dll, tools/cm-compile.sh y
+lib/libvulkan_intel.so, igdext64.dll, cabinet.dll, tools/cm-compile.sh and
 vkd3d-proton/x86_64-windows/{d3d12,d3d12core}.dll.
 Without --from there is no download yet: no versions have been published.
 EOF
@@ -100,7 +118,7 @@ download_release() {
   say "Download from GitHub Releases: no versions have been published yet."
   say "(planned pattern: $pattern)"
   say "For now, install from a local folder:"
-  say "  $SELF install --from <folder with SHA256SUMS>"
+  say "  $(launch_tool) install --from <folder with SHA256SUMS>"
   return 1
 }
 
@@ -165,7 +183,7 @@ cmd_install() {
   say "The active install is now: $version"
   say ""
   say "Next step: create the Steam tool with"
-  say "  $SELF install-compat-tool --ge-dir <unzipped GE-Proton folder>"
+  say "  $(launch_tool) install-compat-tool --ge-dir <unzipped GE-Proton folder>"
 }
 
 cmd_install_compat_tool() {
@@ -191,7 +209,7 @@ cmd_install_compat_tool() {
   need_python
   rel="$(release_dir)"
   if [ ! -f "$rel/icd/intel_icd.json" ] || [ ! -f "$rel/vkd3d-proton/x86_64-windows/d3d12core.dll" ]; then
-    die "first install the package: $SELF install --from <folder>"
+    die "first install the package: $(launch_tool) install --from <folder>"
   fi
 
   local ge_vkd3d="$ge_dir/files/lib/wine/vkd3d-proton/x86_64-windows"
@@ -242,6 +260,59 @@ cmd_install_compat_tool() {
 
 timestamp() { date +%Y%m%d-%H%M%S; }
 
+launch_tool() {
+  if command -v fsr-xmx >/dev/null 2>&1; then
+    printf 'fsr-xmx'
+    return 0
+  fi
+  printf '<path-to-fsr-xmx>'
+}
+
+quote_arg() {
+  local value="$1"
+  case "$value" in
+    *[[:space:]]*)
+      value="$(printf '%s' "$value" | sed 's/[\\"$`]/\\&/g')"
+      printf '"%s"' "$value"
+      ;;
+    *) printf '%s' "$value" ;;
+  esac
+}
+
+failure_hint() {
+  local output="$1" path="$2" dir
+  dir="$(dirname "$path")"
+  case "$output" in
+    *[Pp]ermission*|*[Pp]ermiso*|*[Dd]enegad*|*[Dd]enied*)
+      printf 'permission denied; fix the permissions and run disable again'
+      return 0
+      ;;
+    *[Bb]usy*|*[Oo]cupad*|*"resource unavailable"*)
+      printf 'the file is busy; close whatever is using it and run disable again'
+      return 0
+      ;;
+  esac
+  if [ ! -w "$dir" ] || { [ -e "$path" ] && [ ! -w "$path" ]; }; then
+    printf 'permission denied; fix the permissions and run disable again'
+    return 0
+  fi
+  printf 'the file could not be changed; check it and run disable again'
+}
+
+state_set_pending() {
+  local file="$1" list="$2" tmp="$1.$$"
+  if grep -q '^PENDING_RESTORE=' "$file"; then
+    awk -v value="$list" '
+      index($0, "PENDING_RESTORE=") == 1 { print "PENDING_RESTORE=" value; next }
+      { print }
+    ' "$file" >"$tmp"
+  else
+    cat "$file" >"$tmp"
+    printf 'PENDING_RESTORE=%s\n' "$list" >>"$tmp"
+  fi
+  mv "$tmp" "$file"
+}
+
 cmd_enable() {
   local game_arg="" profile_id="cyberpunk2077" fsr4="" fg="" mod_dll="" original_dll=""
   local optiscaler="" anr_zip=""
@@ -286,7 +357,7 @@ cmd_enable() {
   local rel
   rel="$(release_dir)"
   if [ ! -f "$rel/igdext64.dll" ] || [ ! -f "$rel/cabinet.dll" ]; then
-    die "the driver package isn't installed. Run first: $SELF install --from <folder>"
+    die "the driver package isn't installed. Run first: $(launch_tool) install --from <folder>"
   fi
 
   fsr4="${fsr4:-$(prof_get FSR4_DEFAULT int8)}"
@@ -345,7 +416,7 @@ cmd_enable() {
     local anr_dir="$game_dir/OptiScaler/custom/Apex Neural Rendering FG"
     if [ ! -f "$anr_dir/dlssg/nvngx_dlssg.dll" ]; then
       [ -n "$anr_zip" ] || die "you chose --fg anr but the ANR add-on is missing. Download the official zip and pass it with --anr <zip>."
-      verify_archive "$anr_zip" "addon de ANR" "$(prof_get ANR_SHA256)" \
+      verify_archive "$anr_zip" "ANR add-on" "$(prof_get ANR_SHA256)" \
         "I won't use an unverified ANR. Download the official add-on from the release and pass it with --anr <zip>."
       tmp_extract="$(mktemp -d "${TMPDIR:-/tmp}/fsr-xmx-anr.XXXXXX")"
       extract_archive "$anr_zip" "$tmp_extract"
@@ -402,7 +473,21 @@ cmd_enable() {
 
   state_dir="$ROOT/profiles/$profile_id"
   mkdir -p "$state_dir"
+  local prev_backup="" prev_game=""
+  if [ -f "$state_dir/state.conf" ]; then
+    prev_game="$(key_get "$state_dir/state.conf" GAME_DIR || true)"
+    if [ "$prev_game" = "$game_dir" ]; then
+      prev_backup="$(key_get "$state_dir/state.conf" BACKUP || true)"
+    fi
+  fi
   stamp="$(timestamp)"
+  backup_discard_if_empty
+  local backup_rel=""
+  if [ -n "$BK_DIR" ]; then
+    backup_rel="${BK_DIR#"$game_dir"/}"
+  elif [ -n "$prev_backup" ] && [ -d "$game_dir/$prev_backup" ]; then
+    backup_rel="$prev_backup"
+  fi
   {
     printf 'PROFILE_ID=%s\n' "$profile_id"
     printf 'GAME_NAME=%s\n' "$(prof_get GAME_NAME "$profile_id")"
@@ -415,24 +500,29 @@ cmd_enable() {
     printf 'KEEP_COOPMAT=%s\n' "$keep_coopmat"
     printf 'VKD3D_DISABLE_EXTENSIONS=%s\n' "$(prof_get VKD3D_DISABLE_EXTENSIONS)"
     printf 'DLL_OVERRIDES=%s\n' "$(prof_get DLL_OVERRIDES 'dxgi cabinet')"
-    printf 'RELEASE=%s\n' "$(readlink "$ROOT/current" 2>/dev/null || printf 'desconocida')"
+    printf 'RELEASE=%s\n' "$(readlink "$ROOT/current" 2>/dev/null || printf 'unknown')"
     printf 'ENABLED_AT=%s\n' "$stamp"
-    printf 'BACKUP=%s\n' "${BK_DIR#"$game_dir"/}"
+    printf 'BACKUP=%s\n' "$backup_rel"
   } >"$state_dir/state.conf"
 
-  backup_discard_if_empty
   if [ -n "$BK_DIR" ]; then
     say "Backups of the files that were overwritten: $BK_DIR"
   fi
 
+  local tool
+  tool="$(launch_tool)"
   say ""
   say "Done: $(prof_get GAME_NAME "$profile_id") is ready (FSR 4 XMX $fsr4, FG: $fg)."
   say ""
-  say "Paste this line into Steam → Properties → Launch Options:"
+  if [ "$tool" = "<path-to-fsr-xmx>" ]; then
+    say "First replace <path-to-fsr-xmx> with the full path to fsr-xmx, then paste the line into Steam → Properties → Launch Options:"
+  else
+    say "Paste this line into Steam → Properties → Launch Options:"
+  fi
   say ""
-  say "  $SELF run --profile $profile_id -- %command%"
+  say "  $tool run --profile $profile_id -- %command%"
   say ""
-  say "Then check with: $SELF doctor \"$game_dir\" --profile $profile_id"
+  say "Then check with: $tool doctor $(quote_arg "$game_dir") --profile $profile_id"
 }
 
 cmd_disable() {
@@ -442,7 +532,10 @@ cmd_disable() {
       --profile) profile_id="${2-}"; shift 2 ;;
       --profile=*) profile_id="${1#*=}"; shift ;;
       -h|--help)
-        say "Usage: fsr-xmx disable <game-folder>"
+        say "Usage: fsr-xmx disable <game-folder> [--profile <game>]"
+        say ""
+        say "Puts back every file that enable replaced or added, using the backup"
+        say "folder inside the game. If a file can't be restored, run disable again."
         return 0
         ;;
       --*) die "unknown option: $1" ;;
@@ -471,23 +564,38 @@ cmd_disable() {
   fi
 
   local problems=0 oldest="${pending[0]}"
-  local i action rel hash path
+  local -a failed=()
+  local -A failed_set=()
+  local i action rel hash path dir_failed out
   for ((i = ${#pending[@]} - 1; i >= 0; i--)); do
     dir="${pending[$i]}"
+    dir_failed=0
     while IFS=$'\t' read -r action rel hash; do
       case "$action" in
         replaced)
           path="$game_dir/$rel"
           if [ ! -f "$dir/files/$rel" ]; then
-            failmsg "the backup $dir/files/$rel is missing; couldn't restore $rel."
-            problems=1
+            failmsg "couldn't restore $rel: the backup $dir/files/$rel is missing. Put the backup back and run disable again."
+            dir_failed=1
+            failed+=("$rel")
+            failed_set["$rel"]=1
             continue
           fi
           mkdir -p "$(dirname "$path")"
-          cp -p "$dir/files/$rel" "$path"
+          if ! out="$(cp -p "$dir/files/$rel" "$path" 2>&1)"; then
+            failmsg "couldn't restore $rel: $(failure_hint "$out" "$path")."
+            dir_failed=1
+            failed+=("$rel")
+            failed_set["$rel"]=1
+          fi
           ;;
         added)
-          rm -f "$game_dir/$rel"
+          if ! out="$(rm -f "$game_dir/$rel" 2>&1)"; then
+            failmsg "couldn't remove $rel: $(failure_hint "$out" "$game_dir/$rel")."
+            dir_failed=1
+            failed+=("$rel")
+            failed_set["$rel"]=1
+          fi
           ;;
         mkdir)
           rmdir "$game_dir/$rel" 2>/dev/null || true
@@ -495,26 +603,37 @@ cmd_disable() {
         FORMAT|GAME_DIR|CREATED) ;;
       esac
     done < <(tac "$dir/manifest.tsv")
-    : >"$dir/applied"
+    if [ "$dir_failed" -ne 0 ]; then
+      problems=1
+    fi
   done
 
+  local verify_failed=0
   while IFS=$'\t' read -r action rel hash; do
+    if [ -n "${failed_set[$rel]:-}" ]; then
+      continue
+    fi
     case "$action" in
       replaced)
         path="$game_dir/$rel"
         if [ ! -f "$path" ]; then
           failmsg "expected $rel to be back, but it's missing."
-          problems=1
+          verify_failed=1
+          failed+=("$rel")
         elif [ -n "$hash" ] && [ "$(sha256_of "$path")" != "$hash" ]; then
           failmsg "$rel is not identical to before (different checksum)."
-          problems=1
+          verify_failed=1
+          failed+=("$rel")
         fi
         ;;
       added)
-        [ -e "$game_dir/$rel" ] && { failmsg "$rel should have been removed but is still there."; problems=1; }
+        [ -e "$game_dir/$rel" ] && { failmsg "$rel should have been removed but is still there."; verify_failed=1; failed+=("$rel"); }
         ;;
     esac
   done <"$oldest/manifest.tsv"
+  if [ "$verify_failed" -ne 0 ]; then
+    problems=1
+  fi
 
   local state_dir=""
   if [ -n "$profile_id" ]; then
@@ -529,17 +648,33 @@ cmd_disable() {
       fi
     done
   fi
+
+  if [ "$problems" -eq 0 ]; then
+    for dir in "${pending[@]}"; do
+      : >"$dir/applied"
+    done
+  fi
+
+  if [ "$problems" -ne 0 ]; then
+    local list
+    list="$(printf '%s\n' "${failed[@]}" | awk 'NF && !seen[$0]++' | paste -sd '|' -)"
+    say ""
+    say "The game is still set up, because these files are not back to how they were:"
+    printf '%s\n' "${failed[@]}" | awk 'NF && !seen[$0]++' | sed 's/^/  /'
+    say "Run disable again to retry them: $(launch_tool) disable $(quote_arg "$game_dir")"
+    if [ -n "$state_dir" ] && [ -f "$state_dir/state.conf" ]; then
+      state_set_pending "$state_dir/state.conf" "$list"
+      say "The state in $state_dir/state.conf stays pending."
+    fi
+    say "Backups are kept in $bk_root in case you want to check them by hand."
+    exit 1
+  fi
+
   if [ -n "$state_dir" ] && [ -f "$state_dir/state.conf" ]; then
     mv "$state_dir/state.conf" "$state_dir/state.conf.disabled"
     say "The game was archived as disabled in $state_dir."
   fi
 
-  if [ "$problems" -ne 0 ]; then
-    say ""
-    say "I undid everything I could, but there are differences (see MISSING above)."
-    say "Backups are kept in $bk_root in case you want to check them by hand."
-    exit 1
-  fi
   say ""
   say "Done: $game_dir is back to how it was before."
   say "Backups are kept in $bk_root (you can delete them by hand)."
@@ -553,7 +688,7 @@ resolve_run_profile() {
   local st id game appid arg matched="" count=0
   if [ -n "$explicit" ]; then
     st="$(state_file "$want")"
-    [ -f "$st" ] || die "the game '$want' is not set up. Run: $SELF enable <game folder> --profile $want"
+    [ -f "$st" ] || die "the game '$want' is not set up. Run: $(launch_tool) enable <game folder> --profile $want"
     printf '%s' "$want"
     return 0
   fi
@@ -590,7 +725,7 @@ resolve_run_profile() {
     return 0
   fi
   if [ "$count" -eq 0 ]; then
-    die "no game is set up yet. Run: $SELF enable <game folder> --fsr4 int8"
+    die "no game is set up yet. Run: $(launch_tool) enable <game folder> --fsr4 int8"
   fi
   die "several games are set up (${ids[*]}) and I don't know which one this is. Add --profile <game> to the Steam line."
 }
@@ -608,7 +743,7 @@ cmd_run() {
       --) shift; break ;;
       -h|--help)
         say "Usage: fsr-xmx run [--profile <game>] [--trace] -- <command...>"
-        say "In Steam, use it like this: $SELF run --profile cyberpunk2077 -- %command%"
+        say "In Steam, use it like this: $(launch_tool) run --profile cyberpunk2077 -- %command%"
         return 0
         ;;
       -*) die "unknown option for run: $1" ;;
@@ -622,7 +757,7 @@ cmd_run() {
   local rel
   rel="$(release_dir)"
   if [ ! -f "$rel/icd/intel_icd.json" ]; then
-    die "can't find the installed driver. Run: $SELF install --from <folder>"
+    die "can't find the installed driver. Run: $(launch_tool) install --from <folder>"
   fi
 
   local id state
@@ -699,6 +834,9 @@ cmd_doctor() {
       --profile=*) profile_id="${1#*=}"; shift ;;
       -h|--help)
         say "Usage: fsr-xmx doctor [<game-folder>] [--profile <game>]"
+        say ""
+        say "Checks the hardware, the install and (if you pass a folder) the game files."
+        say "Changes nothing. The exit status is non-zero only when something is wrong."
         return 0
         ;;
       --*) die "unknown option: $1" ;;
@@ -749,7 +887,7 @@ cmd_doctor() {
   elif [ -d "$(flatpak_steam_dir)" ]; then
     warn "you have the Flatpak version of Steam, which this version doesn't support (it can't see your game folders). Use native Steam."
   else
-    failmsg "couldn't find Steam. Open Steam once or install it (sudo pacman -S steam)."
+    warn "Steam was not found, so the Steam checks were skipped. This is informational; the game files decide the result. Open Steam once and run doctor again to check them too."
   fi
 
   say ""
@@ -761,14 +899,14 @@ cmd_doctor() {
       if detail="$(verify_bundle "$rel" 2>&1)"; then
         okl "active install: $(readlink "$ROOT/current")"
       else
-        failmsg "the active install is damaged. Install again: $SELF install --from <folder>"
+        failmsg "the active install is damaged. Install again: $(launch_tool) install --from <folder>"
         printf '%s\n' "$detail" | sed 's/^/        /'
       fi
     else
-      failmsg "the link '$ROOT/current' is missing. Install again: $SELF install --from <folder>"
+      failmsg "the link '$ROOT/current' is missing. Install again: $(launch_tool) install --from <folder>"
     fi
   else
-    failmsg "the driver is not installed. Run: $SELF install --from <folder>"
+    failmsg "the driver is not installed. Run: $(launch_tool) install --from <folder>"
   fi
 
   if [ -n "$steam" ] && [ -d "$steam/compatibilitytools.d" ]; then
@@ -790,11 +928,11 @@ cmd_doctor() {
       if [ "$mismatch" = "0" ]; then
         okl "compatibility tool: $(basename "$tool")"
       else
-        failmsg "the tool $(basename "$tool") has different DLLs than recorded. Recreate it: $SELF install-compat-tool --ge-dir <folder>"
+        failmsg "the tool $(basename "$tool") has different DLLs than recorded. Recreate it: $(launch_tool) install-compat-tool --ge-dir <folder>"
       fi
     done
     if [ "$found" = "0" ]; then
-      failmsg "no compatibility tool from this program found. Create it: $SELF install-compat-tool --ge-dir <GE-Proton folder>"
+      failmsg "no compatibility tool from this program found. Create it: $(launch_tool) install-compat-tool --ge-dir <GE-Proton folder>"
     fi
   elif [ -z "$steam" ]; then
     warn "without Steam I can't check the compatibility tool."
@@ -802,13 +940,21 @@ cmd_doctor() {
 
   if [ -n "$game_arg" ]; then
     say ""
-    doctor_game "$game_arg" "$profile_id"
+    if ! doctor_game "$game_arg" "$profile_id"; then
+      say ""
+      say "Nothing else was checked for that folder."
+      return 1
+    fi
   else
     say ""
-    say "To check a game: $SELF doctor <game-folder>"
+    say "To check a game: $(launch_tool) doctor <game-folder>"
   fi
 
   say ""
+  if [ "$FAIL_COUNT" -eq 0 ] && [ "$GAME_NOT_ENABLED" = "1" ]; then
+    say "Nothing is enabled for this game yet. Next step: $(launch_tool) enable <game-folder> --fsr4 int8"
+    return 0
+  fi
   if [ "$FAIL_COUNT" -eq 0 ]; then
     say "All good."
     return 0
@@ -817,10 +963,51 @@ cmd_doctor() {
   return 1
 }
 
+game_target_below() {
+  local base="$1" want="${2-}" id exe candidate
+  if [ -n "$want" ]; then
+    load_profile "$(profile_path "$want")"
+    exe="$(prof_get GAME_EXE)"
+    candidate="$base/bin/x64/$exe"
+    if [ -n "$exe" ] && [ -f "$candidate" ]; then
+      printf '%s' "$(dirname "$candidate")"
+      return 0
+    fi
+    return 1
+  fi
+  while IFS= read -r id; do
+    load_profile "$(profile_path "$id")"
+    exe="$(prof_get GAME_EXE)"
+    [ -n "$exe" ] || continue
+    candidate="$base/bin/x64/$exe"
+    if [ -f "$candidate" ]; then
+      printf '%s' "$(dirname "$candidate")"
+      return 0
+    fi
+  done < <(profile_ids)
+  if [ -d "$base/bin/x64" ]; then
+    candidate="$(find "$base/bin/x64" -maxdepth 1 -type f -iname '*.exe' -print -quit)"
+    if [ -n "$candidate" ]; then
+      printf '%s' "$base/bin/x64"
+      return 0
+    fi
+  fi
+  return 1
+}
+
 doctor_game() {
-  local game_arg="$1" profile_id="$2" game_dir exe
+  local game_arg="$1" profile_id="$2" game_dir exe candidate
+  if [ -f "$game_arg" ]; then
+    say "That is a file, not a folder. Pass the folder that contains it: $(dirname "$game_arg")"
+    return 1
+  fi
   [ -d "$game_arg" ] || { failmsg "game folder not found: $game_arg"; return 1; }
   game_dir="$(cd "$game_arg" && pwd -P)"
+
+  if candidate="$(game_target_below "$game_dir" "$profile_id")"; then
+    say "That folder is not the game folder. Pass this one instead: $candidate"
+    return 1
+  fi
 
   if [ -z "$profile_id" ]; then
     local id
@@ -847,12 +1034,21 @@ doctor_game() {
   if [ -f "$state" ] && [ "$(key_get "$state" GAME_DIR || true)" = "$game_dir" ]; then
     fsr4="$(key_get "$state" FSR4 || true)"
     fg="$(key_get "$state" FG || true)"
+    local pending
+    pending="$(key_get "$state" PENDING_RESTORE || true)"
+    if [ -n "$pending" ]; then
+      failmsg "this game is still modified; disable could not restore these files:"
+      printf '%s\n' "$pending" | tr '|' '\n' | sed 's/^/        /'
+      say "Run $(launch_tool) disable $(quote_arg "$game_dir") to finish putting the game back."
+      return 1
+    fi
     enabled=1
     okl "set up by fsr-xmx (FSR4 $fsr4, FG $fg)"
   else
     fsr4="$(prof_get FSR4_DEFAULT int8)"
     fg="$(prof_get FG_DEFAULT xefg)"
-    warn "this game is not set up (or it was set up for another folder). Run: $SELF enable \"$game_dir\" --fsr4 $fsr4"
+    GAME_NOT_ENABLED=1
+    warn "this game is not set up (or it was set up for another folder). Run: $(launch_tool) enable \"$game_dir\" --fsr4 $fsr4"
   fi
 
   local mod="$game_dir/$(prof_get MOD_DLL)"
@@ -937,6 +1133,9 @@ cmd_uninstall() {
     case "$1" in
       -h|--help)
         say "Usage: fsr-xmx uninstall"
+        say ""
+        say "Deletes the driver install and the compatibility tool that this program created."
+        say "It refuses while a game is still set up, so run disable for that game first."
         return 0
         ;;
       *) die "unknown option: $1" ;;
@@ -955,7 +1154,7 @@ cmd_uninstall() {
     for st in $enabled; do
       local gd
       gd="$(key_get "$(state_file "$st")" GAME_DIR || true)"
-      say "  $SELF disable \"$gd\""
+      say "  $(launch_tool) disable \"$gd\""
     done
     die "I deleted nothing, so no game is left half-changed."
   fi
@@ -967,7 +1166,7 @@ cmd_uninstall() {
       [ -d "$tool" ] || continue
       if [ -f "$tool/.fsr-xmx-manifest" ]; then
         rm -rf "${tool%/}"
-        say "Removed la herramienta de compatibilidad $(basename "$tool")."
+        say "Removed the compatibility tool $(basename "$tool")."
         removed=1
       fi
     done

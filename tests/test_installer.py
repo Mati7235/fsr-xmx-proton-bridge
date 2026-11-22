@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for installer/fsr-xmx against throwaway fake trees (no real Steam)."""
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -217,6 +218,15 @@ class InstallerTest(unittest.TestCase):
             return []
         return sorted(path for path in root.iterdir() if path.is_dir())
 
+    def state_path(self):
+        return self.root / "profiles" / "cyberpunk2077" / "state.conf"
+
+    def state_key(self, key):
+        for line in self.state_path().read_text().splitlines():
+            if line.startswith(key + "="):
+                return line.split("=", 1)[1]
+        return None
+
     def test_bash_syntax(self):
         for script in (SCRIPT, COMMON):
             result = subprocess.run(["bash", "-n", str(script)],
@@ -259,6 +269,86 @@ class InstallerTest(unittest.TestCase):
         result = self.run_cli("doctor")
         self.assertIn("WARN    Linux kernel driver: i915", result.stdout)
         self.assertIn("WARN    you have the Flatpak version of Steam", result.stdout)
+
+    def test_doctor_suggests_the_folder_to_pass(self):
+        self.install_ok()
+        parent = self.game.parent.parent
+        result = self.run_cli("doctor", str(parent))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("That folder is not the game folder", result.stdout)
+        self.assertIn("Pass this one instead: %s" % self.game, result.stdout)
+        self.assertNotIn("== Cyberpunk 2077", result.stdout)
+
+        result = self.run_cli("doctor", str(self.game / "Cyberpunk2077.exe"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("That is a file, not a folder", result.stdout)
+        self.assertIn(str(self.game), result.stdout)
+
+    def test_doctor_missing_steam_is_only_a_warning(self):
+        self.install_ok()
+        self.enable_ok("--fsr4", "int8")
+        shutil.rmtree(self.steam)
+        result = self.run_cli("doctor", str(self.game))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("WARN    Steam was not found", result.stdout)
+        self.assertIn("informational", result.stdout)
+        self.assertIn("All good.", result.stdout)
+
+    def test_doctor_reports_a_pending_restore(self):
+        self.install_ok()
+        self.enable_ok("--fsr4", "int8")
+        with open(self.state_path(), "a", encoding="utf-8") as handle:
+            handle.write("PENDING_RESTORE=OptiScaler.ini|igdext64.dll\n")
+        result = self.run_cli("doctor", str(self.game))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("this game is still modified", result.stdout)
+        self.assertIn("OptiScaler.ini", result.stdout)
+        self.assertIn("igdext64.dll", result.stdout)
+        self.assertIn(" disable ", result.stdout)
+        self.assertNotIn("OK      set up by fsr-xmx", result.stdout)
+        self.assertNotIn("enable again", result.stdout)
+
+    def test_doctor_not_enabled_does_not_say_all_good(self):
+        self.install_ok()
+        ge = self.make_ge_proton()
+        self.run_cli("install-compat-tool", "--ge-dir", str(ge), check=True)
+        result = self.run_cli("doctor", str(self.game))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("WARN    this game is not set up", result.stdout)
+        self.assertNotIn("All good.", result.stdout)
+        self.assertIn("Nothing is enabled for this game yet", result.stdout)
+        self.assertIn("enable", result.stdout)
+
+    def test_symlinked_script_finds_its_library(self):
+        first = self.tmp / "bin-one"
+        second = self.tmp / "bin-two"
+        first.mkdir()
+        second.mkdir()
+        direct = first / "fsr-xmx"
+        direct.symlink_to(SCRIPT)
+        chained = second / "fsr-xmx"
+        chained.symlink_to(direct)
+        result = subprocess.run([str(chained), "--help"], env=dict(self.env),
+                                text=True, capture_output=True,
+                                cwd=str(self.tmp))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Usage:", result.stdout)
+
+    def test_hints_do_not_contain_the_script_path(self):
+        install = self.run_cli("install")
+        self.assertIn("install --from", install.stdout)
+        self.assertNotIn(str(SCRIPT), install.stdout + install.stderr)
+
+        self.install_ok()
+        self.enable_ok("--fsr4", "int8")
+        uninstall = self.run_cli("uninstall")
+        self.assertIn("disable", uninstall.stdout)
+        self.assertNotIn(str(SCRIPT), uninstall.stdout + uninstall.stderr)
+
+        shutil.rmtree(self.root)
+        doctor = self.run_cli("doctor")
+        self.assertIn("install --from", doctor.stdout)
+        self.assertNotIn(str(SCRIPT), doctor.stdout + doctor.stderr)
 
     def test_install_rejects_tampered_bundle(self):
         (self.bundle / "igdext64.dll").write_bytes(b"igdext shim TAMPERED\n")
@@ -303,6 +393,49 @@ class InstallerTest(unittest.TestCase):
         again = self.enable_ok("--fsr4", "int8")
         self.assertIn("was already set correctly", again.stdout)
         self.assertEqual(len(self.backup_dirs()), 1)
+
+    def test_enable_prints_a_pasteable_launch_line(self):
+        self.install_ok()
+        spaced = self.tmp / "games" / "Cyberpunk 2077" / "bin" / "x64"
+        spaced.parent.parent.mkdir(parents=True)
+        shutil.move(str(self.game), str(spaced))
+        self.game = spaced
+        self.ini = spaced / "OptiScaler.ini"
+        result = self.enable_ok("--fsr4", "int8")
+        lines = [line.strip() for line in result.stdout.splitlines()
+                 if "-- %command%" in line]
+        self.assertEqual(len(lines), 1, result.stdout)
+        line = lines[0]
+        self.assertTrue(line.startswith("fsr-xmx ")
+                        or line.startswith("<path-to-fsr-xmx> "), line)
+        self.assertIn("run --profile cyberpunk2077 -- %command%", line)
+        self.assertNotIn(str(SCRIPT.parent), line)
+        self.assertNotIn(str(self.tmp), line)
+        self.assertIn('doctor "%s"' % spaced, result.stdout)
+
+    def test_enable_placeholder_line_says_to_replace_it(self):
+        self.install_ok()
+        result = self.enable_ok("--fsr4", "int8")
+        self.assertIn("First replace <path-to-fsr-xmx> with the full path to fsr-xmx",
+                      result.stdout)
+        self.assertNotIn("Paste this line into Steam", result.stdout)
+
+    def test_enable_twice_keeps_a_backup_path_that_exists(self):
+        self.install_ok()
+        self.enable_ok("--fsr4", "int8")
+        first = self.state_key("BACKUP")
+        self.assertTrue(first)
+        self.assertTrue((self.game / first).is_dir())
+
+        self.enable_ok("--fsr4", "int8")
+        second = self.state_key("BACKUP")
+        self.assertTrue(second)
+        self.assertTrue((self.game / second).is_dir(),
+                        "state points at a backup that no longer exists")
+
+        self.run_cli("disable", str(self.game), check=True)
+        self.assertEqual(self.ini.read_bytes(), INI_ORIGINAL)
+        self.assertFalse((self.game / "igdext64.dll").exists())
 
     def test_enable_rejects_unknown_mod(self):
         self.install_ok()
@@ -472,6 +605,72 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual((self.game / "cabinet.dll").read_bytes(),
                          b"the user's old cabinet\n")
 
+    def test_disable_keeps_the_state_pending_when_a_restore_fails(self):
+        self.install_ok()
+        self.enable_ok("--fsr4", "int8")
+        backups = self.backup_dirs()
+        self.assertEqual(len(backups), 1)
+        saved = backups[0] / "files" / "OptiScaler.ini"
+        original = saved.read_bytes()
+        saved.unlink()
+
+        result = self.run_cli("disable", str(self.game))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("OptiScaler.ini", result.stdout)
+        self.assertIn("Run disable again to retry them", result.stdout)
+        self.assertIn("stays pending", result.stdout)
+        self.assertEqual(self.state_key("PENDING_RESTORE"), "OptiScaler.ini")
+        self.assertFalse((self.state_path().parent / "state.conf.disabled").exists())
+        self.assertFalse((backups[0] / "applied").exists())
+        self.assertEqual(self.ini.read_bytes(), EXPECTED_XEFG)
+
+        saved.write_bytes(original)
+        second = self.run_cli("disable", str(self.game))
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertEqual(self.ini.read_bytes(), INI_ORIGINAL)
+        self.assertFalse(self.state_path().exists())
+        self.assertTrue((self.state_path().parent / "state.conf.disabled").exists())
+
+    def test_disable_retry_still_restores_the_original_ini(self):
+        self.install_ok()
+        self.enable_ok("--fsr4", "int8")
+        self.make_anr_tree()
+        self.enable_ok("--fsr4", "lite", "--fg", "anr")
+        backups = self.backup_dirs()
+        self.assertGreaterEqual(len(backups), 2)
+        newest = backups[-1]
+        saved = (newest / "files" / "OptiScaler.ini").read_bytes()
+        (newest / "files" / "OptiScaler.ini").unlink()
+
+        first = self.run_cli("disable", str(self.game))
+        self.assertNotEqual(first.returncode, 0)
+        self.assertFalse((backups[0] / "applied").exists())
+        self.assertFalse((newest / "applied").exists())
+
+        (newest / "files" / "OptiScaler.ini").write_bytes(saved)
+        self.run_cli("disable", str(self.game), check=True)
+        self.assertEqual(self.ini.read_bytes(), INI_ORIGINAL)
+
+    @unittest.skipIf(os.geteuid() == 0, "root ignores file permissions")
+    def test_disable_hides_tool_output_and_reports_each_failure_once(self):
+        self.install_ok()
+        self.enable_ok("--fsr4", "int8")
+        os.chmod(self.ini, 0o444)
+        os.chmod(self.game, 0o555)
+        self.addCleanup(os.chmod, self.game, 0o755)
+        self.addCleanup(os.chmod, self.ini, 0o644)
+
+        result = self.run_cli("disable", str(self.game))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("rm:", result.stderr)
+        self.assertNotIn("cp:", result.stderr)
+        self.assertNotIn("should have been removed", result.stdout)
+        self.assertNotIn("not identical to before", result.stdout)
+        self.assertIn("couldn't restore OptiScaler.ini: permission denied",
+                      result.stdout)
+        self.assertIn("couldn't remove igdext64.dll: permission denied",
+                      result.stdout)
+
     def test_compat_tool_swaps_vkd3d_and_vdf(self):
         self.install_ok()
         ge = self.make_ge_proton()
@@ -491,6 +690,17 @@ class InstallerTest(unittest.TestCase):
         doctor = self.run_cli("doctor")
         self.assertIn("OK      compatibility tool: GE-Proton-XMX",
                       doctor.stdout)
+
+    def test_installer_text_has_no_spanish_leftovers(self):
+        pattern = re.compile(
+            r"[áéíóúñ¿¡]|\b(instal|carpeta|juego|prefijo|archivo|desinstal|"
+            r"permiso|ruta|desconocida|herramienta|addon)\b", re.IGNORECASE)
+        for path in (SCRIPT, COMMON, REPO / "installer" / "README.md"):
+            text = path.read_text(encoding="utf-8")
+            match = pattern.search(text)
+            self.assertIsNone(
+                match, "%s still has Spanish text: %r"
+                % (path, match.group(0) if match else ""))
 
     def test_uninstall_removes_only_our_dirs(self):
         self.install_ok()
