@@ -6,6 +6,12 @@ kernels, an `igdext64` shim answers Intel queries, and a game-local `cabinet.dll
 the compression API Wine lacks. The driver comes from `xess-xmx-linux`; this repo holds
 research, game shims and documentation.
 
+This is experimental research, not a finished product. Two games render correctly and a
+third only partly, the results come from one scene each, and the numbers are in
+[docs/benchmarks.md](docs/benchmarks.md). The code is released under the GNU Affero General
+Public License version 3 or later ([LICENSE](LICENSE)), and [THIRD_PARTY.md](THIRD_PARTY.md)
+explains which parts belong to other authors.
+
 ## How to install it
 
 Two steps. The driver runs once per machine; the game step runs once per game.
@@ -46,17 +52,18 @@ driver folder. The game script restores every file from the backup and compares
 sha256, so the folder ends byte-identical to before. If a restore fails it names the
 file, keeps the backup pending and exits non-zero; run it again to retry.
 
-Two of the files cannot ship with the download. nitec's FSR 4 XMX mod and OptiScaler
-come from their authors (NexusMods and GitHub), and their licenses do not allow us to
-redistribute them. The game script checks the pinned hashes, so only the right
-versions pass.
+Three of the files cannot ship with the download. nitec's FSR 4 XMX mod, AMD's FSR 4.1.2
+DLL and OptiScaler belong to their authors (NexusMods, AMD and GitHub), and their licenses
+do not allow us to redistribute them. The game script checks the pinned hashes, so only the
+right versions pass.
 
 ## What works today
 
 FSR 4 upscaling on XMX with the 4.1.2X INT8 and Lite models, XeFG frame generation through
-the shim, and ANR as a frame generation provider. It rendered correctly in Spider-Man
-Remastered, Cyberpunk 2077 and SCP: 5K. Every benchmark is one scene, and two runs of the
-same model set the noise floor, so no second area or preset was measured. Tables are in
+the shim, and ANR as a frame generation provider. Spider-Man Remastered and Cyberpunk 2077
+render a correct scene. SCP: 5K is partial: one match, visual confirmation only, and the
+anti-cheat was not tested. Every benchmark is one scene, and two runs of the same model set
+the noise floor, so no second area or preset was measured. Tables are in
 [docs/benchmarks.md](docs/benchmarks.md), per-title conditions in
 [docs/compatibility.md](docs/compatibility.md).
 
@@ -117,7 +124,15 @@ browser, and the 800x450 stills are in
 
 ## License and provenance
 
-Third-party binaries are not redistributed, and this repo grants no rights over upstream
-models, DLLs or code; check their licenses (`THIRD_PARTY.md` in the package, and the
-licenses of AMD, Intel, nitec and Valve). Upstream `xess-xmx-linux` is pinned at `f06dc39`,
-and `artifacts/`, `upstream/`, `analysis/` and `build/` are local and ignored.
+Copyright (C) 2026 Matias7235.
+
+This project is free software under the GNU Affero General Public License, version 3 or
+later. You can use it, study it, change it and share it, and if you distribute a modified
+version you have to publish its source under the same license. The full text is in
+[LICENSE](LICENSE), and it wins over this summary.
+
+[THIRD_PARTY.md](THIRD_PARTY.md) lists every component that comes from someone else, with
+its license: nitec's mod, AMD's DLL, Intel's DLL, OptiScaler, Mesa and vkd3d-proton. None of
+those binaries are redistributed here, and this repository grants no rights over them.
+Upstream `xess-xmx-linux` is pinned at `f06dc39`. The folders `artifacts/`, `upstream/`,
+`analysis/` and `build/` are local and ignored by git.
