@@ -1,0 +1,281 @@
+Subject: [PATCH] anv: add VK_AMD_anti_lag (Anti-Lag 2) over vk_frame_pacer
+
+Software-only port of RADV Anti-Lag 2 to ANV (Intel).
+
+--- a/src/intel/vulkan/anv_device.c
++++ b/src/intel/vulkan/anv_device.c
+@@ -30,6 +30,7 @@
+ #include <xf86drm.h>
+ 
+ #include "anv_private.h"
++#include "anv_anti_lag.h"
+ #include "anv_measure.h"
+ #include "anv_shader.h"
+ #include "anv_cm.h"
+@@ -1385,6 +1386,16 @@
+    if (result != VK_SUCCESS)
+       goto fail_meta_device;
+ 
++   /* VK_AMD_anti_lag: vk_frame_pacer needs vk_device with queues and the
++    * dispatch table ready, both true here. Unwinds via fail_meta_device
++    * like the inits above.
++    */
++   if (device->vk.enabled_features.antiLag) {
++      result = anv_device_init_anti_lag(device);
++      if (result != VK_SUCCESS)
++         goto fail_meta_device;
++   }
++
+    device->vk.disable_lto = device->physical->drirc.debug.disable_lto;
+ 
+    simple_mtx_init(&device->accel_struct_build.mutex, mtx_plain);
+@@ -1404,6 +1415,8 @@
+  fail_queues:
+    for (uint32_t i = 0; i < device->queue_count; i++)
+       anv_queue_finish(&device->queues[i]);
++   /* No-op when the pacer was never initialized (see anv_device_finish_anti_lag). */
++   anv_device_finish_anti_lag(device);
+    anv_device_perf_finish(device);
+    anv_device_finish_descriptors_view(device);
+    anv_device_finish_embedded_samplers(device);
+@@ -1515,6 +1528,8 @@
+    /* Do TRTT batch garbage collection before destroying queues. */
+    anv_device_finish_trtt(device);
+ 
++   anv_device_finish_anti_lag(device);
++
+    vk_meta_device_finish(&device->vk, &device->meta_device);
+ 
+    anv_device_utrace_finish(device);
+--- a/src/intel/vulkan/anv_physical_device.c
++++ b/src/intel/vulkan/anv_physical_device.c
+@@ -639,6 +639,10 @@
+       .EXT_vertex_input_dynamic_state        = true,
+       .EXT_ycbcr_2plane_444_formats          = true,
+       .EXT_ycbcr_image_arrays                = true,
++      /* VK_AMD_anti_lag: software port over vk_frame_pacer, needs
++       * calibrated timestamps (KHR_calibrated_timestamps gate below).
++       */
++      .AMD_anti_lag                          = device->has_reg_timestamp,
+       .AMD_buffer_marker                     = true,
+       .AMD_texture_gather_bias_lod           = device->info.ver >= 20,
+       .GOOGLE_decorate_string                = true,
+@@ -1321,6 +1325,13 @@
+ 
+       /* VK_KHR_extended_flags */
+       .extendedFlags = true,
++
++      /* VK_AMD_anti_lag: software port over vk_frame_pacer (see
++       * anv_anti_lag.c). Gated on register timestamps like
++       * KHR_calibrated_timestamps; the pacer also asserts 64-bit
++       * timestampValidBits, true only on ver >= 20 (Xe2+).
++       */
++      .antiLag = pdevice->has_reg_timestamp,
+    };
+ 
+    /* The new DOOM and Wolfenstein games require depthBounds without
+--- a/src/intel/vulkan/meson.build
++++ b/src/intel/vulkan/meson.build
+@@ -190,6 +190,8 @@
+   'xe/anv_queue.h',
+   'anv_allocator.c',
+   'anv_android.h',
++  'anv_anti_lag.c',
++  'anv_anti_lag.h',
+   'anv_astc_emu.c',
+   'anv_batch_chain.c',
+   'anv_blorp.c',
+--- a/dev/null
++++ b/src/intel/vulkan/anv_anti_lag.c
+@@ -0,0 +1,174 @@
++/*
++ * Copyright © 2026 Valve Corporation
++ * SPDX-License-Identifier: MIT
++ */
++
++#include "util/simple_mtx.h"
++#include "util/os_time.h"
++#include "util/macros.h"
++#include "vulkan/vulkan_core.h"
++#include "anv_private.h"
++#include "anv_anti_lag.h"
++#include "vk_frame_pacer.h"
++
++#define ONE_MS_IN_NS INT64_C(1000000)
++
++struct anti_lag_data {
++   simple_mtx_t mtx;
++   uint64_t avg_frame_time;
++   uint64_t deviation;
++   uint64_t prev_input_begin;
++   int64_t queuing_delay;
++   uint64_t recalibrate_when;
++};
++
++static VkResult
++anv_device_get_timestamp(struct vk_device *vk_device, uint64_t *timestamp)
++{
++   struct anv_device *device = container_of(vk_device, struct anv_device, vk);
++   if (!intel_gem_read_render_timestamp(device->fd, device->info->kmd_type,
++                                        timestamp)) {
++      return vk_device_set_lost(&device->vk,
++                                "Failed to read TIMESTAMP register");
++   }
++   return VK_SUCCESS;
++}
++
++static void
++frame_time_cb(const struct vk_frame_time_info *info, void *_)
++{
++   struct anti_lag_data *data = _;
++   if (info->frame_time) {
++      /* Calculate average absolute deviation as exponential moving average with alpha = 0.125.
++       * Total frame time being time from first QueueSubmit is made until all GPU work is drained
++       * on the GPU.
++       */
++      int64_t expected_total_frame_time = data->queuing_delay + data->avg_frame_time;
++      int64_t current_total_frame_time = info->min_delay + info->frame_time;
++      int64_t deviation = expected_total_frame_time - current_total_frame_time;
++      int64_t diff = (deviation < 0 ? -deviation : deviation) - data->deviation;
++      data->deviation += diff / 8;
++
++      /* Update frame time: Use an exponential moving average with alpha = 0.5. */
++      data->avg_frame_time = (data->avg_frame_time + info->frame_time) / 2;
++   }
++
++   /* Update queuing delay: Discount the previous delay and add half of the frame's minimum delay.
++    * This formula was decided upon after trial and error testing:
++    * The rational is that a longer frame-time only materializes after multiple frames as queuing
++    * delay. If we then delay the next frame, we still receive increased queuing delays from the
++    * following callbacks. But since we already accounted for it, any further addition would lead
++    * to underpacing. So the idea here is basically to be able to react quickly to sudden changes
++    * without ping-ponging between extremes. This might be subject to future changes.
++    */
++   data->queuing_delay = -data->queuing_delay / 4 + info->min_delay / 2;
++}
++
++VkResult
++anv_device_init_anti_lag(struct anv_device *device)
++{
++   /* vk_frame_pacer reads VK_TIME_DOMAIN_DEVICE_KHR via this hook (ANV
++    * otherwise leaves it NULL: only vkGetCalibratedTimestamps reads the
++    * register directly). Set before init; only installed when antiLag is
++    * enabled, so other paths are unaffected.
++    */
++   device->vk.get_timestamp = anv_device_get_timestamp;
++
++   VkResult result = vk_frame_pacer_init(&device->vk, frame_time_cb, sizeof(struct anti_lag_data));
++
++   if (result == VK_SUCCESS) {
++      struct anti_lag_data *data = vk_frame_pacer_get_user_data(device->vk.frame_pacer);
++      simple_mtx_init(&data->mtx, mtx_plain);
++   }
++
++   return result;
++}
++
++void
++anv_device_finish_anti_lag(struct anv_device *device)
++{
++   if (device->vk.frame_pacer) {
++      struct anti_lag_data *data = vk_frame_pacer_get_user_data(device->vk.frame_pacer);
++      simple_mtx_destroy(&data->mtx);
++      vk_frame_pacer_finish(&device->vk);
++   }
++}
++
++static uint64_t
++get_wait_time(struct anti_lag_data *data)
++{
++   /* Start the next input sampling after the period of one frame.
++    * We add the discounted queuing delay as that's what we try to minimize.
++    * Subtract the average frame time deviation as slack time, so that
++    * we don't drain the GPU from work.
++    */
++   int64_t delay = data->avg_frame_time + data->queuing_delay - MIN2(data->deviation, ONE_MS_IN_NS);
++   return MAX2(delay, 0);
++}
++
++VKAPI_ATTR void VKAPI_CALL
++anv_AntiLagUpdateAMD(VkDevice _device, const VkAntiLagDataAMD *pData)
++{
++   if (pData == NULL)
++      return;
++
++   ANV_FROM_HANDLE(anv_device, device, _device);
++   struct vk_frame_pacer *frame_pacer = device->vk.frame_pacer;
++   struct anti_lag_data *data = vk_frame_pacer_get_user_data(frame_pacer);
++
++   /* Lock this function, in order to avoid race conditions on frame evaluation. */
++   simple_mtx_lock(&data->mtx);
++
++   if (pData->mode == VK_ANTI_LAG_MODE_OFF_AMD) {
++      /* Application request to disable Anti-Lag. */
++      vk_frame_pacer_disable(frame_pacer);
++      simple_mtx_unlock(&data->mtx);
++      return;
++   }
++
++   vk_frame_pacer_enable(frame_pacer);
++
++   if (pData->pPresentationInfo) {
++      /* The same frameIndex value should be used with VK_ANTI_LAG_STAGE_INPUT_AMD before
++       * the frame begins and with VK_ANTI_LAG_STAGE_PRESENT_AMD when the frame ends.
++       */
++      UNUSED uint64_t frame_idx = pData->pPresentationInfo->frameIndex;
++
++      /* This marks the end of the input stage of the current frame. */
++      if (pData->pPresentationInfo->stage == VK_ANTI_LAG_STAGE_PRESENT_AMD) {
++         /* TODO: If available, this can be used to calculate the simulation time. */
++         simple_mtx_unlock(&data->mtx);
++         return;
++      }
++   }
++
++   /* VK_ANTI_LAG_STAGE_INPUT_AMD: This marks the begin of a new frame.
++    * Evaluate previous frames in order to determine the wait time.
++    */
++   vk_frame_pacer_evaluate(frame_pacer);
++
++   uint64_t delay = get_wait_time(data);
++
++   /* Ensure maxFPS adherence. */
++   if (pData->maxFPS) {
++      uint64_t frametime_period = ONE_SECOND_IN_NS / pData->maxFPS;
++      delay = MAX2(delay, frametime_period);
++   }
++
++   uint64_t next_deadline = data->prev_input_begin + delay;
++   uint64_t now = os_time_get_nano();
++
++   /* Recalibrate every now and then. */
++   if (next_deadline > data->recalibrate_when) {
++      vk_frame_pacer_calibrate(frame_pacer);
++      /* Take a new calibrated timestamp every 8 seconds. */
++      data->recalibrate_when = next_deadline + 8 * ONE_SECOND_IN_NS;
++   }
++
++   data->prev_input_begin = MAX2(now, next_deadline);
++
++   simple_mtx_unlock(&data->mtx);
++
++   /* Sleep until deadline is met. */
++   os_time_nanosleep_until(next_deadline);
++}
+--- a/dev/null
++++ b/src/intel/vulkan/anv_anti_lag.h
+@@ -0,0 +1,14 @@
++/*
++ * Copyright © 2026 Valve Corporation
++ * SPDX-License-Identifier: MIT
++ */
++
++#ifndef ANV_ANTI_LAG_H
++#define ANV_ANTI_LAG_H
++
++#include "anv_private.h"
++
++VkResult anv_device_init_anti_lag(struct anv_device *device);
++void anv_device_finish_anti_lag(struct anv_device *device);
++
++#endif /* ANV_ANTI_LAG_H */
