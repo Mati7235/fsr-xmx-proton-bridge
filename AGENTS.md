@@ -11,6 +11,10 @@ Experimental compatibility research, not a working bridge yet.
 - Third-party DLLs/models and upstream source checkouts are ignored by this repository. Do not redistribute them or claim licensing rights.
 - Do not disable driver canaries or hide compilation failures to make tests pass.
 
+## Language
+- Write every repository file in English: docs, READMEs, code comments, user-facing messages and commit messages. Conversation with the user stays in Spanish.
+- When translating existing docs, run `python3 -I tools/check_translation.py <file>` to confirm code blocks, inline code, links, hashes and numbers are unchanged.
+
 ## Commit convention
 - Use Conventional Commits with an English subject: `type(scope): Description`.
 - Choose a type matching the change, such as `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`, or `chore`.
