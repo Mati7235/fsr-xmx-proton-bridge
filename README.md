@@ -29,8 +29,11 @@ fsr-xmx doctor <game-folder> --profile <game>
 
 ## What does not work
 
-FSR frame generation and Anti-Lag 2 are closed, and the DLSS packs, other titles and a
-system-wide install remain untested. See [docs/roadmap.md](docs/roadmap.md).
+FSR frame generation and Anti-Lag 2 are closed, and other titles and a system-wide install
+remain untested. See [docs/roadmap.md](docs/roadmap.md).
+
+Do not select the DLSS entries in the mod's upscaler menu. The mod covers FSR only, not
+DLSS, so those entries do not work.
 
 ## Comparison videos
 
