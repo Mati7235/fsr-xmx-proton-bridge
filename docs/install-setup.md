@@ -80,7 +80,7 @@ xess-xmx-linux-20261113-cmk3/
 Steps:
 
 1. Leave the user's active package untouched. The candidate lives in its own
-   folder (`/home/matias/xess-xmx/xess-xmx-linux-20261113-cmk3`).
+   folder (`~/xess-xmx/xess-xmx-linux-20261113-cmk3`).
 2. Load verification without installing, with `XMX_CHECK_LIB` pointing to the
    new package's driver. Source: `docs/compatibility.md`
    (`session-check --dry-run` with `XMX_CHECK_LIB` enumerates the B580 as
@@ -100,7 +100,7 @@ with the actual listing of `lib/`; do not invent the version.
    `docs/spiderman-trace-runbook.md` §1:
 
 ```bash
-cd /home/matias/Proyectos/fsr-xmx-proton-bridge
+cd ~/Proyectos/fsr-xmx-proton-bridge
 sha256sum artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll
 ```
 
@@ -210,7 +210,7 @@ those literals if they do not exist.
 
 Sources: `disable.sh`, `uninstall.sh`, `tools/switch-driver.sh`,
 `install.sh` (keeps `.stock`), and the backup
-`/home/matias/xess-xmx/backup-20261113/` (hashes, shims, units, env).
+`~/xess-xmx/backup-20261113/` (hashes, shims, units, env).
 
 - Per game (reverts `enable.sh`):
 
@@ -230,7 +230,7 @@ block from `XMX_CONF` and deletes `drive_c/igdext_kernels`.
   from its `.stock`, removes the Proton hook, the environment and the watcher,
   and asks for a reboot or re-login. Compiled kernels stay in
   `~/.cache/xess-xmx` (deleting that folder removes them).
-- Backup taken before testing the candidate: `/home/matias/xess-xmx/backup-20261113/`
+- Backup taken before testing the candidate: `~/xess-xmx/backup-20261113/`
   with `hashes.txt`, `shims/`, `units/`, `env/50-xess-xmx.conf`. If something does
   not add up after installing the candidate, that backup is the comparison
   reference. No automatic restore command from the backup is documented here,

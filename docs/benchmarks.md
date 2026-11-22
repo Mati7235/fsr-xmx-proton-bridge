@@ -178,7 +178,7 @@ there is no independent oracle and no deterministic readback of the PRE.
 | Part | Value |
 |---|---|
 | Game | SCP: 5K (Alpha Testing), appid 872670, build 20928322, version `0.17.6.1` |
-| Executable | `/home/matias/Juegos/steamapps/common/5K/WindowsNoEditor/Pandemic/Binaries/Win64/Pandemic.exe` |
+| Executable | `~/Juegos/steamapps/common/5K/WindowsNoEditor/Pandemic/Binaries/Win64/Pandemic.exe` |
 | Engine / API | Unreal Engine 4.27.2, D3D12 over vkd3d-proton |
 | GPU | Intel Arc B580 (BMG G21, device `0xE20B`), Mesa 26.3.0 |
 | Driver | `xess-xmx-linux-20261113-cmk3`, ICD `run/intel_icd.json`, `lib/active=26.3.0` |
@@ -231,8 +231,8 @@ Representative lines:
 [FSR4 XMX] GPU GTGeneration=20 EU=160 driverBuild=9999 ... XMX=1 | ... SIMD16Required=1 -> Xe2 SIMD16-DPAS kernels
 [FSR4 XMX] embedded 18-variant Xe2 (SIMD16 DPAS) pack loaded: ... SHA256 verified.
 [FSR4 XMX] runtime geometry=1920x1080 using stock MaxResolution bucket=quality_1080
-ANV CM: /home/matias/.cache/xess-xmx/kernels/e8fca351200197b3_e20b_142835e7.cmk: sampler descriptor table after the surfaces (sampler heap found)
-ANV CM: injected /home/matias/.cache/xess-xmx/kernels/e8fca351200197b3_e20b_142835e7.cmk (...)
+ANV CM: ~/.cache/xess-xmx/kernels/e8fca351200197b3_e20b_142835e7.cmk: sampler descriptor table after the surfaces (sampler heap found)
+ANV CM: injected ~/.cache/xess-xmx/kernels/e8fca351200197b3_e20b_142835e7.cmk (...)
 ```
 
 The screenshot is `analysis/scp5k-fsr4xmx-20261114/logs/run1/screen-fsr4.png`

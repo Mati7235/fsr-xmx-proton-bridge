@@ -21,13 +21,16 @@ PRE `native_1080` dispatch); version checklist:
 
 ## 0. Starting paths and versions (read-only)
 
-- Game: `/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/`,
+`~` stands for the home folder; the Spider-Man folder is wherever Steam or
+the user installed it, and the Proton folder shown is the one the run used.
+
+- Game: `~/Juegos/Spiderman/Marvel's Spider-Man Remastered/`,
   executable `Spider-Man.exe` (121,901,008 B observed; re-register on the day
   of the trace, since Steam may update it).
 - OptiScaler already installed: `dxgi.dll` + `D3D12_OptiScaler/D3D12Core.dll` +
   `OptiScaler.ini`. The game's current `amd_fidelityfx_upscaler_dx12.dll`
   (`d0dcccc7…`) is **not** the mod.
-- Proton: `/home/matias/.steam/root/steamapps/common/Proton - Experimental`
+- Proton: `~/.steam/root/steamapps/common/Proton - Experimental`
   (`version`: `experimental-11.0-20261105c`; launcher `proton`, usage
   `proton run <exe>`).
 - Explicit ICD: `/usr/share/vulkan/icd.d/intel_icd.x86_64.json`
@@ -38,7 +41,7 @@ PRE `native_1080` dispatch); version checklist:
 ## 1. Re-verify starting hashes (read-only, run nothing else)
 
 ```bash
-cd /home/matias/Proyectos/fsr-xmx-proton-bridge
+cd ~/Proyectos/fsr-xmx-proton-bridge
 sha256sum artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll
 # esperado: fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732
 python3 -c "
@@ -52,8 +55,8 @@ assert r['ir_sha256'] == '49e069fd7ad17af19589195e274d8a1af191af363608f71d0a50ad
 assert r['envelope_sha256'] == 'ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab'
 print('PRE native_1080 OK')
 "
-sha256sum "/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe"
-cat "/home/matias/.steam/root/steamapps/common/Proton - Experimental/version"
+sha256sum "~/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe"
+cat "~/.steam/root/steamapps/common/Proton - Experimental/version"
 sha256sum /usr/share/vulkan/icd.d/intel_icd.x86_64.json /usr/lib/libvulkan_intel.so
 ```
 
@@ -72,7 +75,7 @@ Reading the game's `OptiScaler.ini` (verified by direct reading):
 Therefore, the exact expected path of the mod is:
 
 ```text
-/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/amd_fidelityfx_upscaler_dx12.dll
+~/Juegos/Spiderman/Marvel's Spider-Man Remastered/amd_fidelityfx_upscaler_dx12.dll
 ```
 
 Manual steps (the user, never automated):
@@ -90,7 +93,7 @@ Manual steps (the user, never automated):
 ## 3. Scaffold the preparation and the run (CPU-only, run nothing)
 
 ```bash
-cd /home/matias/Proyectos/fsr-xmx-proton-bridge
+cd ~/Proyectos/fsr-xmx-proton-bridge
 python3 tools/prepare_trace_capture_412.py
 # crea build/trace-412-<fecha>-<id>/ con manifest.json + run-manual.py
 python3 build/trace-412-<fecha>-<id>/run-manual.py --run-trace \
@@ -117,8 +120,8 @@ env -i \
   VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.x86_64.json \
   VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/intel_icd.x86_64.json \
   VKD3D_DEBUG=trace \
-  "/home/matias/.steam/root/steamapps/common/Proton - Experimental/proton" run \
-  "/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe" \
+  "~/.steam/root/steamapps/common/Proton - Experimental/proton" run \
+  "~/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe" \
   > '<run>/evidence/vkd3d-trace.log' 2>&1
 ```
 
@@ -139,8 +142,8 @@ is captured with RenderDoc on the Vulkan side:
 ```bash
 renderdoccmd capture --capturefile '<run>/evidence/spiderman-412.rdc' \
   env -i <mismas variables de evidence/env.json> \
-  "/home/matias/.steam/root/steamapps/common/Proton - Experimental/proton" run \
-  "/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe"
+  "~/.steam/root/steamapps/common/Proton - Experimental/proton" run \
+  "~/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe"
 ```
 
 Open the `.rdc` with `qrenderdoc` (CPU, without the game's GPU) and locate the

@@ -20,7 +20,7 @@ def make_cmk(code: bytes) -> bytes:
 
 
 def inj_line(name, nbytes=64, grf=128):
-    return ("ANV CM: injected /home/matias/.cache/xess-xmx/kernels/%s "
+    return ("ANV CM: injected /home/user/.cache/xess-xmx/kernels/%s "
             "(%d bytes code, %d GRF, lws 1,1,1)\n" % (name, nbytes, grf))
 
 

@@ -39,7 +39,7 @@ exists.
 - OptiScaler v10.0.0-dev as `dxgi.dll`, `Dx12Upscaler = ffx`, under per-process variables only:
   `VK_DRIVER_FILES`, `ANV_CM_HELPER`, `ANV_CM_KERNEL_DIR`, `ANV_CM_DEBUG=1`,
   `VKD3D_DISABLE_EXTENSIONS=VK_EXT_descriptor_buffer`, `WINEDLLOVERRIDES="cabinet=n,b"`; rollback
-  in `/home/matias/xess-xmx/backup-20261113/`.
+  in `~/xess-xmx/backup-20261113/`.
 
 ## Per-title detail
 
@@ -131,7 +131,7 @@ the table sampler path: `table_pc_base = push_size - 4*(nsurf+1) = 52 - 48 = 4` 
 `cm_sampler_pc_off = 48`.
 
 ```bash
-cd /home/matias/Proyectos/fsr-xmx-proton-bridge/build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
+cd build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
 ./run-candidate.sh &> vkd3d-trace3.log
 ```
 

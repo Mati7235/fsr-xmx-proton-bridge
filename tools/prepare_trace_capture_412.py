@@ -32,6 +32,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -88,7 +89,7 @@ PINS_412 = "profiles/xmx412-pins.json"
 D3D12_HEADER_SHA256 = "23935395fe8939ac0ca71c5b34cd7b21a689ff5e9641846563613f24bc0dd85e"
 DXGI_FORMAT_HEADER_SHA256 = "8a4e770d3022aff667b7d4f03f0cf5a068ecde87f357c9791f275954c1461c48"
 
-GAME_DIR = Path("/home/matias/Juegos/Spiderman/Marvel's Spider-Man Remastered")
+GAME_DIR = Path(os.environ.get("SPIDERMAN_DIR", Path.home() / "Juegos" / "Spiderman" / "Marvel's Spider-Man Remastered"))
 GAME_EXE = GAME_DIR / "Spider-Man.exe"
 OPTISCALER_INI = GAME_DIR / "OptiScaler.ini"
 GAME_DLL_SLOT = GAME_DIR / "amd_fidelityfx_upscaler_dx12.dll"
@@ -98,7 +99,7 @@ GAME_DLL_SLOT_NOTE = (
     "The mod DLL (fadbcb50...) belongs exactly at this path; the stock file there "
     "(d0dcccc7...) is NOT the mod."
 )
-PROTON_DIR = Path("/home/matias/.steam/root/steamapps/common/Proton - Experimental")
+PROTON_DIR = Path(os.environ.get("PROTON_EXPERIMENTAL_DIR", Path.home() / ".steam" / "root" / "steamapps" / "common" / "Proton - Experimental"))
 EXPLICIT_ICD = Path("/usr/share/vulkan/icd.d/intel_icd.x86_64.json")
 
 PINNED_FILES = {

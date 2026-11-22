@@ -1,7 +1,7 @@
 # Design of the `fsr-xmx` installer: plug-and-play FSR 4 XMX on Intel Arc
 
 Design document, not code. Current state: everything is done by hand with
-per-game launchers (`analysis/antilag2-cp77/run.sh`, `hosts/matias-pc` in the
+per-game launchers (`analysis/antilag2-cp77/run.sh`, `hosts/<host>` in the
 config repo) and with the `xess-xmx-linux` package enabled per process. The
 goal is that anyone with an Intel Arc / Xe2 on Arch (and, if it comes for
 free, on any Linux) can get the same result with a script that downloads
@@ -43,7 +43,7 @@ Everything below was read from real files, not from memory.
   - Our repo adds to that package the patches `0001` (CMK3 injection),
     `0002`/`0003` (shim context) and `0005` (vkd3d keep-coopmat, see below).
 - Current launcher: `analysis/antilag2-cp77/run.sh` (live copy in the config
-  repo as `hosts/matias-pc/xess-xmx/cp2077/run.sh`). Variables it sets per
+  repo as `hosts/<host>/xess-xmx/cp2077/run.sh`). Variables it sets per
   process, and why:
   - `STEAM_COMPAT_{CLIENT_INSTALL_PATH,DATA_PATH,APP_ID}` + `SteamAppId`
     / `SteamGameId`: a disposable `compatdata` prefix, never the production
@@ -76,7 +76,7 @@ Everything below was read from real files, not from memory.
     session environment points to the old package. `--fix` corrects with a
     `.bak-<fecha>` backup and refuses to touch the ini while the game is open.
 - Game folder (read-only):
-  `/home/matias/Juegos/steamapps/common/Cyberpunk 2077/bin/x64`.
+  `~/Juegos/steamapps/common/Cyberpunk 2077/bin/x64`.
   Our files or mod files (the rest belongs to the game):
   - `amd_fidelityfx_upscaler_dx12.dll` (FSR4 XMX 4.1.2 mod):
     45,558,272 bytes, sha256 `fadbcb50…b37f44732`.
