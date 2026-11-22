@@ -26,7 +26,7 @@
     "unblocked_file_line": 444,
     "unblocked_line": "macl (1|M0)              r1.0<1>:d     r82.14<0;1,0>:d   r80.1<0;1,0>:d   {Compacted}",
     "context_preceding_line": "(W)     mul (1|M0)               acc0.0<1>:d   r82.14<0;1,0>:d   r80.2<0;1,0>:uw",
-    "opcode_delta_vs_old_iga": "exactly one macl instruction is new (file line 444); all other opcodes already parsed. acc0 lines: 252 old vs 253 new (one extra mul acc0 at line 442 feeding macl). See docs/xmx412-macl-acc0.md."
+    "opcode_delta_vs_old_iga": "exactly one macl instruction is new (file line 444); all other opcodes already parsed. acc0 lines: 252 old vs 253 new (one extra mul acc0 at line 442 feeding macl). See docs/xmx412-dispatch.md."
   },
   "ir_surface_parameters": [
     {
@@ -203,6 +203,6 @@
       }
     ]
   },
-  "auditor_extension": "REVIEWED macl+acc0 model (see docs/xmx412-macl-acc0.md): macl is a 2-src/1-dst integer op with implicit acc0 read (acc0.0 always used, AccWrCtrl NOT set) and no GRF aliasing; mac/mac/macl reads do not write acc here (conservative no-kill), explicit accN tracked per overlapping pair with predicated-write/no-kill except sel. Full-kernel audit yields 160 visited, zero possible reads, overwrites at 20/23/143/179/379 -- identical shape to the old build. Accumulators start clean; no live path writes r2 bytes to acc, so the implicit macl read at line 444 is clean. Untested opcodes (incl. mach) still rejected fail-closed.",
+  "auditor_extension": "REVIEWED macl+acc0 model (see docs/xmx412-dispatch.md): macl is a 2-src/1-dst integer op with implicit acc0 read (acc0.0 always used, AccWrCtrl NOT set) and no GRF aliasing; mac/mac/macl reads do not write acc here (conservative no-kill), explicit accN tracked per overlapping pair with predicated-write/no-kill except sel. Full-kernel audit yields 160 visited, zero possible reads, overwrites at 20/23/143/179/379 -- identical shape to the old build. Accumulators start clean; no live path writes r2 bytes to acc, so the implicit macl read at line 444 is clean. Untested opcodes (incl. mach) still rejected fail-closed.",
   "runtime_approved": false
 }

@@ -11,7 +11,7 @@ in a source, that is stated explicitly.
 
 ## 1. Requirements
 
-- Intel Xe2 GPU. Tested: Arc B580. Source: `docs/first-fsr-xmx-success.md`
+- Intel Xe2 GPU. Tested: Arc B580. Source: `docs/compatibility.md`
   (B580, correct rendering in Spider-Man) and the package README (Xe2 tested
   by a contributor on B580).
 - System Mesa compatible with the package driver. The package ships its own
@@ -35,7 +35,7 @@ in a source, that is stated explicitly.
 ## 2. What the pieces are
 
 Package `xess-xmx-linux-20261113-cmk3` (candidate verified in
-`docs/rebuild-20261113.md` and `docs/first-fsr-xmx-success.md`):
+`docs/compatibility.md`):
 
 - Patched Mesa ANV driver in `lib/` (`lib/mesa-*/libvulkan_intel.so`,
   forwarder `lib/libvulkan_intel.so`, ICD in `run/intel_icd.json`).
@@ -59,12 +59,12 @@ Game-side pieces (not included in the package, do not redistribute):
   `tools/build_cabinet_shim.py` (see `docs/cabinet-shim.md`). It exists only
   next to the game, never in prefixes' `system32` nor in Proton/Wine.
 - OptiScaler with `Dx12Upscaler = ffx` (FSR/XMX path). Source:
-  `docs/first-runtime-trace-412.md` and runbook §2.
+  `docs/validation.md` and runbook §2.
 
 ## 3. Side-by-side installation (without touching the system)
 
 This is the mode used for the first functional run. Source:
-`docs/rebuild-20261113.md` and `docs/first-fsr-xmx-success.md`.
+`docs/compatibility.md`.
 
 Relevant structure of the package (read listing):
 
@@ -82,7 +82,7 @@ Steps:
 1. Leave the user's active package untouched. The candidate lives in its own
    folder (`/home/matias/xess-xmx/xess-xmx-linux-20261113-cmk3`).
 2. Load verification without installing, with `XMX_CHECK_LIB` pointing to the
-   new package's driver. Source: `docs/rebuild-20261113.md`
+   new package's driver. Source: `docs/compatibility.md`
    (`session-check --dry-run` with `XMX_CHECK_LIB` enumerates the B580 as
    `Mesa 26.3.0 (git-51c31a484c)`) and the package's `tools/session-check.sh`
    (`XMX_CHECK_LIB` / `XMX_CHECK_ICD` as overrides for testing only):
@@ -223,7 +223,7 @@ prefix had no stock), removes its own `ControlLib.dll`, removes the `XESS-XMX`
 block from `XMX_CONF` and deletes `drive_c/igdext_kernels`.
 
 - Driver change: `tools/switch-driver.sh <versión>` or reinstall the old
-  package. `docs/rebuild-20261113.md` documents the rollback tested at the design
+  package. `docs/compatibility.md` records the rollback tested at the design
   level: `tools/switch-driver.sh 26.3.0-rc1` or reinstall the previous
   package; the 13 prefix shims are backed up.
 - Full system-wide: `./uninstall.sh`. Restores each `igdext64.dll`
@@ -240,7 +240,7 @@ block from `XMX_CONF` and deletes `drive_c/igdext_kernels`.
 ## 6. Game test
 
 Sources: `docs/xmx412-model-selection.md` §5, `docs/cabinet-shim.md` §6,
-`run-full-test.sh`, `docs/first-fsr-xmx-success.md`.
+`run-full-test.sh`, `docs/compatibility.md`.
 
 1. With the game closed, copy next to the executable (the exact path depends on
    your installation; the runbook uses the Spider-Man directory):
@@ -319,10 +319,28 @@ If `Lite/INT8 model requested without verified fsr-original.dll
 weights.` appears, the weights are missing or the file is not the official 4.1.2
 (checklist in §5.5 of the model selection doc).
 
+### Preparing a manual trace
+
+The full steps are in [spiderman-trace-runbook.md](spiderman-trace-runbook.md),
+and the capture contract in
+[pre-trace-capture-spec.md](pre-trace-capture-spec.md). The order is:
+
+1. Re-verify the starting hashes with runbook §1: mod `fadbcb50…`, IR
+   `49e069fd…`, envelope `ce372719…`. If any differs, stop.
+2. Generate the run with `tools/prepare_trace_capture_412.py` (runbook §3) and
+   leave the reserved `wineprefix-reserved-not-initialized` empty.
+3. Back up the game's current `amd_fidelityfx_upscaler_dx12.dll` outside the
+   game before copying the mod in. That file is `d0dcccc7…`, not the mod.
+4. Fill `runs/<id>/evidence/versions/` with the 12 rows of runbook §6, then save
+   the trace log and the pre/post bytes listed in spec §4.
+
+The trace is input evidence, not an oracle. No row replaces the output oracle,
+and `S_OK`, the overlay or magenta prove nothing.
+
 ## 7. Limits
 
 - Tested only on Marvel's Spider-Man Remastered, one documented functional
-  session (`docs/first-fsr-xmx-success.md`). There is no evidence
+  session (`docs/compatibility.md`). There is no evidence
   for other games or prefixes.
 - Verified at the kernel level (injection, sampler heap, 11 FSR4 resources,
   0 device lost), not at the pixel level. No independent oracle or deterministic

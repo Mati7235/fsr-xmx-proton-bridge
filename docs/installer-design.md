@@ -30,9 +30,7 @@ Everything below was read from real files, not from memory.
   - Upstream: `HHH…/xess-xmx-linux` tag `20261120`, commit `f06dc39`.
     Local checkout in `upstream/xess-xmx-linux`, same revision.
   - Mesa 26.3.1, official tarball with a pinned sha256 in `MANIFEST.txt`.
-    Upstream patches `patches/mesa-26.3/0001,0002,0003,0005,0006,0007` plus
-    our own `0004-anv-anti-lag.patch` (in this repo:
-    `patches/0004-anv-anti-lag.patch`).
+    Upstream patches `patches/mesa-26.3/0001,0002,0003,0005,0006,0007`.
   - `run/intel_icd.json` points to `<paquete>/lib/libvulkan_intel.so`
     (forwarder built from `icd/xmx-icd.c`; the real driver is in
     `lib/mesa-26.3.1/`, sha `24e931c6…`). The ICD declares API 1.4.348.
@@ -43,9 +41,7 @@ Everything below was read from real files, not from memory.
     `xmx-stock.sh`, `tools/switch-driver.sh`, `tools/session-check.sh`,
     `tools/proton-hook.py`, `tools/steam-libraries.sh`, `tools/fsr-fg.sh`.
   - Our repo adds to that package the patches `0001` (CMK3 injection),
-    `0002`/`0003` (shim context), `0004` (Anti-Lag 2) and `0005`
-    (vkd3d keep-coopmat, see below). `0004` is already integrated in
-    package 20261120 (the `MANIFEST.txt` says so).
+    `0002`/`0003` (shim context) and `0005` (vkd3d keep-coopmat, see below).
 - Current launcher: `analysis/antilag2-cp77/run.sh` (live copy in the config
   repo as `hosts/matias-pc/xess-xmx/cp2077/run.sh`). Variables it sets per
   process, and why:
@@ -122,7 +118,7 @@ Everything below was read from real files, not from memory.
 
 | Piece | Source | License | How it is distributed |
 |---|---|---|---|
-| Patched Mesa ANV (`libvulkan_intel.so` + forwarder + `run/intel_icd.json`) | Official Mesa + `patches/mesa-26.3/*` from xess-xmx-linux + our `0001`–`0004` | MIT | precompiled in CI + source/patch tarball with a source offer |
+| Patched Mesa ANV (`libvulkan_intel.so` + forwarder + `run/intel_icd.json`) | Official Mesa + `patches/mesa-26.3/*` from xess-xmx-linux + our `0001` | MIT | precompiled in CI + source/patch tarball with a source offer |
 | Shim `igdext64.dll` (+ `ControlLib.dll`) | `shim/` from xess-xmx-linux + our `0002`/`0003` | MIT | precompiled in CI |
 | Our `d3d12.dll` + `d3d12core.dll` (vkd3d-proton + `0005`) | vkd3d-proton base = the one shipped by the pinned GE-Proton (`8293130e` for GE-Proton11-12) + GE's vkd3d patches + `patches/0005-vkd3d-keep-coopmat-extension(-ge).patch` | LGPL-2.1 | precompiled in CI; see §3 for how they reach the game without redistributing Proton |
 | Game-local `cabinet.dll` | `tools/build_cabinet_shim.py` from this repo | MIT (ours) | built in CI with llvm-mingw or by the script; it is our code, no license issue |
@@ -320,7 +316,7 @@ free disk for the compatibility tool (warns if there is no reflink/COW).
   explicit approval, see below):
   1. `mesa`: checkout of official Mesa (pinned version, tarball with sha256)
      + patches `patches/mesa-26.3/*` from xess-xmx-linux (pinned to the tag used)
-     + our `0001`/`0004`; build with the `meson OPTS` from
+     + our `0001`; build with the `meson OPTS` from
      `rebuild-driver.sh`; artifacts: `libvulkan_intel.so`,
      forwarder `xmx-icd.c`, `intel_icd.json`, `igdext64.dll`,
      `ControlLib.dll`, `layer/` if applicable.

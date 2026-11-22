@@ -24,11 +24,11 @@ Pinned static context (verified locally by SHA-256 on 2026-11-12):
 | IR `fsr-resources/xe2-first.spvasm` | `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e` |
 
 Analysis references: dispatch and provenance in
-[`pre-dispatch-ghidra.md`](pre-dispatch-ghidra.md) (function `FUN_1800163c0`,
+[xmx412-dispatch.md](xmx412-dispatch.md) (function `FUN_1800163c0`,
 grid formula, stock bindings by name, fail-stops, helper `0x180002df0`,
 vtables against `d3d12.h`); contract in
-[`pre-controlled-test-contract.md`](pre-controlled-test-contract.md); typed
-views in [`pre-resource-descriptors.md`](pre-resource-descriptors.md).
+[validation.md](validation.md); typed
+views in [xmx412-dispatch.md](xmx412-dispatch.md).
 
 ## Goal of the trace
 
@@ -140,7 +140,7 @@ actual heap/table used at root 12.
   (`rcx=estado, rdx=registro, r8=interfaz D3D12`).
 - Record whether the PRE dispatch **reuses** an already-created
   context/device/queue (known limitation of the context patch, see
-  [`context-output-fix.md`](context-output-fix.md)) or creates a new one, and
+  [shim-bridge.md](shim-bridge.md)) or creates a new one, and
   with which parameters (`CreateDeviceExtensionContext` 4.20.0,
   `CheckFeatureSupport` OPTIONS1/XMX and OPTIONS2/SIMD16Required).
 - Record calls to `GetCachedBlob` and their result (in the reference shim it
@@ -148,7 +148,7 @@ actual heap/table used at root 12.
 - Record observed constants/models (`4.0.2x`/`4.0.2xm`, reading of
   `fsr-original.dll`) only as provenance, without attributing semantics.
 - Record any fail-stop emitted (strings in
-  [`pre-dispatch-ghidra.md`](pre-dispatch-ghidra.md): params not ready, missing
+  [xmx412-dispatch.md](xmx412-dispatch.md): params not ready, missing
   stock binding, incomplete constants, ABI `0x5058`, ScratchBuffer layout,
   geometry not available, parity ring full).
 
@@ -164,7 +164,7 @@ actual heap/table used at root 12.
   resource pre/post.
 - The CM/hardware local size and the execution mask are **not** `Dispatch`
   arguments: they require separate evidence from the driver/launcher (see
-  [`pre-dispatch-dimensions.md`](pre-dispatch-dimensions.md)). Do not substitute
+  [xmx412-dispatch.md](xmx412-dispatch.md)). Do not substitute
   them with `1×1×1`, `SubgroupSize 1` or the Vulkan selector.
 
 ## Correlation by ID and preservation
@@ -186,4 +186,4 @@ actual heap/table used at root 12.
 Initial format/content of the 8 images, PRE output oracle, functional
 correctness, Proton/VKD3D equivalence, nor the validity of reusing these values
 outside the traced `native_1080`. The approval criterion remains the one in the
-[controlled contract](pre-controlled-test-contract.md).
+[validation.md](validation.md).

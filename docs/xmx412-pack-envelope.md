@@ -92,11 +92,57 @@ Intel XMX)") and the XML manifest (type 24, id 2).
   `e_adapt` ×8.
 - **40106 (DLSS-MX)** — 67 kernels: `k_gemm` ×19, `m_layer` ×18,
   `k_mlp` ×10, `m_stage` ×10, `m_attn` ×8, `m_adapt` ×2.
-- Every envelope trailer carries `-vc-payload … -Xfinalizer '-noDPASMacro'
-  -target-features=+ocl_runtime`; packs 40104–40106 additionally reference
-  `dpas2`/`dpasw` in gap strings.
+- Every envelope trailer has the same shape, but the option string varies by
+  bucket: 40101 carries S1, 40102 carries S2, 40103 splits between S1 and S2,
+  and 40104 to 40106 split between S2 and S3. The
+  `-ze-exp-register-file-size=256` flag appears only in the three DLSS packs.
+  Packs 40104 to 40106 additionally reference `dpas2`/`dpasw` in gap strings.
 
 Bucket-to-pack association above comes from the loader's own index→name
-table, not from pack ordering. The old
-`
-...[truncated 911 chars]
+table, not from pack ordering. `tools/decompress_xmx412.py` pins the same six
+bucket names next to the sizes and digest of each pack, and
+`tools/parse_cm_payloads.py` reads the CM envelopes back from the decoded bytes
+with no per-pack constants.
+
+## Dynamic fields per bucket
+
+In the 24-byte container only the `total` field at offset 8 and the CRC byte at
+offset 6 change between packs, and the CRC covers the new total. Magic, header
+size 24, algorithm 5, both reserved words and block size 65536 are identical in
+all six headers.
+
+The CM envelope itself starts at a SPIR-V header, ends after the option trailer,
+and carries a 16-byte footer of two little-endian u64 values (`ir_size`,
+`trailer_size`) immediately before the `-vc-payload` marker. The parser accepts
+a trailer between 27 and 4096 bytes, requires exactly two NUL-terminated ASCII
+option strings, and rejects overlaps.
+
+Three option strings occur, all with the second string
+` -target-features=+ocl_runtime`:
+
+- S1: `-vc-payload`
+- S2: `-vc-payload -Xfinalizer '-noDPASMacro'`
+- S3: `-vc-payload -ze-exp-register-file-size=256 -Xfinalizer '-noDPASMacro'`
+
+| Bucket | Header `total` | CM envelopes | Trailer bytes | IR size range | Option strings |
+|---|---:|---:|---|---:|---|
+| 18-variant DG2 | 35 346 326 | 252 | 70 | 31 464 to 357 612 | S1 ×252 |
+| 18-variant Xe2 | 23 682 325 | 252 | 97 | 22 528 to 358 776 | S2 ×252 |
+| FSR 4.1.2 Lite | 42 034 337 | 378 | 70, 97 | 18 416 to 358 816 | S1 ×189, S2 ×189 |
+| DLSS K | 42 477 193 | 716 | 97, 128 | 25 880 to 258 376 | S2 ×442, S3 ×274 |
+| DLSS E / F | 19 590 261 | 312 | 97, 128 | 35 092 to 143 712 | S2 ×192, S3 ×120 |
+| DLSS-MX | 5 443 681 | 67 | 97, 128 | 18 128 to 162 952 | S2 ×49, S3 ×18 |
+
+Every envelope size equals `ir_size + trailer_size`, and the trailer includes
+the 16-byte footer, the option strings and the marker text, so the table values
+also fix each bucket's envelope range. Trailer length follows the option string:
+70 bytes marks S1, 97 marks S2 and 128 marks S3, while the 16-byte footer layout
+stays the same in every envelope.
+
+To re-derive the counts for one pack, decode it first and point the parser at a
+new output directory:
+
+```sh
+python3 tools/parse_cm_payloads.py analysis/fsr-xmx-412/pack-40102.raw \
+  /tmp/opencode/cm-payloads-40102
+```

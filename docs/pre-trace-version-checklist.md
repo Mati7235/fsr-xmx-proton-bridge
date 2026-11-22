@@ -40,4 +40,4 @@ read-only.
 - `WINEPREFIX` is a fresh directory per run, reserved but **not initialized** by the
   preparation. Initialization, if authorized, happens only inside the future manual run.
 - No item in this list substitutes for the output oracle nor proves functional correctness
-  (see [controlled contract](pre-controlled-test-contract.md)).
+  (see [validation.md](validation.md)).

@@ -1,8 +1,166 @@
-# Initial compatibility and plan
+# Compatibility: what works today
 
-## Inputs and traceability
+This page records what runs today, on which hardware, with which game and Proton build. Static
+analysis dates from 2026-10-22, runtime results from 2026-11-12 to 2026-11-14. Anything the tree
+or the cited documents cannot confirm is marked unverified, and the standard a result must meet
+is in [validation.md](validation.md).
 
-Static analysis of 2026-10-22. No code from the packages was executed.
+## Compatibility table
+
+Works means the game rendered a correct scene, the mod's kernels were injected, the sampler heap
+was found and the device was not lost. It does not mean bit-exact FSR output, because no oracle
+exists.
+
+| Game | Upscaler and model | Resolution | Status | Conditions |
+|---|---|---|---|---|
+| Marvel's Spider-Man Remastered | FSR 4 XMX, embedded 4.0.2X by default, 4.1.2X INT8 with `FSR4_XMX_INT8=1` | not recorded; the trace targeted 1920x1080 | works | candidate package, game-local `cabinet.dll`, Proton Experimental `experimental-11.0-20261105c` |
+| Cyberpunk 2077 2.5 | FSR 4.1.2X INT8 and Lite | 1920x1080 | works | candidate package, `compatdata-cp77` prefix, Custom preset, built-in benchmark |
+| SCP: 5K 0.17.6.1 | FSR 4.1.2X INT8, then Lite from the overlay | 1920x1080 | partial | one match, visual confirmation only, EAC untested |
+| The mod's DLSS path | DLSS-K, MX, LX, EX, FX | none | untested | packs 40104 to 40106 ship in the DLL, no run |
+| Any other title | FSR 4 XMX | none | unverified | no run on record |
+| Any 4.1.2 game without the game-local `cabinet.dll` | FSR 4.1.2 mod | any | broken | Wine aborts on `unimplemented function Cabinet.dll.40` |
+
+## The stack the runs used
+
+- Intel Arc B580, BMG G21, `0xE20B`, 12,216 MB, on package `xess-xmx-linux-20261113-cmk3`: Mesa
+  26.3.0 (`git-51c31a484c`), fork base `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`, patches 0001
+  (CMK3), 0002, 0003 and the mandatory 0005 sampler table.
+- Pins, all SHA-256. Mod `amd_fidelityfx_upscaler_dx12.dll` 45,558,272 B:
+  `fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732`.
+  Weights `fsr-original.dll` 57,664,272 B:
+  `aad4fccccb29084a655f9a4f9f613bd22c8c03fb4a0f8840148cc6543b4ccace`.
+  Shim `igdext64.dll` 861,184 B:
+  `ce5776bada42a91169cf724bdbf72021d1b7a3ad946ce1c86d003dd640791a85`.
+  Cabinet shim 69,632 B:
+  `951a13e3164269556609f9e7673a1d0985cdb6a585e9f19fa65f9f747e77348c`, game-local.
+- Proton Experimental `experimental-11.0-20261105c` (also `-x86_64`; Cyberpunk did not record its
+  build) with its vkd3d-proton. Pinned layout `ef9a02e873715c9e2da0d6db8a236aca8380b303`; runtime
+  DLL hashes were not saved.
+- OptiScaler v10.0.0-dev as `dxgi.dll`, `Dx12Upscaler = ffx`, under per-process variables only:
+  `VK_DRIVER_FILES`, `ANV_CM_HELPER`, `ANV_CM_KERNEL_DIR`, `ANV_CM_DEBUG=1`,
+  `VKD3D_DISABLE_EXTENSIONS=VK_EXT_descriptor_buffer`, `WINEDLLOVERRIDES="cabinet=n,b"`; rollback
+  in `/home/matias/xess-xmx/backup-20261113/`.
+
+## Per-title detail
+
+### Marvel's Spider-Man Remastered
+
+The first functional result came from this game on 2026-11-13 (details below). The 4.1.2 DLL
+serves its embedded 4.0.2X model by default; a run with `FSR4_XMX_INT8=1` confirmed 4.1.2X INT8
+from the kernel set, not the overlay. A 2026-11-12 trace gave a correct UI and magenta and green
+3D noise with driver generation `0913d3f4`, which lacks 0005; the candidate removed the noise.
+Repeat with [spiderman-trace-runbook.md](spiderman-trace-runbook.md).
+
+### Cyberpunk 2077
+
+Cyberpunk 2077 2.5, built-in benchmark at 1920x1080, Custom preset with High textures, vsync off
+and no cap. The mod log identifies `INT8 model: preset weights from fsr-original.dll, bucket 0,
+Xe2 SIMD16-DPAS kernels` and `Lite model: ...`. Full had 28 injections and 14 unique kernels,
+Lite had 12 and 6, and one kernel is shared, so Lite runs a smaller network, not an alias.
+
+Average FPS was 54.44 for XeSS, 54.54 for Full INT8 and 55.56 for Lite: Full is tied and Lite is
+2.06 percent above. Recorded quality runs fell from 41.7 to 28.4 fps, so they measure image only.
+Tables and metrics are in [benchmarks.md](benchmarks.md).
+
+### SCP: 5K
+
+SCP: 5K build 20928322, version `0.17.6.1`, appid 872670, Unreal Engine 4.27.2 on D3D12. A match
+rendered correctly with the 4.1.2 mod and OptiScaler after switching INT8 to Lite in the overlay.
+The log counts 244 `ANV CM: injected`, 99 `FSR4 resource detected`, 236
+`PSO create ... hr=0x00000000` and 0 device lost. OptiScaler repeats
+`Upscaler support - fsr4: false`, as in the working Cyberpunk run, so the label is not
+authoritative. EAC is untested.
+
+## Why upstream dropped FSR 4 on XMX
+
+Upstream `xess-xmx-linux` already had FSR 4 on XMX working. On 2026-11-02 the author dropped it as
+a project direction, in commit `99445d8` ("Docs: FSR 4 on XMX is no longer developed"). It was not
+a technical blocker.
+
+Their `docs/games.md`, section "FSR 4 on XMX (Upscaler Builds from the OptiScaler Discord)", gives
+three reasons: no significant performance gain over XeSS on XMX, more setup complexity, and a
+conflict with XeSS frame generation, where the combination worked but needed image corrections
+per game, which the project avoids because OptiScaler is the one that adapts per game.
+
+They tested one build ("B Boost", FileVersion `4.0.2.1`) on one GPU (Arc B390) and two games,
+manually. Their doc was archived for reference, and it already described most of the recipe this
+repo rediscovered: plugin `amd_fidelityfx_upscaler_dx12.dll` with OptiScaler optional;
+`fsr-original.dll` from AMD FSR SDK 2.4.0 (FSR 4.1.2) as the weight source, already fetched by
+`install.sh` and `tools/get-ffx.sh`; native `cabinet.dll` plus `WINEDLLOVERRIDES=cabinet=n,b`,
+because Wine lacks ordinals 40, 43 and 45; `FSR4_XMX_LITE=1` for Lite; and mandatory
+`0005-anv-cm-sampler-descriptor-table.patch`, since "older drivers without patch 0005 render
+corrupted images". The last point matches the local evidence.
+
+Their measured performance, Arc B390 at 1280x800 render and no frame generation:
+
+| Upscaler | Cyberpunk 2077 (avg fps) | CONTROL Resonant (fps) |
+|---|---|---|
+| XeSS Ultra Quality (XMX) | 57.5 | - |
+| FSR 4 on XMX, full model | 56.4 | 35 |
+| FSR 4 on XMX, Lite | 58.2 / 58.1 | 36 |
+
+The FSR 4 kernels took 2.5 ms per frame in full and 1.9 ms in Lite, so Lite is faster rather than
+equal; an overlay showing the same time for both models suggests Lite is not running.
+
+What this repo adds is the 4.1.2X INT8 path upstream never tested (they stayed at `4.0.2.1`), the
+`fsr-original.dll` weight check (`tools/xmx412_weight_scan.c`) and kernel fingerprint comparison
+(`tools/xmx_kernel_set.py`) to rule out a silent fallback, plus the CMK3 prototype.
+
+## The first functional run (2026-11-13)
+
+Marvel's Spider-Man Remastered rendered the scene correctly with the XMX 4.1.2 mod, the shim and a
+custom ANV driver. The UI and the 3D world were coherent and the upscaler reported about 0.99 ms.
+It is the project's first correct visual and functional result, not a bit-exact validation: there
+is no independent oracle and no deterministic readback of the PRE.
+
+The setup used the candidate package side by side, the per-process variables above, a disposable
+prefix of the trace run with the user's saves, Proton Experimental, mod `fadbcb50…` and OptiScaler
+`Dx12Upscaler = ffx`.
+
+| Artifact | Value |
+|---|---|
+| Log | `evidence/vkd3d-trace3-20261113.log`, 19,523 lines |
+| SHA-256 | `012ac930a7369d9723234b4e84a9d68aaa6dba7e1827bd72578da3d368c1d957` |
+| PRE | `~/.cache/xess-xmx/kernels/e8fca351200197b3_e20b_142835e7.cmk` (CMK2, 30,936 B) |
+| Key line | `ANV CM: …e8fca351200197b3_e20b_142835e7.cmk: sampler descriptor table after the surfaces (sampler heap found)` |
+| FSR4 resources detected | 11 `FSR4 resource detected` lines |
+| Device lost | 0 |
+
+The PRE was compiled with the new helper (gen `142835e7`, not `0913d3f4`) and the driver applied
+the table sampler path: `table_pc_base = push_size - 4*(nsurf+1) = 52 - 48 = 4` and
+`cm_sampler_pc_off = 48`.
+
+```bash
+cd /home/matias/Proyectos/fsr-xmx-proton-bridge/build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
+./run-candidate.sh &> vkd3d-trace3.log
+```
+
+Three problems closed on the way: the inherited 0001 patch had the CMK magic inverted, which
+would have rejected every kernel, and a semantic test now covers the fix; the installed package
+was old (`0913d3f4`) and lacked the fork's table-sampler support (0005), which fixes the base
+offset mismatch (8 to 4) and the sampler offset; and the 4.1.2 packs need `Cabinet.dll` (LZMS
+Compression API), which Wine does not implement and the game-local shim provides.
+
+The run does not prove mathematical exactness, the real formats and contents of the 8 images, that
+the package works system-wide or in other games, or repeatability beyond one session. A
+system-wide installation remains a user decision, with rollback in `backup-20261113`.
+
+## What is broken or missing
+
+- There is no deterministic readback and no independent oracle. A working scene proves the path
+  runs and looks plausible, not that FSR matches AMD hardware.
+- The candidate package is not installed system-wide; every result used a per-process ICD and the
+  user's active package stayed intact. DLSS, every other title and repeatability are untested.
+- The overlay can show `4.0.2` while INT8 or Lite runs. The `INT8 model:` and `Lite model:` lines
+  decide; `FSR4_XMX_PROVIDER_INDEX=8` or `12` changes only the label.
+- Wine has no Compression API, so 4.1.2 packs need the game-local `cabinet.dll`. A prefix without
+  `igdext64.dll` aborts with magenta and falls back to DG2 SIMD8 kernels instead of Xe2 SIMD16.
+- Drivers without 0005 render corrupted images, and an old package without the table sampler path
+  reproduces the 2026-11-12 magenta trace. The PRE payload audits stay `runtime_approved=false`.
+
+## Static findings that still apply
+
+Static analysis of 2026-10-22, with no package code executed.
 
 | File | SHA-256 |
 |---|---|
@@ -10,122 +168,27 @@ Static analysis of 2026-10-22. No code from the packages was executed.
 | OptiScaler_v10.0.0-pre_20261022.7z | `df1380aa37fc17b26524e783f12ccb2f59cb67f966af13240bca3d4cd608a25a` |
 | DLL extracted from the XMX mod | `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53` |
 
-Upstream originally analyzed: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
-Current base of the patch stack: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
-The following lines are relative to `upstream/xess-xmx-linux/`;
-for patches they refer to the patch file, not to the final Mesa file.
+Upstream originally analyzed `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`; the current patch base
+is `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`, 178 commits later. Line numbers are relative to
+`upstream/xess-xmx-linux/`; for patches they name the patch file, not the final Mesa file.
 
-## Evidence in the mod
+The 25,779,712 byte DLL carries strings for `igdext64.dll`, the INTC variants,
+`CreateDeviceExtensionContext` at 4.20.0, `CheckFeatureSupport` for OPTIONS1/XMX and
+OPTIONS2/SIMD16Required, `CreateComputePipelineState` with CM-SPIRV and Xe2 packs,
+`GetCachedBlob`, models `4.0.2x` and `4.0.2xm` with weights from `fsr-original.dll`, a magenta
+failure with fallback disabled, and one table per SurfaceIndex/sampler. These are extracted
+strings, not a trace.
 
-The DLL of 25,779,712 bytes includes search strings for `igdext64.dll`,
-the INTC variants with and without an underscore, and messages of:
+The shim answers the Intel D3D12 calls and the patched ANV driver builds the CM kernels. Two
+CPU-tested shim fixes, the context output copy (0002) and the reused context `S_OK` (0003), are
+not installed; see [shim-bridge.md](shim-bridge.md).
 
-- `CreateDeviceExtensionContext`, requested context 4.20.0.
-- `CheckFeatureSupport`: OPTIONS1/XMX and OPTIONS2/SIMD16Required.
-- `CreateComputePipelineState`: CM-SPIRV kernels and embedded Xe2 packs.
-- `DestroyDeviceExtensionContext`.
-- `GetCachedBlob`, associated with diagnostics of a PRE blob (whether it is mandatory is not established).
-- Models `4.0.2x`, `4.0.2xm`, and reading of weights from `fsr-original.dll`.
-- Explicit failure with magenta diagnostic; conventional fallback disabled.
-- PRE ABI message: one table per SurfaceIndex/sampler.
+Later analysis recovered 690 CM blocks by their footers and 1,977 CM envelopes in 6 packs. The
+4.1.2 PRE `native_1080` compiled offline for the B580 (`b1781bb4…` zebin, `68b962b5…` code, BTIs
+`[8,9,1,2,3,4,5,6,7,10,11]`); the pins are in [xmx412-toolchain.md](xmx412-toolchain.md). The
+suite passed 416 tests with 3 skips on 2026-11-13.
 
-These are extracted strings, not an observed trace nor a complete reconstruction of the flow.
-
-## Shim map
-
-| Area | Finding | Upstream evidence |
-|---|---|---|
-| Version | Accepts 4.20.0 by comparison against a maximum of 5.20.0; this does not prove full implementation | `shim/src/D3D12ExtensionContext.cpp:7-30`, `shim/src/ExtensionContextBase.h:42-45` |
-| Context | [Candidate patch and CPU tests](context-output-fix.md) fix the compatible copy when initializing two inherited D3D12 APIs; the [reuse](context-reuse-fix.md) validates device/version against the granted contract and refreshes outputs (candidate 0003 stacked on 0002, CPU-tested). Not installed | `shim/src/dll/Igdext.def:33`, `shim/src/dll/IgdextApiDll.cpp:343-494` |
-| Capabilities | OPTIONS1 and OPTIONS2 implemented; responses based on the detected GPU, with overrides | `shim/src/dll/D3D12Api.cpp:397-426` |
-| GPU detection | Wine PCI registry, not necessarily the D3D12 device received; optimistic default if none is detected | `shim/src/dll/GpuInfo.cpp:12-42` |
-| PSO CM-SPIR-V | Stores dynamic kernels; does not require a fixed XeSS whitelist | `shim/src/dll/D3D12Api.cpp:218-249`, `shim/CMakeLists.txt:39-43` |
-| Compilation | Filters CompileOptions; does not forward InternalOptions; local size depends on concrete defines or falls back to 1,1,1 | `tools/cm-compile.sh:42-54`, `shim/src/dll/D3D12Api.cpp:202-245` |
-| Entry point | Packer picks the first non-internal .text section; no general entry point selection | `tools/cmk_pack.py:44-52` |
-| Resources | Assumes one table per surface and trailing DWORDs in push constants; does not interpret the general root signature | `tools/cmk_pack.py:89-101`, `patches/0001-anv-cm-kernel-injection.patch:675-720` |
-| Samplers | First static sampler or XeSS linear/clamp fallback | same patch `:668-673,786-824` |
-| Payload | 128-byte cross-thread limit; argument types not implemented; fixed group count in packer | `tools/cmk_pack.py:62-87`, `tools/cm-compile.sh:54` |
-| CachedBlob | Export present but E_NOTIMPL; evaluate whether it only affects the mod's diagnostics | `shim/src/dll/D3D12Api.cpp:120-124` |
-| Result | S_OK or a created PSO do not guarantee injection; there is a no-op fallback | `shim/src/dll/D3D12Api.cpp:247-256` |
-
-The match on 'one table per surface' is promising, but it does not demonstrate
-that the offsets, samplers, arguments, registers or the vkd3d layout match.
-
-## Research progress
-
-See [pre-resource-map.md](pre-resource-map.md): **690 blocks** recovered by
-their length footers, a reconstructed PRE map, and a one-DWORD offset mismatch
-identified under the reference VKD3D layout. In PRE the API options are NULL and the
-embedded options are preserved. The [offline compilation](offline-pre-compilation.md)
-confirmed that IGC consumes them, compiled the PRE for B580 and verified the BTIs. A
-hash-pinned profile and a candidate CMK3 reader were added, not installed.
-The [later payload audit](pre-payload-audit.md) finds no reads of the four extra fields
-before they are overwritten or the program ends, under a full and constant execution
-mask in this binary. No addresses had to be invented.
-
-## Pending blockers
-
-1. Complete the format of the non-CM data in 40101 (18 DXBC and six unclassified gaps); the six missing modules have already been recovered.
-2. Validate the full and constant execution mask assumed by the audit: the cross-thread fields of args 0/9/10 and private_base_stateless are not read under that condition in the reviewed PRE.
-3. Confirm the sampler and the Proton layout to be used for the test; the PRE surface map has already been cross-checked against the zebin.
-4. Review the integration of the already-compiled reader inside local Mesa and integrate profile selection/cache identity without globally changing XeSS; see [local build](lab-mesa-build.md).
-5. Determine whether configuration is enough or whether changes to the shim, packer or driver are needed.
-6. Review IGC compiler and Xe2/Large-GRF device compatibility.
-
-## Implementation milestones
-
-- [x] Create separate workspace, copies and hashes.
-- [x] Clone and identify the upstream revision.
-- [x] Reproducible static inventory of the DLL.
-- [x] Initial map of APIs and ABI risks.
-- [x] Resource extractor and initial CM-SPIR-V carving (without running the DLL; no complete pack parser).
-- [x] CM footer parser: 690 blocks recovered and disassembled.
-- [x] Normal PRE options and root signature reconstructed; sizes of 36 variants verified.
-- [x] 22 synthetic CPU tests and 2 optional ones with local artifacts, including the table-offset mismatch model.
-- [x] Offline compilation of the Xe2 native_1080 PRE for B580; BTIs confirmed and option control reproduced.
-- [x] Hash-pinned profile, offline CMK3 adapter and candidate ANV reader patch for both versions.
-- [x] 41 local tests passing, including the validation C block with synthetic layouts.
-- [x] Static audit of cross-thread bytes and opaque surface uses; no reads under full mask, with hash evidence.
-- [x] 68 local tests passing, including read cases, partial/predicated writes and auditor branches.
-- [x] Candidate D3D12 context copy patch: Windows ABI and generated bodies tested on CPU, and the complete shim built with LLVM-MinGW without running the DLL.
-- [ ] Validation of the PRE's local mask and dimensions; the [pinned inspector](pre-dispatch-dimensions.md) keeps the gates open.
-- [x] CPU build of local Mesa with LLVM 23 and candidate reader; not installed or run on GPU.
-- [x] Synthetic DPAS probe compiled, payload audited under static assumptions, and explicit CMK3 heap.
-- [x] Vulkan harness compiled without execution and inventory preflight; 96 CPU tests pass.
-- [x] Manual preparation with local ICD, hashes, new environment and opt-in launcher; 102 CPU tests pass, no GPU run.
-- [x] User ran the synthetic probe on B580: injection and 1,408 correct values, with remaining slots intact; see [evidence](first-synthetic-gpu-result.md).
-- [x] Image/sampler probe compiled, audited and prepared for manual test with CPU reference and independent binary readback; 133 CPU tests pass.
-- [x] User ran image/sampler on B580: independent binary review confirms 64 values with max error 0 and 1,984 sentinel words intact; see [result](first-image-gpu-result.md).
-- [x] [PRE host views](pre-resource-descriptors.md) reconstructed for buffers: `R8_UINT`, SRV of 2,112/128 bytes and lower bound of the native_1080 UAV; D3D12 ABI assertions and 150 CPU tests pass. Image formats/inputs and the oracle remain pending.
-- [ ] Runtime integration of the profile and review of the probe/harness contract.
-- [ ] With authorization, microtest in a disposable prefix with known GPU output.
-- [ ] Only afterwards, reversible per-game integration in Cyberpunk.
-
-## 4.1.2 series (DLL `fadbcb50…b37f44732`, 45,558,272 B) — closed statically
-
-- [x] LZMS decoder for the envelope (header 24 B + chunks, SHA-256 digest by loader `FUN_180029640`); 6 packs, 1,977 CM envelopes; see [envelope](xmx412-pack-envelope.md).
-- [x] SPIR-V PRE Xe2 census + equivalent dispatch + 18 variants: entry `fsr4_pre_xmx`, 12 args, single `WorkgroupId`, guards `120×540/240×1080/480×2160`, counts `78/85/1`, grid/modes identical to 4.0.2x; helper rewritten (do not reuse `0x180002df0`); see [census](xmx412-spirv-census.md), [dispatch](xmx412-dispatch.md), [variants](xmx412-variants.md).
-- [x] Offline compilation PRE `native_1080` positional (IR `49e069fd…`, envelope `ce372719…` → zebin `b1781bb4…`, code `68b962b5…`, `ze_info` byte-identical to the old one, BTIs `[8,9,1,2,3,4,5,6,7,10,11]`); see [offline 4.1.2](xmx412-offline-compile.md).
-- [x] `macl`/`acc0` audit clean under a full constant mask (160 visited, 0 reads, overwrites 20/23/143/179/379; scope one kernel/input/output); see [audit](xmx412-macl-acc0.md) (commit `db2e834`). `runtime_approved=false` remains.
-- [x] Bridge re-verified against 4.1.2: 0002/0003 keep, 0001 keeps its shape, registry promoted to 2 entries with a new digest; determinism + `apply --check` + shim 14/14; see [recheck](xmx412-bridge-recheck.md), [regen](xmx412-bridge-regen.md).
-- [x] Spider-Man trace runbook pinned (DLL/pack/IR/envelope with SHA-256, contract and checklist); see [runbook](spiderman-trace-runbook.md) and [user checklist](xmx412-user-checklist.md).
-
-## Still open (not runtime, not oracle, not real dispatch)
-
-- [ ] Phase 1 runtime trace in a disposable prefix (user, manual): real grid, 11 tables + sampler, `rootParameters`, DIAG/FNV, pre/post bytes; see [spec](pre-trace-capture-spec.md) and [runbook](spiderman-trace-runbook.md).
-- [ ] Output oracle and initial contents (formats of 8 images, bytes of arg 9/10/0, CPU reference); see [contract](pre-controlled-test-contract.md).
-- [ ] Real dispatch: mask/local-size, new helper (`0xbbd0`+`0x27bc0`), 4.1.2 variant table (positional names not confirmed), remaining PREs/pass6/other families.
-
-## Success criterion and safety
-
-Do not modify the session's driver or the user's prefixes during analysis.
-A runtime experiment must use a disposable prefix and per-process variables,
-keep the driver canary, and check deterministic GPU readback plus injection logs.
-The overlay, S_OK, or the disappearance of magenta are not considered sufficient.
-
-The [shim baseline compiled from Linux](shim-cross-build.md) with LLVM-MinGW UCRT,
-without running the DLL; the MSVC/Windows SDK variant was not compiled. The UCRT
-imports still await runtime validation. Patched ANV Mesa compiled locally with
-LLVM 23, without installing or running the ICD.
-Official IGC/ocloc were extracted locally without installation and compiled a PRE
-for B580. That does not demonstrate GPU correctness or compatibility of the remaining stages.
+The fork's `0005-anv-cm-sampler-descriptor-table` patch computes
+`table_pc_base = push_size - 4*(nsurf+1)`, which gives 4 for the PRE (11 surfaces, one sampler,
+push 52), and sets `cm_sampler_pc_off = 48`. A per-profile gate added during the rebuild
+duplicated it, broke 0005 and was reverted.
