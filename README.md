@@ -123,6 +123,21 @@ browser, and the 800x450 stills are in
 | [anr-fg-xmx.md](docs/anr-fg-xmx.md) | ANR frame generation timings and limits |
 | [spiderman-trace-runbook.md](docs/spiderman-trace-runbook.md), [pre-trace-capture-spec.md](docs/pre-trace-capture-spec.md), [pre-trace-version-checklist.md](docs/pre-trace-version-checklist.md) | Manual trace steps, what to record, version rows |
 
+## Credits
+
+The patched Mesa driver, the Intel shim and most of the groundwork come from
+[HHHHanasak1/xess-xmx-linux](https://github.com/HHHHanasak1/xess-xmx-linux). Without that
+project FSR 4 would have no compute path on Arc at all, and this repository builds on its
+patches instead of forking it.
+
+The FSR 4.1.2 XMX models are nitec's work, published as a mod on NexusMods. This
+repository does not include his DLL, only the checks that make sure you are running the
+version the measurements were taken with.
+
+OptiScaler, from the [OptiScalers](https://github.com/OptiScalers/OptiScaler) project, is
+what puts the upscaler in front of the game. AMD provides the FidelityFX runtime, Intel the
+XMX kernels and graphics stack, and Valve the Proton and vkd3d-proton plumbing.
+
 ## License and provenance
 
 Copyright (C) 2026 Matias7235.
