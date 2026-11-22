@@ -80,3 +80,14 @@ git -C upstream/vkd3d-proton-coopmat stash pop -q
 Build x86_64-unicamente en `build/vkd3d-coopmat/` (cross file llvm-mingw propio,
 meson del `.venv` local); DLLs listas en `build/vkd3d-coopmat/dist/`.
 Ver `build/vkd3d-coopmat/BUILD.md`. **No instalado en ningún prefijo.**
+
+Variante GE-Proton (decisión del usuario 2026-11-22: la compat tool se basa
+en GE, no en Experimental): worktree `upstream/vkd3d-proton-ge` en la
+revisión exacta que embarca GE-Proton11-12 (`8293130e`, post-`v3.1`,
+`vkd3d-1.1-5687-g8293130eb` según el `version` del tarball), con los 3
+parches vkd3d de GE aplicados (copias en
+`build/vkd3d-coopmat-ge/ge-patches/`: present-waits, no-parent-image,
+version-string) y encima el mismo `0005` **sin cambios: aplicó limpio
+(`apply --check` OK antes y después de los parches de GE), así que no hay
+`0005-...-ge.patch` separado**. Build en `build/vkd3d-coopmat-ge/` con el
+mismo cross file y `.venv`; ver `build/vkd3d-coopmat-ge/BUILD.md`.

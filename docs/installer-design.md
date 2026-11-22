@@ -111,10 +111,13 @@ Todo lo de abajo se leyó de archivos reales, no de memoria.
   Ningún `SOURCE.txt` global; la procedencia vive en esos archivos y en
   `docs/compatibility.md`. Licencias: ver §2, nada se redistribuye.
 - GPU probada: Intel Battlemage G21 (Arc B580, PCI `8086:e20b`), driver
-  `xe`/`i915` del kernel. Proton: Experimental del 2026-11-15
-  (`experimental-11.0-20261115`-era; el build de vkd3d se fijó contra la
-  revisión `2576c0b4` = `experimental-11.0-20261112`). En
-  `compatibilitytools.d` hay además GE-Proton y proton-cachyos.
+  `xe`/`i915` del kernel. Base de la compat tool: **GE-Proton**
+  (decisión del usuario 2026-11-22; GE trae parches amdxc/FSR4-MLFG y
+  env vars `FSR4_UPGRADE`/`MLFG_UPGRADE` útiles para el trabajo FG, y
+  suelta releases versionados fáciles de pinnear; Proton Experimental
+  queda como fallback manual). Pin actual: `GE-Proton11-12`
+  (2026-11-03; vkd3d-proton `8293130e`, post-`v3.1`). En
+  `compatibilitytools.d` puede haber además otros Proton instalados.
 
 ## 2. Lista de componentes: nuestro vs de terceros
 
@@ -124,7 +127,7 @@ Todo lo de abajo se leyó de archivos reales, no de memoria.
 |---|---|---|---|
 | Mesa ANV parcheado (`libvulkan_intel.so` + forwarder + `run/intel_icd.json`) | Mesa oficial + `patches/mesa-26.3/*` de xess-xmx-linux + nuestros `0001`–`0004` | MIT | precompilado en CI + tarball de fuentes/parches con oferta de fuente |
 | Shim `igdext64.dll` (+ `ControlLib.dll`) | `shim/` de xess-xmx-linux + nuestros `0002`/`0003` | MIT | precompilado en CI |
-| Nuestros `d3d12.dll` + `d3d12core.dll` (vkd3d-proton + `0005`) | vkd3d-proton base `2576c0b4` + `patches/0005-vkd3d-keep-coopmat-extension.patch` | LGPL-2.1 | precompilados en CI; ver §3 cómo llegan al juego sin redistribuir Proton |
+| Nuestros `d3d12.dll` + `d3d12core.dll` (vkd3d-proton + `0005`) | vkd3d-proton base = la que embarca el GE-Proton pinneado (`8293130e` para GE-Proton11-12) + parches vkd3d de GE + `patches/0005-vkd3d-keep-coopmat-extension(-ge).patch` | LGPL-2.1 | precompilados en CI; ver §3 cómo llegan al juego sin redistribuir Proton |
 | `cabinet.dll` juego-local | `tools/build_cabinet_shim.py` de este repo | MIT (nuestro) | se compila en CI con llvm-mingw o lo construye el script; es código nuestro, sin problema de licencia |
 | `fsr-xmx` (script instalador + `fsr-xmx run` wrapper) | nuevo en este repo | MIT | código fuente en el repo, se baja con git o como tarball |
 
@@ -200,11 +203,11 @@ arranque. Y copiar DLLs sueltos en la carpeta del juego es frágil
 
 Opciones evaluadas:
 
-1. **Copia local del Proton del usuario como Steam compatibility tool
-   (ELEGIDA).** El instalador copia (reflink en btrfs, casi gratis)
-   `~/.local/share/Steam/steamapps/common/Proton - Experimental` (o el
-   GE-Proton que elija el usuario) a
-   `~/.local/share/Steam/compatibilitytools.d/FSR-XMX-Proton/` y
+1. **Copia local del GE-Proton del usuario como Steam compatibility tool
+   (ELEGIDA, decisión del usuario 2026-11-22).** El instalador copia
+   (reflink en btrfs, casi gratis) el `GE-Proton11-12` (o el pin que
+   diga el release) desde `~/.local/share/Steam/compatibilitytools.d/`
+   a `~/.local/share/Steam/compatibilitytools.d/FSR-XMX-Proton/` y
    reemplaza ahí dentro solo los dos archivos
    `files/lib/wine/vkd3d-proton/x86_64-windows/{d3d12,d3d12core}.dll`
    por los nuestros (con backup `.stock`). Agrega el `compatibilitytool.vdf`
@@ -220,8 +223,14 @@ Opciones evaluadas:
    fallback, no como camino principal.
 3. `WINEDLLPATH` con nuestros DLL: orden de búsqueda no confirmado frente
    a `system32`; descartada hasta tener prueba.
-4. Parchear el Proton instalado: modifica software de Valve, se pierde en
+4. Parchear el Proton instalado: modifica software de terceros, se pierde en
    cada update de Proton, imposible de auditar para el usuario. Descartada.
+
+Nota: el comportamiento de re-copia en cada arranque se verificó también
+en el script `proton` de GE-Proton11-12 (`setup_prefix`: `try_copy` hace
+`remove` + copia siempre de `d3d12`/`d3d12core.dll` a `system32`/`syswow64`
+con overrides `d3d12=n`). Vale lo mismo: no sirve reemplazar DLLs en el
+prefijo.
 
 Riesgo heredado conocido: forzar la extensión rompió `vkCreateDevice` en
 un driver NVIDIA (vkd3d-proton#3076); por eso `0005` es opt-in por env var
@@ -243,7 +252,7 @@ y el wrapper solo la exporta en perfiles ANR.
 ## 4. Spec del CLI
 
 ```text
-fsr-xmx install [--proton experimental|ge|cachy] [--with-anr] [--with-xess-fg]
+fsr-xmx install [--proton ge] [--with-anr] [--with-xess-fg]
 fsr-xmx doctor [--profile <juego>]
 fsr-xmx enable <dir-juego> [--fsr4 int8|lite] [--fg xefg|anr|off]
 fsr-xmx disable <dir-juego>
@@ -258,14 +267,14 @@ lo que pisa un archivo del usuario deja `.bak-<fecha>`):
 - `install`: crea el árbol de §3; descarga el release precompilado
   (Mesa+shims+cabinet+vkd3d DLLs) y verifica `SHA256SUMS`; corre
   `get-igc.sh`/`get-xess.sh`/`get-ffx.sh` (descargas Intel/AMD directas al
-  usuario); genera la compatibility tool de §3 desde el Proton elegido;
+  usuario); genera la compatibility tool de §3 desde el GE-Proton pinneado;
   instala el symlink en `~/.local/bin` (crea el dir si falta; si no está
   en `PATH`, lo dice). Escribe `release/MANIFEST` con versiones y hashes.
   No toca Steam, prefijos ni juegos.
 - `doctor`: solo lectura (sale 1 si hay problemas). Revisa: GPU Intel con
   PCI `8086:*` y driver `xe`/`i915` cargado; Vulkan loader presente
   (`vulkaninfo` o `libvulkan.so.1`); Steam nativo vs Flatpak (Flatpak: no
-  ve `~/.local/share`, se avisa y se apunta a paths del sandbox);
+  ve `~/.local/share`, en v1 solo se avisa y se apunta a paths del sandbox);
   release descargado y hashes OK; compatibility tool presente y sus dos
   DLLs con el hash nuestro; por perfil: `igdext64` iguales en los tres
   lugares, `OptiScaler.ini` con las secciones esperadas, mod y
@@ -319,8 +328,8 @@ disco libre para la compatibility tool (avisa si no hay reflink/COW).
      `rebuild-driver.sh`; artefactos: `libvulkan_intel.so`,
      forwarder `xmx-icd.c`, `intel_icd.json`, `igdext64.dll`,
      `ControlLib.dll`, `layer/` si aplica.
-  2. `vkd3d`: checkout vkd3d-proton al commit fijado + submódulos +
-     nuestro `0005`; cross llvm-mingw; artefactos: `d3d12.dll`,
+  2. `vkd3d`: checkout vkd3d-proton al commit que embarca el GE-Proton pinneado (más sus parches vkd3d) + submódulos +
+     nuestro `0005` (versión `-ge` si hizo falta rebase); cross llvm-mingw; artefactos: `d3d12.dll`,
      `d3d12core.dll` (x86_64; i386 solo si el perfil lo necesita).
   3. `shims`: `cabinet.dll` (nuestro) + empaquetado.
   4. `release`: junta todo + `SHA256SUMS` firmado + `MANIFEST` (commits,
@@ -331,15 +340,16 @@ disco libre para la compatibility tool (avisa si no hay reflink/COW).
   primer build; criterio: el `libvulkan_intel.so` resultante debe cargar
   en Arch actual y en Ubuntu 22.04). Verificar con `ldd` y con
   `session-check.sh --dry-run` contra el driver construido.
-- Versionado: `fsr-xmx-<fecha>-<mesa>-<vkd3d>` (ej.
-  `20261120-mesa26.3.1-vkd3d2576c0b4`); `SHA256SUMS` por release;
+- Versionado: `fsr-xmx-<fecha>-<mesa>-<ge>-<vkd3d>` (ej.
+  `20261122-mesa26.3.1-ge11-12-vkd3d8293130e`); `SHA256SUMS` por release;
   `latest` como symlink/redirect, nunca como archivo sin hash.
 - Fuentes y licencias: el release incluye oferta de fuente completa
   (LGPL de vkd3d-proton lo exige; MIT de Mesa/shims lo agradece):
   tarball con los checkouts exactos + parches + scripts de build para
   reproducir los binarios. `THIRD_PARTY.md` actualizado por release.
-- Publicar (GitHub Releases o similar) SOLO con aprobación explícita del
-  usuario en ese momento; este diseño no autoriza nada.
+- Publicar: los precompilados van a los GitHub Releases de este repo,
+  pero todavía NO (decisión del usuario 2026-11-22: publicar más adelante,
+  con aprobación explícita en ese momento); este diseño no autoriza nada.
 
 ## 6. Lenguaje y dependencias
 
@@ -371,24 +381,34 @@ Riesgos (con su mitigación en el diseño):
 - El driver precompilado no carga en la distro del usuario (glibc,
   libLLVM, SPIRV-Tools): mitigado con base de build vieja + `lib/bundled`
   (ya existe en upstream) + `doctor` que lo detecta antes de tocar nada.
-- Update de Proton Experimental cambia vkd3d base y nuestros DLL
+- Update de GE-Proton cambia vkd3d base y nuestros DLL
   desincronizan: la compatibility tool es una copia congelada (no sigue
   updates), `update` del release avisa cuando el pin queda viejo.
 - `NVIDIA`-style `vkCreateDevice` roto con coopmat en otro driver: opt-in
   por perfil ANR, rollback quitando la env.
-- NexusMods sin URL directa para el mod: el usuario lo aporta; el diseño
+- NexusMods sin URL directa para el mod de nitec: el usuario lo aporta y
+  el script verifica hash/tamaño; hospedaje/redistribución solo con su
+  permiso explícito (decisión del usuario 2026-11-22: hay que pedirle
+  permiso a nitec; hasta entonces, aportado por el usuario). El diseño
   no depende de automatizarlo.
 - Dos generadores de frames a la vez (XeFG + XESS_FG del juego): el perfil
   por defecto no exporta `XESS_FG`; documentado como en el doc de
   `cp2077-xmx`.
 
-Incógnitas (preguntas al usuario en el mensaje final):
+Decisiones ya tomadas por el usuario (2026-11-22, antes incógnitas):
 
-1. ¿Pinneamos Proton Experimental o GE-Proton como base de la tool?
-2. ¿El release vive en GitHub Releases de este repo o en otro lado?
-3. ¿`fsr-original.dll` 4.1.2 puede mencionarse por nombre de archivo
+1. Base de la tool: GE-Proton (no Proton Experimental). Resuelta.
+2. Los precompilados van a los GitHub Releases de este repo, pero todavía
+   NO se publica nada. Resuelta (pendiente el momento de publicar).
+3. DLLs XMX de nitec: hay que pedirle permiso; hasta entonces las aporta
+   el usuario y el script las verifica por hash. Abierta la gestión del
+   permiso.
+4. Flatpak Steam: en v1 solo se avisa. Resuelta.
+
+Incógnita restante (para el README público):
+
+1. ¿`fsr-original.dll` 4.1.2 puede mencionarse por nombre de archivo
    exacto/origen en el README público, o mejor instrucciones genéricas?
-4. ¿Soporte Flatpak Steam en v1 o solo aviso?
 
 Milestone v1 (mínimo shippable): `doctor` (solo lectura) + `install`
 (Mesa precompilado + tool de compatibilidad + IGC/XeSS/FFX) + `enable`
