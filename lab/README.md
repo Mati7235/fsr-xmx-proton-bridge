@@ -325,7 +325,7 @@ output; the executable is named `ocloc-25.18.1`, and querying under the injected
 toolchain library path instead returns unsupported-option status 226. The compile
 command uses the extracted IGC/ocloc environment and target `0xe20b`.
 `probe-spec.json` keeps every field from `contract()` unchanged and adds compile,
-payload, and artifact hashes. The user first manual run of v16 passed independent
+payload, and artifact hashes. The user's first manual run of v16 passed independent
 GPU readback review; see
 [the result and its limits](../docs/validation.md). That review covers
 this synthetic image, not FSR.

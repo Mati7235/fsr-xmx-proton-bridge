@@ -43,7 +43,7 @@ Slots relative to the heap/table used by the normal path (not absolute indices):
 
 | Resource heap slot | Arg | Root | BTI | Expected content (static) |
 |---|---|---|---|---|
-| 0–6 | 2–8 / t0–t6 | 3–9 | 1–7 | ReadOnly images, copied by helper `0x180002df0`; source index at runtime |
+| 0-6 | 2-8 / t0-t6 | 3-9 | 1-7 | ReadOnly images, copied by helper `0x180002df0`; source index at runtime |
 | 7 | 0 / u0 | 1 | 8 | UAV `R8_UINT BUFFER`, `NumElements = Width` (`GetDesc` requires `Dimension == 1`) |
 | 8 | 1 / u1 | 2 | 9 | ReadWrite destination image, copied at `0x18001727e` |
 | 9 | 9 / t7 | 10 | 10 | SRV `R8_UINT BUFFER`, `NumElements = 0x840` (2,112 B), resource in context `+0xa80` |
@@ -59,7 +59,7 @@ sampler heap (`0x180017543`).
 
 ### 1. Resource creation
 
-For each resource bound to slots 0–10, record the effective creation event
+For each resource bound to slots 0-10, record the effective creation event
 (`CreateCommittedResource`, placed/reserved or import):
 
 - Full `D3D12_RESOURCE_DESC`: `Dimension`, `Width`, `Height`,
@@ -78,8 +78,8 @@ For each resource bound to slots 0–10, record the effective creation event
   `Shader4ComponentMapping`), mip/layer/range, destination slot and heap.
 - Each `CopyDescriptors*` (including the helper `0x180002df0` and the site
   `0x18001727e`): source heap, source index, descriptor increment, destination
-  heap, destination slot 0–10, and the ID of the resource the source descriptor
-  designated. For t0–t6 also note the selection register
+  heap, destination slot 0-10, and the ID of the resource the source descriptor
+  designated. For t0-t6 also note the selection register
   (`[rsp+0x78]`, `[rsp+0x7c]`, `esi`, `[rbp-0x80]`, `[rbp-0x7c]`, `edi`, `ebx`).
 - Pinned values that must match: arg 9 SRV `R8_UINT`, `0x1688`,
   `0x840`; arg 10 SRV `R8_UINT`, `0x1688`, `0x80`; arg 0 UAV `R8_UINT`,
@@ -88,7 +88,7 @@ For each resource bound to slots 0–10, record the effective creation event
 
 ### 3. Pre-dispatch identity (`GetDesc` and handle resolution)
 
-Right before the dispatch, for each heap slot 0–10:
+Right before the dispatch, for each heap slot 0-10:
 
 - `GetDesc` of the bound resource (the same `+0x50` the DLL uses for arg 0).
 - CPU/GPU handle → resource ID resolution from §1; detect aliasing
@@ -101,13 +101,13 @@ Right before the dispatch, for each heap slot 0–10:
 ### 4. Buffer bytes: arg 9, arg 10 and arg 0 regions
 
 - Arg 10: the full 128 B header exactly as the kernel loads it, with readable
-  bytes and original flags. Fields used by the IR (DWORD offsets 8–84,
-  address/bytes at 64–80, flags byte 100, base at byte 104). The base at byte
+  bytes and original flags. Fields used by the IR (DWORD offsets 8-84,
+  address/bytes at 64-80, flags byte 100, base at byte 104). The base at byte
   104 is a **byte offset relative to the arg 0 buffer** conditioned on bit
   `0x2000` (`base` versus `base+16`), not a VA.
 - Arg 9: the 2,112 B visible through the SRV.
 - Arg 0: at minimum the 16 B float4 record at `base + {0,16}` and the OWORD
-  write plane (`índice = wg_y*960 + wg_x*8`, 16 B per OWORD, exclusive end
+  write plane (`index = wg_y*960 + wg_x*8`, 16 B per OWORD, exclusive end
   8,294,400 B for a 120×540 grid). Recommended: full pre/post dump of the
   backing resource, since it contains input/scratch regions and output whose
   exact relationships depend on the arg 10 header. Do not initialize it as an
@@ -137,7 +137,7 @@ actual heap/table used at root 12.
 - Public boundary: `ffxCreateContext` (`0x180001290`), `ffxDispatch`
   (`0x1800013b0`), `ffxQuery` (`0x180001400`); internal wrapper
   `0x1800058a1..0x1800058e6` and calling site `0x1800058be`
-  (`rcx=estado, rdx=registro, r8=interfaz D3D12`).
+  (`rcx=state, rdx=registry, r8=D3D12 interface`).
 - Record whether the PRE dispatch **reuses** an already-created
   context/device/queue (known limitation of the context patch, see
   [shim-bridge.md](shim-bridge.md)) or creates a new one, and
@@ -157,7 +157,7 @@ actual heap/table used at root 12.
 - `ID3D12GraphicsCommandList::Dispatch` arguments: static formula
   `x = (w+15)>>4`, `x += x&1`, `y = h>>1` with `w = *(ctx+0x840)`,
   `h = *(ctx+0x844)`; for 1920×1080: `(120, 540, 1)`. `FUN_18001c9c0` modes:
-  2–3 → no PRE dispatch; 4 → `(1,1,1)`; 5 → `(x,1,1)`;
+  2-3 → no PRE dispatch; 4 → `(1,1,1)`; 5 → `(x,1,1)`;
   6 → `(x,0x44,1)`. Record the effective `w/h` and the observed mode.
 - `ResourceBarrier` with states (`0x40`/`0x400`/`0x800`) around the copies,
   `SetDescriptorHeaps`, `SetPipelineState`, and the state/transitions of each

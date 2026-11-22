@@ -39,7 +39,7 @@ Direct conclusions:
   then PRE41.
 - Hybrid uses the embedded 4.0.2 weights and sets the model/hybrid flag `+0x207`, which
   changes the scratch size and dispatch bits. It loads no external weights.
-- The `4.0.2X` OptiScaler shows comes from the base provider label and the fixed VERSIONINFO
+- The `4.0.2X` label that OptiScaler shows comes from the base provider and the fixed VERSIONINFO
   `4.0.2.1`, not from `FSR4_XMX_*`. The 4.1.2 labels are generated with `%u.%u.%uX` from the
   version marker of the official DLL.
 - The caller sees `4.1.2X` only when the 4.1.2X entry is selected (dropdown or
@@ -75,11 +75,11 @@ At `0x180061AE3` the value read from `FSR4_XMX_INT8` is checked (the `lea` of th
 required:
 
 ```asm
-180061AEA  call 0x180027c00              ; estructura de pesos fsr-original.dll
-180061AEF  cmp  byte ptr [rax+0x68], 0   ; INT8 disponible
-180061AF3  je   0x180061B08              ; si no, probar LITE
+180061AEA  call 0x180027c00              ; fsr-original.dll weights structure
+180061AEF  cmp  byte ptr [rax+0x68], 0   ; INT8 available
+180061AF3  je   0x180061B08              ; if not, try LITE
 180061AF7  lea  r14, [rip+0x2C08A2]      ; 0x1803223A0 = "4.1.2X"
-180061B00  movzx r9d, sil                ; flag INT8 para FUN_180061020
+180061B00  movzx r9d, sil                ; INT8 flag for FUN_180061020
 ```
 
 The branch fixes `pcVar8 = "4.1.2X"` (`0x1803223A0`) and calls `FUN_180061020` at
@@ -100,10 +100,10 @@ required:
 
 ```asm
 180061B0F  call 0x180027c00
-180061B14  cmp  byte ptr [rax], 0        ; Lite disponible
-180061B17  je   0x180061B2F              ; si no, probar PRE41
+180061B14  cmp  byte ptr [rax], 0        ; Lite available
+180061B17  je   0x180061B2F              ; if not, try PRE41
 180061B1B  lea  r14, [rip+0x2C0886]      ; 0x1803223A8 = "4.1.2X Lite"
-180061B29  movzx r8d, sil                ; flag LITE
+180061B29  movzx r8d, sil                ; LITE flag
 ```
 
 Label `0x1803223A8`, LITE flag. `FUN_1800625B0` translates it to `kind=1`. The Lite model
@@ -116,9 +116,9 @@ At `0x180061B2F` the stored value of `FSR4_XMX_PRE41` is checked:
 
 ```asm
 180061B2F  cmp  byte ptr [rbp+0x3F0], 0x31   ; '1'
-180061B36  jne  0x180061BFB                   ; fallback del proveedor
+180061B36  jne  0x180061BFB                   ; provider fallback
 180061B3C  lea  r14, [rip+0x2C031D]           ; 0x180321E60 = "4.0.2X Hybrid"
-180061B43  movzx edx, sil                     ; flag PRE41
+180061B43  movzx edx, sil                     ; PRE41 flag
 ```
 
 Label `0x180321E60`, PRE41 flag. It does not touch `+0x208`/`+0x209`, so `FUN_1800625B0`
@@ -171,10 +171,10 @@ Independently of the list above, the DLL exposes 32 provider entries at `0x180F2
 whose first qwords are:
 
 ```text
-+0x00  vtable 0x18031F088 (proveedor FSR4)
-+0x08  estado byte 0 = "híbrido" (+0x207)
-+0x09  estado byte 1 = Lite
-+0x0A  estado byte 2 = INT8
++0x00  vtable 0x18031F088 (FSR4 provider)
++0x08  state byte 0 = "hybrid" (+0x207)
++0x09  state byte 1 = Lite
++0x0A  state byte 2 = INT8
 +0x0B..+0x11  skip / DLSS / 3.1.5
 ```
 
@@ -221,12 +221,13 @@ and a process restart, because the choice is cached once.
 
 There are two sources, and neither depends on `FSR4_XMX_*`:
 
-1. **Provider label**: `FUN_180065920` (`vtable+0x20`). For the base entry (state 0) it
-   returns the literal **`4.0.2X`** (`0x180321E70`); for `+0x8` it returns `4.0.2X Hybrid`
-   (`0x180321E60`). This is the label in the provider version list, and OptiScaler shows
-   `FSR 4.0.2X`/`4.0.2`, consistent with that literal.
-2. **PE VERSIONINFO**: resource `16/1`, `FileVersion 4.0.2.1`, `ProductVersion 4.0.2.1`
-   (fixed; see `docs/xmx412-toolchain.md`). It does not change with the environment.
+1. The provider label comes from `FUN_180065920` (`vtable+0x20`). For the base entry
+   (state 0) it returns the literal **`4.0.2X`** (`0x180321E70`); for `+0x8` it returns
+   `4.0.2X Hybrid` (`0x180321E60`). This is the label in the provider version list, and
+   OptiScaler shows `FSR 4.0.2X`/`4.0.2`, consistent with that literal.
+2. The PE VERSIONINFO resource is `16/1`, with `FileVersion 4.0.2.1` and
+   `ProductVersion 4.0.2.1` (fixed; see `docs/xmx412-toolchain.md`). Neither field changes
+   with the environment.
 
 The 4.1.2 labels are generated from the official weights DLL in `FUN_180049950` and stored
 in the structure of `FUN_180027C00()`; they are not literals in `.rdata`. If the official

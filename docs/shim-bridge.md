@@ -194,13 +194,13 @@ new hash is not allowed.
 
 ### Regenerating 0001 for a new PRE
 
-The sequence below is the operational core and stays verbatim. It assumes every `REQUIRED-TBD` in `profiles/xmx412-pins.json` has a reviewed value and that the new
+The sequence below is the procedure to follow, and it stays verbatim. It assumes every `REQUIRED-TBD` in `profiles/xmx412-pins.json` has a reviewed value and that the new
 profile exists. These checks never ran it for 4.1.2; the profile and registry entry landed later under their own review.
 
 ```sh
-# 1. Aislar el envelope PRE Xe2 (pack 40102, clase native/1080p) y compilar
-#    offline con el toolchain fijado (IGC 2.10.10+18926, ocloc 25.18.33578.6,
-#    device 0xe20b). Registrar input/zebin/code SHA-256.
+# 1. Isolate the Xe2 PRE envelope (pack 40102, native/1080p class) and compile
+#    it offline with the pinned toolchain (IGC 2.10.10+18926, ocloc 25.18.33578.6,
+#    device 0xe20b). Record input/zebin/code SHA-256.
 mkdir -p analysis/offline-pre-412/full
 LD_LIBRARY_PATH="$PWD/artifacts/extracted/intel-toolchain/igc/usr/local/lib:$PWD/artifacts/extracted/intel-toolchain/neo/usr/lib/x86_64-linux-gnu" \
 XDG_CACHE_HOME="$PWD/analysis/compiler-cache" \
@@ -209,23 +209,23 @@ artifacts/extracted/intel-toolchain/neo/usr/bin/ocloc-25.18.1 compile \
   -device 0xe20b -out_dir "$PWD/analysis/offline-pre-412/full" \
   -output pre -options '-vc-codegen'
 
-# 2. Inspeccionar el zebin y auditar el payload (estático, CPU-only).
+# 2. Inspect the zebin and audit the payload (static, CPU-only).
 python tools/inspect_zebin.py analysis/offline-pre-412/full/pre_bmg.bin \
   --kernel fsr4_pre_xmx > analysis/offline-pre-412/full/summary.json
-# 3. Generar el NUEVO fichero de perfil (no editar el viejo). Nota: el
-#    builder actual está fijado al PRE 4.0.2x; si rechaza el nuevo input,
-#    proponer el cambio sin aplicarlo y documentar el nuevo builder/pins.
+# 3. Generate the NEW profile file (do not edit the old one). Note: the
+#    current builder is pinned to the 4.0.2x PRE; if it rejects the new input,
+#    propose the change without applying it and document the new builder/pins.
 python tools/build_pre_profile.py analysis/cm-payloads-412/module-XXXX.cmspv \
   analysis/offline-pre-412/full/pre_bmg.bin > profiles/fsr4-pre-412-native1080-bmg.json
 
-# 4. Añadir la NUEVA entrada a profiles/registry.json (conservar la vieja),
-#    rellenando future_registry_entry_fragment con code/input/zebin reales,
-#    profile nuevo, base/push/surfaces auditados. Validar:
-python tools/pre_profile_registry.py <nuevo_code_sha256>
+# 4. Add the NEW entry to profiles/registry.json (keep the old one),
+#    filling future_registry_entry_fragment with real code/input/zebin,
+#    the new profile, and audited base/push/surfaces. Validate:
+python tools/pre_profile_registry.py <new_code_sha256>
 python -m unittest tests.test_profile_selection -v
 python -m unittest tests.test_xmx412_pins -v
 
-# 5. Regenerar 0001 (única escritura versionada de esta secuencia) y comprobar:
+# 5. Regenerate 0001 (the only versioned write in this sequence) and check:
 python tools/build_anv_mapping_patch.py upstream/xess-xmx-linux \
   > /tmp/anv-mapping-412-regen.patch
 cp /tmp/anv-mapping-412-regen.patch patches/0001-anv-cmk3-explicit-mapping.patch
@@ -250,9 +250,9 @@ The review used strings, imports, docs and the decompressed packs. It made no ne
 ```sh
 python3 tools/inspect_dll.py artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll
 strings -a <dll> | grep -i -E "cachedblob|GetCached|blob|4.20.0|root ?sig|0028ZR|FNV1a64|igdext"
-llvm-objdump -p <dll>   # solo tablas Import/Export, no ejecución
-python3 -c "from tools.carve_spirv import carve; ..."       # sobre pack-40102.raw
-python3 -c "from tools.parse_cm_payloads import parse; ..." # sobre pack-40102.raw
+llvm-objdump -p <dll>   # Import/Export tables only, no execution
+python3 -c "from tools.carve_spirv import carve; ..."       # on pack-40102.raw
+python3 -c "from tools.parse_cm_payloads import parse; ..." # on pack-40102.raw
 ```
 
 The INTC set is identical, with and without the underscore (10 strings): `INTC_D3D12_CheckFeatureSupport`, `INTC_D3D12_CreateComputePipelineState`,

@@ -1,6 +1,6 @@
 # Installation and setup: FSR4 XMX on Intel Linux with xess-xmx-linux
 
-Honest, fail-closed guide. The whole working stack runs on the
+Fail-closed guide. The whole working stack runs on the
 `xess-xmx-linux` package (patched Mesa ANV driver + IGDEXT shim + ocloc helper).
 That package is the central piece; this repo provides research, game shims and
 documentation, not a driver of its own.
@@ -113,11 +113,11 @@ and in the runbook. If it differs: stop, do not continue.
 
 ```bash
 export STEAM_COMPAT_DATA_PATH="$PWD/compatdata"
-export VK_DRIVER_FILES="<paquete>/run/intel_icd.json"
+export VK_DRIVER_FILES="<package>/run/intel_icd.json"
 export VK_LOADER_LAYERS_DISABLE='*'
 export VKD3D_DISABLE_EXTENSIONS=VK_EXT_descriptor_buffer
 export ANV_CM_KERNEL_DIR="<run>/kernels-candidate"
-export ANV_CM_HELPER="<paquete>/tools/cm-compile.sh"
+export ANV_CM_HELPER="<package>/tools/cm-compile.sh"
 export ANV_CM_DEBUG=1
 export WINEDLLOVERRIDES="cabinet=n,b"
 export VKD3D_DEBUG=trace
@@ -127,7 +127,7 @@ The exact Proton command and the disposable prefix are in
 `run-candidate.sh` and in runbook §4. The game path is not reproduced here
 because it depends on your installation; use the one from your machine.
 
-## 4. System-wide installation (the real path)
+## 4. System-wide installation (the real mechanism)
 
 This is the package's real installation mechanism. Everything described here
 came from `install.sh`, `enable.sh`, `xmx-launch.sh`, `tools/session-check.sh`
@@ -156,7 +156,7 @@ What it does (faithful summary of the script):
    falls back to the stock drivers instead of losing the Intel GPU.
 
 Environment variables accepted by `install.sh`: `XMX_NO_ENV=1` (skips step 2),
-`XMX_DRIVER=stock|patched|auto` (chooses the driver), `MESA=<versión>`
+`XMX_DRIVER=stock|patched|auto` (chooses the driver), `MESA=<version>`
 (per game, in its launch options). Source: header of `install.sh` and the
 package README.
 
@@ -169,7 +169,7 @@ XMX_APPID=<steam app id> ./enable.sh
 or, for other launchers:
 
 ```bash
-XMX_PREFIX=<carpeta del prefijo> ./enable.sh
+XMX_PREFIX=<game-prefix> ./enable.sh
 ```
 
 Variables: `XMX_APPID` or `XMX_PREFIX` (one required), `XMX_CONF`
@@ -201,7 +201,7 @@ tools/switch-driver.sh 26.3
 Without an argument it lists the drivers in `lib/mesa-*/` and marks the default
 (`*` according to `lib/active`). With an argument it changes the default; games
 already running keep their driver, new ones use the new one, without re-login.
-Per game, `MESA=<versión>` in launch options wins over the default. Source:
+Per game, `MESA=<version>` in launch options wins over the default. Source:
 `tools/switch-driver.sh`. Note: the package README documents
 `MESA=26.1` / `MESA=26.3` as examples; use the values your copy lists, not
 those literals if they do not exist.
@@ -222,7 +222,7 @@ Restores `igdext64.dll.stock` over `igdext64.dll` (or removes the shim if the
 prefix had no stock), removes its own `ControlLib.dll`, removes the `XESS-XMX`
 block from `XMX_CONF` and deletes `drive_c/igdext_kernels`.
 
-- Driver change: `tools/switch-driver.sh <versión>` or reinstall the old
+- Driver change: `tools/switch-driver.sh <version>` or reinstall the old
   package. `docs/compatibility.md` records the rollback tested at the design
   level: `tools/switch-driver.sh 26.3.0-rc1` or reinstall the previous
   package; the 13 prefix shims are backed up.
@@ -248,7 +248,7 @@ Sources: `docs/xmx412-model-selection.md` §5, `docs/cabinet-shim.md` §6,
    `fsr-original.dll`, and the `cabinet.dll` built by
    `tools/build_cabinet_shim.py`. Do not copy `cabinet.dll` into any prefix's
    `system32`.
-1b. Also copy `<paquete>/igdext64.dll` next to the mod. The Spider-Man prefix
+1b. Also copy `<package>/igdext64.dll` next to the mod. The Spider-Man prefix
     already had it in the DriverStore, but a new prefix does not, and without
     the shim the mod aborts with `Intel extension igdext64.dll with required DX12
     exports was not found beside DLL, system search, or DriverStore` and shows
@@ -266,7 +266,7 @@ export WINEDLLOVERRIDES="cabinet=n,b"
 ```text
 FSR4_XMX_INT8=1            # 4.1.2X (INT8), PROVIDER_INDEX=8
 FSR4_XMX_LITE=1            # 4.1.2X Lite, PROVIDER_INDEX=12
-(nada)                     # 4.0.2X stock según el juego
+(none)                     # 4.0.2X stock, depending on the game
 ```
 
 Do not set both at once; INT8 wins if there are weights. Do not set
@@ -274,8 +274,8 @@ Do not set both at once; INT8 wins if there are weights. Do not set
 To also force the visible label:
 
 ```text
-FSR4_XMX_PROVIDER_INDEX=8    # etiqueta 4.1.2X
-FSR4_XMX_PROVIDER_INDEX=12   # etiqueta 4.1.2X Lite
+FSR4_XMX_PROVIDER_INDEX=8    # label 4.1.2X
+FSR4_XMX_PROVIDER_INDEX=12   # label 4.1.2X Lite
 ```
 
 Without this, the overlay may keep showing `4.0.2` even though the log confirms

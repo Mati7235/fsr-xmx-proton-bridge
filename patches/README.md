@@ -1,4 +1,4 @@
-# Experimental patches — not installed
+# Experimental patches, not installed
 
 `0001-anv-cmk3-explicit-mapping.patch` modifies **the Mesa patch files** of
 xess-xmx-linux, not directly an installed driver. It is a second-level patch for upstream

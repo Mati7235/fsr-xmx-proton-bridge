@@ -32,7 +32,7 @@ checkpoint `b7481951…`), first windows of each run:
   `coopmat, portable-xmx, portable`; 2400 generated evaluations, 0 errors.
 - The scenes are not identical between runs: the totals are indicative, not a
   benchmark.
-- The 2X→6X jump of the first run came from the game (Cyberpunk 2.5 Dynamic MFG,
+- The jump from 2X to 6X in the first run came from the game (Cyberpunk 2.5 Dynamic MFG,
   `multi-frame count N from evaluate`); `max_generated = 1` pins it to 2X.
 
 ## Artifacts with `coopmat`

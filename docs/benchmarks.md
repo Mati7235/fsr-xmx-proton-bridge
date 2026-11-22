@@ -106,8 +106,8 @@ intersection is 1 kernel (the 30400 B sampling kernel). Lite runs a different an
 network, not an alias of Full.
 
 That matches what `xess-xmx-linux` found: FSR 4 on XMX does not gain performance over XeSS,
-and on Full it is statistically tied. Lite's advantage is real but small, and the value of
-FSR 4 here is the image, since at the cost of XeSS it gives a sharper reconstruction.
+and on Full it is statistically tied. Lite's advantage is real but small. FSR 4 does not
+gain speed over XeSS here; what it adds is a sharper reconstruction.
 
 Limits: one benchmark scene, one resolution and the Custom preset; other presets and ray
 tracing were not tested, and these runs measured no quality oracle. The `summary.json`
@@ -194,9 +194,9 @@ there is no independent oracle and no deterministic readback of the PRE.
 Per-process environment:
 
 ```text
-VK_DRIVER_FILES=<paquete>/run/intel_icd.json
+VK_DRIVER_FILES=<package>/run/intel_icd.json
 VKD3D_DISABLE_EXTENSIONS=VK_EXT_descriptor_buffer
-ANV_CM_HELPER=<paquete>/tools/cm-compile.sh
+ANV_CM_HELPER=<package>/tools/cm-compile.sh
 ANV_CM_KERNEL_DIR=<run>/kernels
 ANV_CM_DEBUG=1
 WINEDLLOVERRIDES="dxgi,cabinet=n,b"

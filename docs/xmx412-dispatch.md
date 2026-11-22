@@ -185,7 +185,7 @@ is:
 ```
 
 The capacity check uses a different register than the dimension check. The factor in `eax` comes
-from field `+0x24` of `tabla[selector - 1]`, stride `0x4f0`, selector in the DWORD `contexto+0x830`,
+from field `+0x24` of `table[selector - 1]`, stride `0x4f0`, selector in the DWORD `context+0x830`,
 or is 1 by default (`0x180016984..0x1800169df`). The gate is `Width >= factor² * 0x7e9000` and
 `Width <= 0xffffffff` (`0x180016973..0x180016a0e`). Direct extraction gives `native_1080` selector 1
 with factor 1, so the lower bound is 8,294,400 B; the 2160/4320 variants carry factors 2/4. The
@@ -385,10 +385,10 @@ guessed by walking instructions:
 
 ```text
 SPIR-V [N bytes]
-cadena A terminada en NUL
-cadena B terminada en NUL
+string A, NUL-terminated
+string B, NUL-terminated
 u64 little-endian: N
-u64 little-endian: tamaño del pie completo
+u64 little-endian: full footer size
 11 bytes: "-vc-payload"
 ```
 

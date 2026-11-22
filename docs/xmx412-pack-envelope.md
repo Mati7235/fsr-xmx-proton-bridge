@@ -8,7 +8,7 @@ No DLL code was executed; no driver, Steam, prefix, GPU, or Wine state was touch
 
 The "envelope" is a stock **MS Compression API LZMS buffer** per pack: a
 24-byte header followed by LZMS chunks. There is no custom cipher and no
-trailing metadata block — the old pipeline (`tools/decompress_mscf.py` +
+trailing metadata block. The old pipeline (`tools/decompress_mscf.py` +
 local libwim) decodes all six packs with exact size matches. Integrity is
 enforced by the loader with a one-shot **BCryptHash SHA-256** over the
 decompressed bytes compared against a compiled-in hex digest.
@@ -19,7 +19,7 @@ decompressed bytes compared against a compiled-in hex digest.
 |---|---|---|
 | 0 | 4 | Magic `0A 51 E5 C0` |
 | 4 | 2 | Header size = 24 |
-| 6 | 1 | Header CRC (low byte of CRC-32 over bytes 0–5 then 7–23) |
+| 6 | 1 | Header CRC (low byte of CRC-32 over bytes 0-5 then 7-23) |
 | 7 | 1 | Algorithm = 5 (`COMPRESS_ALGORITHM_LZMS`, local `compressapi.h`) |
 | 8 | 4 | Decompressed size (u32; equals the loader's expected size) |
 | 12 | 4 | Zero |
@@ -77,20 +77,20 @@ Intel XMX)") and the XML manifest (type 24, id 2).
 
 ## Pack contents (entry names via `tools/carve_spirv.py` + footer parser)
 
-- **40101 / 40102** — full FSR chain, 14 families × 18 variants
+- **40101 / 40102**: full FSR chain, 14 families × 18 variants
   (`fsr4_pre_xmx`, `p1/p2_h1_hybrid`, `p3_xmx_n32`, `p4/p5_fused_low128`,
   `pass6_xmx_runtime`, `p7/p8/p9_stage0_xmx`, `p10_fused_low128`,
   `p11_fused_low128_ct2d`, `p12_h1_hybrid`, `post_xmx`). 40101 additionally
   holds 18 DXBC candidates in gaps and only 12 of 18 `post_xmx` carve cleanly
   (252 envelopes → 246 carved), mirroring the old build's 40101 profile;
   40102 carves 252/252.
-- **40103 (Lite)** — `fsr4_pre/post_xmx`, `lite_p1a/p1b/p2/p3`, `i8_p6`,
+- **40103 (Lite)**: `fsr4_pre/post_xmx`, `lite_p1a/p1b/p2/p3`, `i8_p6`,
   `i8_fnb64`, plus `p10/p11` fused kernels; 378 envelopes (old 40103: 186).
-- **40104 (DLSS K)** — 716 small kernels: `k_gemm` ×174, `k_linear` ×160,
+- **40104 (DLSS K)**: 716 small kernels, `k_gemm` ×174, `k_linear` ×160,
   `k_attn` ×126, `k_mlp` ×126, `k_block` ×50, `k_stage` ×48, `k_adapt` ×32.
-- **40105 (DLSS E/F)** — 312 kernels: `e_conv` ×240, `e_stage` ×64,
+- **40105 (DLSS E/F)**: 312 kernels, `e_conv` ×240, `e_stage` ×64,
   `e_adapt` ×8.
-- **40106 (DLSS-MX)** — 67 kernels: `k_gemm` ×19, `m_layer` ×18,
+- **40106 (DLSS-MX)**: 67 kernels, `k_gemm` ×19, `m_layer` ×18,
   `k_mlp` ×10, `m_stage` ×10, `m_attn` ×8, `m_adapt` ×2.
 - Every envelope trailer has the same shape, but the option string varies by
   bucket: 40101 carries S1, 40102 carries S2, 40103 splits between S1 and S2,

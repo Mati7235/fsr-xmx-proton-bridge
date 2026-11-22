@@ -99,17 +99,17 @@ several GB, and `/home` had roughly 390 GB free.
 ```bash
 cd build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
 ./run-renderdoc.sh int8 ciudad-rdc
-# o: ./run-renderdoc.sh lite ciudad-rdc
-# o: ./run-renderdoc.sh stock ciudad-rdc
+# or: ./run-renderdoc.sh lite ciudad-rdc
+# or: ./run-renderdoc.sh stock ciudad-rdc
 ```
 
 `--proton-log` also saves `steam-proton.log` with the mod's log, and
-`--fresh-kernels` recompiles into `captures/<tag>-<modelo>-<stamp>/kernels`. The
+`--fresh-kernels` recompiles into `captures/<tag>-<model>-<stamp>/kernels`. The
 script mirrors `run-full-test.sh` and adds the capture wrapper, the RenderDoc
 layer and the `captures/` output.
 
 Focus the game window and press F12; every press writes a new file to
-`captures/<tag>-<modelo>-<stamp>/spiderman_frame*.rdc`, opened with
+`captures/<tag>-<model>-<stamp>/spiderman_frame*.rdc`, opened with
 `qrenderdoc`. Beside each capture sit `vkd3d.log`, `fingerprint.txt` and
 `summary.txt`, with the same injection criterion as `run-full-test.sh`. If the
 capture is empty, confirm focus or attach from `qrenderdoc`; if the game starts
@@ -134,7 +134,7 @@ size, and exits 2 instead of inventing an interpretation on a mismatch. `diff`
 compares two runs without tolerance: same inputs, driver, weights and resolution
 must give identical bytes.
 
-`metrics candidato.bin referencia.bin` computes PSNR and SSIM per channel and on
+`metrics candidate.bin reference.bin` computes PSNR and SSIM per channel and on
 luminance. The reference is a comparison upscaler available on Linux (XeSS or
 native TAAU), never AMD. It rules out gross failures such as a flat screen,
 noise, half resolution or permuted channels, and it cannot show equivalence with
@@ -159,7 +159,7 @@ The mod has its own GPU readback, so RenderDoc is not needed here.
 
 ```bash
 cd build/trace-412-20261112-141514-064f0301/runs/20261112-161210-c1561db6
-./run-full-test.sh int8 oracle1 --oracle-all --proton-log --dry-run   # revisar primero
+./run-full-test.sh int8 oracle1 --oracle-all --proton-log --dry-run   # check first
 ./run-full-test.sh int8 oracle1 --oracle-all --proton-log
 ./run-full-test.sh int8 oracle2 --oracle-all --proton-log
 ```
@@ -170,7 +170,7 @@ the first useful frame, so different scenes give different tensors by content.
 | Variable | Effect |
 |---|---|
 | `FSR4_XMX_P1..P12_OracleCaptureReadback=1` | arms the one-shot dump of the pass |
-| `MLSR-XMX-PASSn-ORACLE-DUMP=<ruta Windows>` | directory for `pN_input.bin` / `pN_output.bin` |
+| `MLSR-XMX-PASSn-ORACLE-DUMP=<Windows path>` | directory for `pN_input.bin` / `pN_output.bin` |
 | `MLSR-XMX-PRE-PARITY=1` and `MLSR-XMX-PRE-PARITY-DIR` | parity of the PRE tensor against the stock path |
 | `MLSR-XMX-PRE-HOSTPARITY=1`, `MLSR-XMX-PRE-POSTSTORE-PARITY=1` | additional hash checks |
 
@@ -274,7 +274,7 @@ driver, without touching Steam, real prefixes, services or drivers. The manual
 steps are in [spiderman-trace-runbook.md](spiderman-trace-runbook.md) and the
 version rows in
 [pre-trace-version-checklist.md](pre-trace-version-checklist.md). Reuse the
-synthetic harness barrier: canary enabled, explicit log of real injection,
+synthetic harness gates: canary enabled, explicit log of real injection,
 profile and cache identity pinned, DIRECT layout verified, synchronization
 correct and repeatable GPU readback. The positive synthetic DPAS probe covers
 only its own kernel and layout, not PRE.

@@ -1,8 +1,8 @@
 # Spider-Man Remastered: manual trace runbook with the XMX 4.1.2 mod
 
 Phase 1, CPU-only for the preparer; **manual execution by the user** for the
-trace. This document does not authorize anything by itself: each execution step
-is carried out by the user by hand, in a disposable prefix, without touching Steam,
+trace. This document does not authorize anything by itself: the user carries out
+each execution step by hand, in a disposable prefix, without touching Steam,
 real prefixes, drivers or services.
 
 State pinned by `tools/prepare_trace_capture_412.py` (verified by
@@ -13,7 +13,7 @@ SHA-256 on 2026-11-12):
 | DLL `artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll` | `fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732` |
 | PRE Xe2 `native_1080` IR (pack 40102, record 0, offset 0, 358776 B) | `49e069fd7ad17af19589195e274d8a1af191af363608f71d0a50ad0a21f9f568` |
 | PRE Xe2 `native_1080` envelope (358873 B, also `analysis/offline-pre-412/module-0000.cmspv`) | `ce3727191553be4759973d1cd0cfb050de2d39ea07faac8f34bf0b34aa5b85ab` |
-| Packs 40101–40106 raw | see `profiles/xmx412-pins.json` (1977 CM envelopes in total) |
+| Packs 40101-40106 raw | see `profiles/xmx412-pins.json` (1977 CM envelopes in total) |
 
 Capture contract: `docs/pre-trace-capture-spec.md` (what to record from the
 PRE `native_1080` dispatch); version checklist:
@@ -43,7 +43,7 @@ the user installed it, and the Proton folder shown is the one the run used.
 ```bash
 cd ~/Proyectos/fsr-xmx-proton-bridge
 sha256sum artifacts/extracted/fsr-xmx-412/amd_fidelityfx_upscaler_dx12.dll
-# esperado: fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732
+# expected: fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732
 python3 -c "
 import sys; sys.path.insert(0,'tools')
 import parse_cm_payloads
@@ -95,11 +95,11 @@ Manual steps (the user, never automated):
 ```bash
 cd ~/Proyectos/fsr-xmx-proton-bridge
 python3 tools/prepare_trace_capture_412.py
-# crea build/trace-412-<fecha>-<id>/ con manifest.json + run-manual.py
-python3 build/trace-412-<fecha>-<id>/run-manual.py --run-trace \
+# creates build/trace-412-<date>-<id>/ with manifest.json + run-manual.py
+python3 build/trace-412-<date>-<id>/run-manual.py --run-trace \
   --icd-manifest /usr/share/vulkan/icd.d/intel_icd.x86_64.json
-# crea runs/<run-id>/ con wineprefix-reserved-not-initialized VACÍO (0700)
-# y evidence/{env.json,pinned-hashes.json,planned-command.txt,icd-manifest.json,versions/}
+# creates runs/<run-id>/ with an EMPTY wineprefix-reserved-not-initialized (0700)
+# and evidence/{env.json,pinned-hashes.json,planned-command.txt,icd-manifest.json,versions/}
 ```
 
 The launcher requires **both** flags and never initializes the prefix nor spawns
@@ -141,7 +141,7 @@ is captured with RenderDoc on the Vulkan side:
 
 ```bash
 renderdoccmd capture --capturefile '<run>/evidence/spiderman-412.rdc' \
-  env -i <mismas variables de evidence/env.json> \
+  env -i <same variables as evidence/env.json> \
   "~/.steam/root/steamapps/common/Proton - Experimental/proton" run \
   "~/Juegos/Spiderman/Marvel's Spider-Man Remastered/Spider-Man.exe"
 ```
@@ -151,12 +151,12 @@ event `Dispatch(120, 540, 1)`. Any extra layer variable
 (`VK_INSTANCE_LAYERS`, …) is a documented deviation from
 `evidence/env.json`, not part of the pinned environment.
 
-What to look for in the frame (criteria of spec §2–§8):
+What to look for in the frame (criteria of spec §2-§8):
 
 - A single `Dispatch` with grid `(120, 540, 1)` for `w=1920, h=1080`
-  (formula `x=(w+15)>>4; x+=x&1; y=h>>1`); modes 2–3 do not emit PRE,
+  (formula `x=(w+15)>>4; x+=x&1; y=h>>1`); modes 2-3 do not emit PRE,
   4 → `(1,1,1)`, 5 → `(x,1,1)`, 6 → `(x,0x44,1)`.
-- 11 effective descriptor tables (roots 1–11: u0, u1, t0–t6, t7, t8)
+- 11 effective descriptor tables (roots 1-11: u0, u1, t0-t6, t7, t8)
   + sampler in root 12; `SetComputeRoot32BitConstant(root 0) = 0`.
 - Formats: UAV/SRV `R8_UINT` (`0x3E`); arg 9 SRV `0x1688`, `0x840`
   (2,112 B); arg 10 SRV `0x1688`, `0x80` (128 B); arg 0 UAV
@@ -167,7 +167,7 @@ What to look for in the frame (criteria of spec §2–§8):
   `ResourceBarrier` (`0x40`/`0x400`/`0x800`).
 - Bytes before **and** after the dispatch: arg 10 header (128 B), arg 9 (2,112 B),
   float4 register at `base+{0,16}` and the OWORD plane of arg 0
-  (`índice = wg_y*960 + wg_x*8`); a full dump is recommended, without initializing
+  (`index = wg_y*960 + wg_x*8`); a full dump is recommended, without initializing
   anything as an empty buffer.
 
 ## 6. Fill `evidence/versions/` (one row per item, value + source)
@@ -177,7 +177,7 @@ with the indicated name):
 
 | # | File | Read-only command |
 |---|---|---|
-| 1 | `exe.sha256` | `sha256sum "<juego>/Spider-Man.exe"` + size in bytes |
+| 1 | `exe.sha256` | `sha256sum "<game>/Spider-Man.exe"` + size in bytes |
 | 2 | `exe.version.txt` | PE version resource (FileVersion/ProductVersion), read without executing |
 | 3 | `proton.version.txt` | `cat "<proton>/version"` + path of the Proton directory |
 | 4 | `vkd3d.*.sha256` | `sha256sum <proton>/files/lib/wine/x86_64-windows/{d3d12,dxgi}.dll <proton>/files/lib/vkd3d/x86_64-windows/*.dll` of the binaries confirmed by the load log |
@@ -185,7 +185,7 @@ with the indicated name):
 | 6 | `wine.version.txt` | `"<proton>/files/bin/wine" --version` (outside Steam, without initializing prefixes) |
 | 7 | copy of the manifest | `evidence/icd-manifest.json` is already left by the launcher; add `sha256sum` of the manifest used |
 | 8 | `icd.library.sha256` | `sha256sum /usr/lib/libvulkan_intel.so` + `api_version` of the manifest |
-| 9 | `dll.sha256` | `sha256sum "<juego>/amd_fidelityfx_upscaler_dx12.dll"` → must give `fadbcb50…` (the printed checklist still shows the old hash: note the deviation explicitly) |
+| 9 | `dll.sha256` | `sha256sum "<game>/amd_fidelityfx_upscaler_dx12.dll"` → must give `fadbcb50…` (the printed checklist still shows the old hash: note the deviation explicitly) |
 | 10 | `pre-412.hashes.txt` | IR `49e069fd…` + envelope `ce372719…` re-verified with the command in §1 (no compiled 4.1.2 zebin exists: `REQUIRED-TBD`, the runtime resolves from pack 40102 of the DLL) |
 | 11 | `device.pci.txt` | real PCI ID from the device selection log (`8086:e20b` expected on B580) |
 | 12 | `host.context.txt` | `uname -r`, CachyOS/Mesa version (context only) |
