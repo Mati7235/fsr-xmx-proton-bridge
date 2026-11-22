@@ -49,3 +49,34 @@ el contrato otorgado; apilado **después** de 0002, generado por
 Los payloads de argumentos, dimensiones locales, samplers y otros kernels siguen
 pendientes. Ver `docs/offline-pre-compilation.md`. No aplicar a la sesión del
 usuario ni instalar servicios/drivers como parte de las pruebas de CPU.
+
+`0005-vkd3d-keep-coopmat-extension.patch` modifica **el checkout de vkd3d-proton**
+(worktree `upstream/vkd3d-proton-coopmat`, base `2576c0b4`, la misma revisión que
+embarca Proton Experimental `experimental-11.0-20261112`), no ningún Proton ni
+prefijo instalado. Con `VKD3D_KEEP_COOPMAT_EXTENSION=1` y un driver que anuncia
+`cooperativeMatrix` pero no pasa `vkd3d_supports_minimum_coopmat_caps()`
+(caso ANV Xe2 en B580: solo 8x16x16 f16/bf16 y 8x16x32 s8/u8, falta el
+16x16x16 f16→f32 exigido), mantiene `VK_KHR_cooperative_matrix` habilitado en
+el `VkDevice` (extensión + feature tal como lo anuncia el driver, incluido
+`cooperativeMatrixRobustBufferAccess` si el driver lo soporta) para consumidores
+interop que comparten el dispositivo (p. ej. el FG de Apex Neural Rendering vía
+OptiScaler). Todo lo que expondría WMMA a D3D12 queda apagado como si el gate
+hubiera fallado: features float8/coopmat2, `SupportsAGSExtension(WMMA_FP8)` y la
+validación de meta `USES_COOPERATIVE_MATRIX` usan el nuevo flag
+`supports_minimum_coopmat_caps` en vez del bit crudo, y el target extension
+WMMA_FP8 de vkd3d-shader sigue exigiendo `shaderFloat8CooperativeMatrix`
+(sin cambios). Sin la variable, el comportamiento es el original.
+
+Comprobación sin tocar el checkout base (`upstream/vkd3d-proton` sigue en
+`ef9a02e`, intacto):
+
+```bash
+git -C upstream/vkd3d-proton-coopmat stash -q
+git -C upstream/vkd3d-proton-coopmat apply --check \
+  "$PWD/patches/0005-vkd3d-keep-coopmat-extension.patch"
+git -C upstream/vkd3d-proton-coopmat stash pop -q
+```
+
+Build x86_64-unicamente en `build/vkd3d-coopmat/` (cross file llvm-mingw propio,
+meson del `.venv` local); DLLs listas en `build/vkd3d-coopmat/dist/`.
+Ver `build/vkd3d-coopmat/BUILD.md`. **No instalado en ningún prefijo.**

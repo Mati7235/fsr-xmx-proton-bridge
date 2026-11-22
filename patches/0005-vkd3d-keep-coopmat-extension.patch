@@ -1,0 +1,152 @@
+From 2576c0b4adfae4a76d4c89d8cf5ec4f5ca795cff Mon Sep 17 00:00:00 2001
+From: coopmat-interop research <local>
+Date: Sat, 22 Nov 2026 13:10:00 +0000
+Subject: [PATCH] vkd3d: Keep VK_KHR_cooperative_matrix for interop consumers (opt-in)
+
+When VKD3D_KEEP_COOPMAT_EXTENSION=1 (any non-empty value except "0")
+and the driver advertises cooperativeMatrix but fails
+vkd3d_supports_minimum_coopmat_caps(), keep VK_KHR_cooperative_matrix
+enabled on the VkDevice (extension + cooperativeMatrix feature as
+advertised) instead of dropping it. Everything that would expose WMMA
+to D3D12 stays disabled, as if the caps had failed:
+shaderFloat8/CooperativeMatrix float8 features, NV cooperative_matrix2,
+EXT_shader_float8, and the D3D12-visible gates now key off the new
+vkd3d_physical_device_info.supports_minimum_coopmat_caps flag rather
+than the raw feature bit:
+SupportsAGSExtension(WMMA_FP8) and the USES_COOPERATIVE_MATRIX shader
+meta validation. The vkd3d-shader WMMA_FP8 target extension stays gated
+on shaderFloat8CooperativeMatrix (unchanged), so no WMMA codegen can
+be enabled through this path either. Default behaviour with the env
+var unset is unchanged.
+
+diff --git a/libs/vkd3d/device.c b/libs/vkd3d/device.c
+index b580de5..babdcd1 100644
+--- a/libs/vkd3d/device.c
++++ b/libs/vkd3d/device.c
+@@ -2329,6 +2329,21 @@ static HRESULT vkd3d_init_device_extensions(struct d3d12_device *device,
+     return S_OK;
+ }
+ 
++static bool vkd3d_keep_coopmat_extension_for_interop(void)
++{
++    char env[VKD3D_PATH_MAX];
++
++    /* Opt-in escape hatch for interop consumers (e.g. frame generation
++     * modules sharing our VkDevice) that need VK_KHR_cooperative_matrix
++     * enabled even when the driver cannot back D3D12 WMMA. WMMA stays hidden
++     * from D3D12 in that case; only the Vulkan extension + feature are kept.
++     * Known risk: enabling the feature broke vkCreateDevice on one NVIDIA
++     * driver (vkd3d-proton#3076), hence opt-in. */
++    if (!vkd3d_get_env_var("VKD3D_KEEP_COOPMAT_EXTENSION", env, sizeof(env)))
++        return false;
++    return env[0] != '\0' && strcmp(env, "0") != 0;
++}
++
+ static bool vkd3d_supports_minimum_coopmat_caps(struct d3d12_device *device)
+ {
+     const struct vkd3d_vk_instance_procs *vk_procs = &device->vkd3d_instance->vk_procs;
+@@ -2657,24 +2672,50 @@ static HRESULT vkd3d_init_device_caps(struct d3d12_device *device,
+         return E_INVALIDARG;
+     }
+ 
++    physical_device_info->supports_minimum_coopmat_caps = false;
+     if (physical_device_info->cooperative_matrix_features.cooperativeMatrix)
+     {
+         if (!vkd3d_supports_minimum_coopmat_caps(device))
+         {
+-            physical_device_info->cooperative_matrix_features.cooperativeMatrix = VK_FALSE;
+-            physical_device_info->cooperative_matrix_features.cooperativeMatrixRobustBufferAccess = VK_FALSE;
+-            physical_device_info->shader_float8_features.shaderFloat8 = VK_FALSE;
+-            physical_device_info->shader_float8_features.shaderFloat8CooperativeMatrix = VK_FALSE;
+-            physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixBlockLoads = VK_FALSE;
+-            physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixConversions = VK_FALSE;
+-            physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixFlexibleDimensions = VK_FALSE;
+-            physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixPerElementOperations = VK_FALSE;
+-            physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixReductions = VK_FALSE;
+-            physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixTensorAddressing = VK_FALSE;
+-            physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixWorkgroupScope = VK_FALSE;
+-            vulkan_info->KHR_cooperative_matrix = false;
+-            vulkan_info->EXT_shader_float8 = false;
+-            vulkan_info->NV_cooperative_matrix2 = false;
++            if (vkd3d_keep_coopmat_extension_for_interop())
++            {
++                /* Keep VK_KHR_cooperative_matrix enabled on the VkDevice for
++                 * interop consumers, but keep everything that would expose
++                 * WMMA to D3D12 disabled, as if the caps had failed. */
++                physical_device_info->shader_float8_features.shaderFloat8 = VK_FALSE;
++                physical_device_info->shader_float8_features.shaderFloat8CooperativeMatrix = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixBlockLoads = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixConversions = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixFlexibleDimensions = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixPerElementOperations = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixReductions = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixTensorAddressing = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixWorkgroupScope = VK_FALSE;
++                vulkan_info->EXT_shader_float8 = false;
++                vulkan_info->NV_cooperative_matrix2 = false;
++                INFO("Keeping VK_KHR_cooperative_matrix for interop consumers; WMMA not exposed.\n");
++            }
++            else
++            {
++                physical_device_info->cooperative_matrix_features.cooperativeMatrix = VK_FALSE;
++                physical_device_info->cooperative_matrix_features.cooperativeMatrixRobustBufferAccess = VK_FALSE;
++                physical_device_info->shader_float8_features.shaderFloat8 = VK_FALSE;
++                physical_device_info->shader_float8_features.shaderFloat8CooperativeMatrix = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixBlockLoads = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixConversions = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixFlexibleDimensions = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixPerElementOperations = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixReductions = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixTensorAddressing = VK_FALSE;
++                physical_device_info->cooperative_matrix2_features_nv.cooperativeMatrixWorkgroupScope = VK_FALSE;
++                vulkan_info->KHR_cooperative_matrix = false;
++                vulkan_info->EXT_shader_float8 = false;
++                vulkan_info->NV_cooperative_matrix2 = false;
++            }
++        }
++        else
++        {
++            physical_device_info->supports_minimum_coopmat_caps = true;
+         }
+     }
+ 
+@@ -10894,7 +10935,7 @@ bool d3d12_device_validate_shader_meta(struct d3d12_device *device, const struct
+ 
+     if (meta->flags & VKD3D_SHADER_META_FLAG_USES_COOPERATIVE_MATRIX)
+     {
+-        if (!device->device_info.cooperative_matrix_features.cooperativeMatrix)
++        if (!device->device_info.supports_minimum_coopmat_caps)
+         {
+             ERR("Missing sufficient features to expose WMMA.\n");
+             return false;
+diff --git a/libs/vkd3d/device_vkd3d_ext.c b/libs/vkd3d/device_vkd3d_ext.c
+index 8f2c38a..129431f 100644
+--- a/libs/vkd3d/device_vkd3d_ext.c
++++ b/libs/vkd3d/device_vkd3d_ext.c
+@@ -671,7 +671,7 @@ static BOOL STDMETHODCALLTYPE d3d12_device_vkd3d_ext_SupportsAGSExtension(
+             return device->device_info.shader_float8_features.shaderFloat8CooperativeMatrix == VK_TRUE;
+ 
+         case D3D12_AGS_EXTENSION_WMMA_FP8:
+-            if (!device->device_info.cooperative_matrix_features.cooperativeMatrix)
++            if (!device->device_info.supports_minimum_coopmat_caps)
+                 return false;
+ 
+ #ifndef VKD3D_ENABLE_EXTENDED_EMULATION
+diff --git a/libs/vkd3d/vkd3d_private.h b/libs/vkd3d/vkd3d_private.h
+index b0ebd55..096ab28 100644
+--- a/libs/vkd3d/vkd3d_private.h
++++ b/libs/vkd3d/vkd3d_private.h
+@@ -5467,6 +5467,13 @@ struct vkd3d_physical_device_info
+ 
+     bool additional_shading_rates_supported; /* d3d12 additional fragment shading rates cap */
+ 
++    /* True when the driver exposes VK_KHR_cooperative_matrix configs that
++     * dxil-spirv can target for D3D12 WMMA. Decoupled from the raw
++     * cooperativeMatrix feature so experimental interop consumers can keep
++     * the Vulkan extension enabled (VKD3D_KEEP_COOPMAT_EXTENSION=1) while
++     * WMMA stays hidden from D3D12. */
++    bool supports_minimum_coopmat_caps;
++
+     /* maint9 */
+     bool non_compressed_implicit_concurrent_supported;
+ 
