@@ -1,6 +1,6 @@
 --- a/shim/src/dll/IgdextApiDll.cpp
 +++ b/shim/src/dll/IgdextApiDll.cpp
-@@ -337,6 +337,23 @@
+@@ -342,6 +342,23 @@
      return E_NOTIMPL;
  }
  
@@ -24,7 +24,7 @@
  HRESULT _INTC_D3D12_CreateDeviceExtensionContext(
      const ID3D12Device*    pDevice,
      INTCExtensionContext** ppExtensionContext,
-@@ -415,12 +432,7 @@
+@@ -420,12 +437,7 @@
          return result;
      }
  
@@ -38,7 +38,7 @@
      *ppExtensionContext = pExtensionContext;
  
      return result;
-@@ -495,10 +507,7 @@
+@@ -500,10 +512,7 @@
          return result;
      }
  

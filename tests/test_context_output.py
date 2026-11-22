@@ -14,8 +14,8 @@ SOURCE = ROOT / "upstream/xess-xmx-linux/shim/src/dll/IgdextApiDll.cpp"
 PATCH = ROOT / "patches/0002-shim-context-output.patch"
 BUILDER = ROOT / "tools/build_context_output_patch.py"
 HEADER = ROOT / "upstream/xess-xmx-linux/shim/d3dext-sdk/include/public"
-REVISION = "662dc6e8787c1e9ed43e09ef73733046bc1b8dc3"
-SOURCE_SHA256 = "6d32d93487df60300de9e708b22c687ac8e58eba2dd1db1ef0f833d3dc252696"
+REVISION = "f06dc397375332d1b34e35b19227b86eceeddaab"
+SOURCE_SHA256 = "8edbd9682c037d11f6c9b8fc358003ca99628f543505ab09ece3469d1b17fb48"
 
 
 def extract_function(source: str, signature: str) -> str:
@@ -228,7 +228,7 @@ int main() {
                 "_INTC_D3D12_CreateDeviceExtensionContext",
                 "_INTC_D3D12_CreateDeviceExtensionContext1",
             ))
-            # Upstream 662dc6e already copies the outputs inline. Keep a
+            # Upstream f06dc39 already copies the outputs inline. Keep a
             # negative control by deleting that copy: otherwise the control
             # would pass and stop proving that this harness detects the bug.
             output_builder = runpy.run_path(str(BUILDER))

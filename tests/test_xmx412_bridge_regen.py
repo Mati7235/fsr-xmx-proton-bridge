@@ -44,8 +44,8 @@ BUILDER3 = ROOT / "tools/build_context_reuse_patch.py"
 REGISTRY = ROOT / "profiles/registry.json"
 PINS = ROOT / "profiles/xmx412-pins.json"
 UPSTREAM = ROOT / "upstream/xess-xmx-linux"
-REVISION = "662dc6e8787c1e9ed43e09ef73733046bc1b8dc3"
-SOURCE_SHA256 = "6d32d93487df60300de9e708b22c687ac8e58eba2dd1db1ef0f833d3dc252696"
+REVISION = "f06dc397375332d1b34e35b19227b86eceeddaab"
+SOURCE_SHA256 = "8edbd9682c037d11f6c9b8fc358003ca99628f543505ab09ece3469d1b17fb48"
 KNOWN_CODE = "2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f"
 
 # Synthetic placeholder digests: well-formed but NOT 4.1.2 pins.

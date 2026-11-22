@@ -1,5 +1,9 @@
-import unittest
 import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.reconstruct_pre_resources import extract, verify_hash, reconstruct, ROOT, TOOLCHAIN_INCLUDE
 

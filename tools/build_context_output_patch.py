@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the context-output ABI candidate for the pinned upstream source.
 
-Upstream 662dc6e made the same output copy inline in both legacy D3D12 exports.
+Upstream f06dc39 made the same output copy inline in both legacy D3D12 exports.
 This builder emits the shared helper and replaces those inline copies with it,
 so 0003 has one copy routine to reuse. The behavior stays equivalent.
 """
@@ -14,9 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RELATIVE = Path("shim/src/dll/IgdextApiDll.cpp")
-SOURCE_SHA256 = "6d32d93487df60300de9e708b22c687ac8e58eba2dd1db1ef0f833d3dc252696"
+SOURCE_SHA256 = "8edbd9682c037d11f6c9b8fc358003ca99628f543505ab09ece3469d1b17fb48"
 
-# Upstream 662dc6e copies the shared outputs itself. Keep our helper as the
+# Upstream f06dc39 copies the shared outputs itself. Keep our helper as the
 # single implementation (0003 reuses it) by replacing these inline copies.
 UPSTREAM_COPY = """    // Hand the device and driver description back through the caller's (older, smaller) INTCExtensionInfo:
     // XeSS and XeLL use these entry points and read GTGeneration and the driver version string from it.

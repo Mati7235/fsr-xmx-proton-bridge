@@ -1,6 +1,6 @@
 --- a/shim/src/dll/IgdextApiDll.cpp
 +++ b/shim/src/dll/IgdextApiDll.cpp
-@@ -411,7 +411,29 @@
+@@ -416,7 +416,29 @@
      }
      else
      {
@@ -31,7 +31,7 @@
          return S_OK;
      }
  
-@@ -486,7 +508,29 @@
+@@ -491,7 +513,29 @@
      }
      else
      {
@@ -62,7 +62,7 @@
          return S_OK;
      }
  
-@@ -555,7 +599,29 @@
+@@ -560,7 +604,29 @@
      }
      else
      {
