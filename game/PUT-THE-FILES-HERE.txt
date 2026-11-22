@@ -1,0 +1,27 @@
+Put these files in this folder, next to Cyberpunk2077.exe, before running ./install.sh.
+
+1. amd_fidelityfx_upscaler_dx12.dll
+   nitec's FSR 4 XMX 4.1.2 mod, from NexusMods.
+   Size 45558272 bytes.
+   sha256 fadbcb50c523df01c9350747cc726edb4ecbf1a99e7ed629bf73cdbb37f44732
+   We cannot redistribute it.
+
+2. fsr-original.dll
+   AMD's official FSR 4.1.2 DLL, renamed to fsr-original.dll. It comes from an
+   installation that ships FSR 4.1.2; use it under that copy's license.
+   Size 57664272 bytes.
+   sha256 aad4fccccb29084a655f9a4f9f613bd22c8c03fb4a0f8840148cc6543b4ccace
+
+3. dxgi.dll and OptiScaler.ini
+   Both come from the OptiScaler release v10.0.0-pre_20261022 on GitHub
+   (github.com/OptiScalers/OptiScaler). The release archive we pin is:
+   sha256 df1380aa37fc17b26524e783f12ccb2f59cb67f966af13240bca3d4cd608a25a
+
+Only for --fg anr, also drop in:
+
+4. The ANR add-on zip from github.com/apex-compute/ANR, tag FG-V.B20.
+   sha256 750885d982b0e58e815004da698999f3b85f20c84a28c33cc15ae54e555f70ae
+
+The script checks files 1 and 2 by sha256 and size and stops before touching the
+game when one is missing or different. It only checks that the OptiScaler files
+exist, because the profile pins the release archive and not the extracted files.

@@ -1,0 +1,5 @@
+# Third-party files the player drops in here. Never commit them.
+*.dll
+*.ini
+*.zip
+*.7z
