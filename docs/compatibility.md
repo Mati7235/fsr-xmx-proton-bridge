@@ -1,131 +1,131 @@
-# Compatibilidad inicial y plan
+# Initial compatibility and plan
 
-## Entradas y trazabilidad
+## Inputs and traceability
 
-Análisis estático del 2026-10-22. No se ejecutó código de los paquetes.
+Static analysis of 2026-10-22. No code from the packages was executed.
 
-| Archivo | SHA-256 |
+| File | SHA-256 |
 |---|---|
 | amd_fidelityfx_upscaler_dx12_xmx.7z | `1364778b46ab3f0734305ad44d23e161d94cd75130e08683acd5ceed85d7155b` |
 | OptiScaler_v10.0.0-pre_20261022.7z | `df1380aa37fc17b26524e783f12ccb2f59cb67f966af13240bca3d4cd608a25a` |
-| DLL extraída del mod XMX | `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53` |
+| DLL extracted from the XMX mod | `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53` |
 
-Upstream analizado originalmente: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
-Base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
-Las líneas siguientes son relativas a `upstream/xess-xmx-linux/`;
-para parches se refieren al archivo del parche, no al archivo final de Mesa.
+Upstream originally analyzed: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`.
+Current base of the patch stack: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
+The following lines are relative to `upstream/xess-xmx-linux/`;
+for patches they refer to the patch file, not to the final Mesa file.
 
-## Evidencia en el mod
+## Evidence in the mod
 
-La DLL de 25.779.712 bytes incluye cadenas de búsqueda de `igdext64.dll`,
-las variantes INTC con y sin guion bajo, y mensajes de:
+The DLL of 25,779,712 bytes includes search strings for `igdext64.dll`,
+the INTC variants with and without an underscore, and messages of:
 
-- `CreateDeviceExtensionContext`, contexto solicitado 4.20.0.
-- `CheckFeatureSupport`: OPTIONS1/XMX y OPTIONS2/SIMD16Required.
-- `CreateComputePipelineState`: kernels CM-SPIRV y packs Xe2 embebidos.
+- `CreateDeviceExtensionContext`, requested context 4.20.0.
+- `CheckFeatureSupport`: OPTIONS1/XMX and OPTIONS2/SIMD16Required.
+- `CreateComputePipelineState`: CM-SPIRV kernels and embedded Xe2 packs.
 - `DestroyDeviceExtensionContext`.
-- `GetCachedBlob`, asociado a diagnóstico de un blob PRE (su carácter obligatorio no está establecido).
-- Modelos `4.0.2x`, `4.0.2xm`, y lectura de pesos desde `fsr-original.dll`.
-- Fallo explícito con diagnóstico magenta; fallback convencional deshabilitado.
-- Mensaje ABI PRE: una tabla por SurfaceIndex/sampler.
+- `GetCachedBlob`, associated with diagnostics of a PRE blob (whether it is mandatory is not established).
+- Models `4.0.2x`, `4.0.2xm`, and reading of weights from `fsr-original.dll`.
+- Explicit failure with magenta diagnostic; conventional fallback disabled.
+- PRE ABI message: one table per SurfaceIndex/sampler.
 
-Son cadenas extraídas, no una traza observada ni una reconstrucción completa del flujo.
+These are extracted strings, not an observed trace nor a complete reconstruction of the flow.
 
-## Mapa del shim
+## Shim map
 
-| Área | Hallazgo | Evidencia upstream |
+| Area | Finding | Upstream evidence |
 |---|---|---|
-| Versión | Acepta 4.20.0 mediante comparación contra máximo 5.20.0; esto no prueba implementación completa | `shim/src/D3D12ExtensionContext.cpp:7-30`, `shim/src/ExtensionContextBase.h:42-45` |
-| Contexto | [Parche candidato y tests CPU](context-output-fix.md) corrigen la copia compatible al inicializar dos APIs D3D12 heredadas; la [reutilización](context-reuse-fix.md) valida device/versión contra el contrato otorgado y refresca outputs (candidato 0003 apilado sobre 0002, CPU-probado). Sin instalar | `shim/src/dll/Igdext.def:33`, `shim/src/dll/IgdextApiDll.cpp:343-494` |
-| Capacidades | OPTIONS1 y OPTIONS2 implementadas; respuestas basadas en GPU detectada, con overrides | `shim/src/dll/D3D12Api.cpp:397-426` |
-| Detección GPU | Registro PCI de Wine, no necesariamente el dispositivo D3D12 recibido; default optimista si no detecta | `shim/src/dll/GpuInfo.cpp:12-42` |
-| PSO CM-SPIR-V | Guarda kernels dinámicos; no requiere whitelist fija XeSS | `shim/src/dll/D3D12Api.cpp:218-249`, `shim/CMakeLists.txt:39-43` |
-| Compilación | Filtra CompileOptions; no transmite InternalOptions; tamaño local depende de defines concretos o cae a 1,1,1 | `tools/cm-compile.sh:42-54`, `shim/src/dll/D3D12Api.cpp:202-245` |
-| Entry point | Packer elige primera sección .text no interna; no selección general del entry point | `tools/cmk_pack.py:44-52` |
-| Recursos | Asume una tabla por superficie y trailing DWORDs en push constants; no interpreta root signature general | `tools/cmk_pack.py:89-101`, `patches/0001-anv-cm-kernel-injection.patch:675-720` |
-| Samplers | Primer sampler estático o fallback linear/clamp XeSS | mismo parche `:668-673,786-824` |
-| Payload | Límite cross-thread de 128 bytes; tipos de argumentos no implementados; group count fijo en packer | `tools/cmk_pack.py:62-87`, `tools/cm-compile.sh:54` |
-| CachedBlob | Export presente pero E_NOTIMPL; evaluar si solo afecta diagnóstico del mod | `shim/src/dll/D3D12Api.cpp:120-124` |
-| Resultado | S_OK o un PSO creado no garantizan inyección; hay fallback no-op | `shim/src/dll/D3D12Api.cpp:247-256` |
+| Version | Accepts 4.20.0 by comparison against a maximum of 5.20.0; this does not prove full implementation | `shim/src/D3D12ExtensionContext.cpp:7-30`, `shim/src/ExtensionContextBase.h:42-45` |
+| Context | [Candidate patch and CPU tests](context-output-fix.md) fix the compatible copy when initializing two inherited D3D12 APIs; the [reuse](context-reuse-fix.md) validates device/version against the granted contract and refreshes outputs (candidate 0003 stacked on 0002, CPU-tested). Not installed | `shim/src/dll/Igdext.def:33`, `shim/src/dll/IgdextApiDll.cpp:343-494` |
+| Capabilities | OPTIONS1 and OPTIONS2 implemented; responses based on the detected GPU, with overrides | `shim/src/dll/D3D12Api.cpp:397-426` |
+| GPU detection | Wine PCI registry, not necessarily the D3D12 device received; optimistic default if none is detected | `shim/src/dll/GpuInfo.cpp:12-42` |
+| PSO CM-SPIR-V | Stores dynamic kernels; does not require a fixed XeSS whitelist | `shim/src/dll/D3D12Api.cpp:218-249`, `shim/CMakeLists.txt:39-43` |
+| Compilation | Filters CompileOptions; does not forward InternalOptions; local size depends on concrete defines or falls back to 1,1,1 | `tools/cm-compile.sh:42-54`, `shim/src/dll/D3D12Api.cpp:202-245` |
+| Entry point | Packer picks the first non-internal .text section; no general entry point selection | `tools/cmk_pack.py:44-52` |
+| Resources | Assumes one table per surface and trailing DWORDs in push constants; does not interpret the general root signature | `tools/cmk_pack.py:89-101`, `patches/0001-anv-cm-kernel-injection.patch:675-720` |
+| Samplers | First static sampler or XeSS linear/clamp fallback | same patch `:668-673,786-824` |
+| Payload | 128-byte cross-thread limit; argument types not implemented; fixed group count in packer | `tools/cmk_pack.py:62-87`, `tools/cm-compile.sh:54` |
+| CachedBlob | Export present but E_NOTIMPL; evaluate whether it only affects the mod's diagnostics | `shim/src/dll/D3D12Api.cpp:120-124` |
+| Result | S_OK or a created PSO do not guarantee injection; there is a no-op fallback | `shim/src/dll/D3D12Api.cpp:247-256` |
 
-La coincidencia de 'una tabla por superficie' es prometedora, pero no demuestra
-que coincidan los offsets, samplers, argumentos, registros o el layout de vkd3d.
+The match on 'one table per surface' is promising, but it does not demonstrate
+that the offsets, samplers, arguments, registers or the vkd3d layout match.
 
-## Avance de investigación
+## Research progress
 
-Ver [pre-resource-map.md](pre-resource-map.md): **690 bloques** recuperados por
-pies de longitud, mapa del PRE reconstruido y desfase de un DWORD identificado
-bajo el layout VKD3D de referencia. En PRE las opciones de API son NULL y las
-opciones embebidas se preservan. La [compilación offline](offline-pre-compilation.md)
-confirmó que IGC las consume, compiló el PRE para B580 y verificó los BTIs. Se añadió
-un perfil fijado por hashes y un lector CMK3 candidato, no instalado.
-La [auditoría posterior del payload](pre-payload-audit.md) no encuentra lecturas de
-los cuatro campos extra antes de sobrescribirlos o terminar, bajo una máscara de
-ejecución completa y constante en este binario. No se necesitó inventar direcciones.
+See [pre-resource-map.md](pre-resource-map.md): **690 blocks** recovered by
+their length footers, a reconstructed PRE map, and a one-DWORD offset mismatch
+identified under the reference VKD3D layout. In PRE the API options are NULL and the
+embedded options are preserved. The [offline compilation](offline-pre-compilation.md)
+confirmed that IGC consumes them, compiled the PRE for B580 and verified the BTIs. A
+hash-pinned profile and a candidate CMK3 reader were added, not installed.
+The [later payload audit](pre-payload-audit.md) finds no reads of the four extra fields
+before they are overwritten or the program ends, under a full and constant execution
+mask in this binary. No addresses had to be invented.
 
-## Bloqueos pendientes
+## Pending blockers
 
-1. Completar el formato de los datos no CM de 40101 (18 DXBC y seis huecos no clasificados); los seis módulos faltantes ya se recuperaron.
-2. Validar la máscara de ejecución completa y constante asumida por la auditoría: los campos cross-thread de args 0/9/10 y private_base_stateless no se leen bajo esa condición en el PRE revisado.
-3. Confirmar sampler y layout del Proton que se use para la prueba; el mapa de superficies del PRE ya se contrastó con zebin.
-4. Revisar la integración del lector ya compilado dentro de Mesa local e integrar selección de perfil/cache identity sin cambiar globalmente XeSS; ver [build local](lab-mesa-build.md).
-5. Determinar si basta configuración o si hacen falta cambios en el shim, packer o driver.
-6. Revisar compatibilidad de compilador IGC y dispositivo Xe2/Large-GRF.
+1. Complete the format of the non-CM data in 40101 (18 DXBC and six unclassified gaps); the six missing modules have already been recovered.
+2. Validate the full and constant execution mask assumed by the audit: the cross-thread fields of args 0/9/10 and private_base_stateless are not read under that condition in the reviewed PRE.
+3. Confirm the sampler and the Proton layout to be used for the test; the PRE surface map has already been cross-checked against the zebin.
+4. Review the integration of the already-compiled reader inside local Mesa and integrate profile selection/cache identity without globally changing XeSS; see [local build](lab-mesa-build.md).
+5. Determine whether configuration is enough or whether changes to the shim, packer or driver are needed.
+6. Review IGC compiler and Xe2/Large-GRF device compatibility.
 
-## Hitos de implementación
+## Implementation milestones
 
-- [x] Crear workspace separado, copias y hashes.
-- [x] Clonar e identificar revisión upstream.
-- [x] Inventario estático reproducible de la DLL.
-- [x] Mapa inicial de APIs y riesgos ABI.
-- [x] Extractor de recursos y carving inicial CM-SPIR-V (sin ejecutar DLL; no parser completo del pack).
-- [x] Parser por pies CM: 690 bloques recuperados y desensamblados.
-- [x] Opciones y root signature del PRE normal reconstruidas; tamaños de 36 variantes verificados.
-- [x] 22 pruebas CPU sintéticas y 2 opcionales con artefactos locales, incluido modelo del desfase de tablas.
-- [x] Compilación offline del PRE Xe2 native_1080 para B580; BTIs confirmados y control de opciones reproducido.
-- [x] Perfil por hashes, adaptador CMK3 offline y parche candidato de lector ANV para ambas versiones.
-- [x] 41 pruebas locales pasando, incluido bloque C de validación con layouts sintéticos.
-- [x] Auditoría estática de bytes cross-thread y usos de superficies opacas; sin lecturas bajo máscara completa, con evidencia por hashes.
-- [x] 68 pruebas locales pasando, incluidos casos de lectura, escrituras parciales/predicadas y ramas del auditor.
-- [x] Parche candidato de copia de contexto D3D12: ABI Windows y cuerpos generados probados en CPU, y shim completo compilado con LLVM-MinGW sin ejecutar DLL.
-- [ ] Validación de máscara y dimensiones locales del PRE; [inspector fijado](pre-dispatch-dimensions.md) conserva los gates abiertos.
-- [x] Compilación CPU de Mesa local con LLVM 23 y lector candidato; sin instalar ni ejecutar en GPU.
-- [x] Probe sintético DPAS compilado, payload auditado bajo supuestos estáticos y heap CMK3 explícito.
-- [x] Harness Vulkan compilado sin ejecución y preflight de inventario; 96 pruebas CPU pasan.
-- [x] Preparación manual con ICD local, hashes, entorno nuevo y lanzador opt-in; 102 pruebas CPU pasan, sin ejecutar GPU.
-- [x] Usuario ejecutó el probe sintético en B580: inyección y 1.408 valores correctos, con slots restantes intactos; ver [evidencia](first-synthetic-gpu-result.md).
-- [x] Probe de imagen/sampler compilado, auditado y preparado para prueba manual con referencia CPU y readback binario independiente; 133 pruebas CPU pasan.
-- [x] Usuario ejecutó imagen/sampler en B580: revisión binaria independiente confirma 64 valores con error máximo 0 y 1.984 words centinela intactos; ver [resultado](first-image-gpu-result.md).
-- [x] [Vistas PRE del host](pre-resource-descriptors.md) reconstruidas para buffers: `R8_UINT`, SRV de 2.112/128 bytes y límite inferior del UAV native_1080; assertions de ABI D3D12 y 150 pruebas CPU pasan. Formatos de imágenes/entradas y oracle siguen pendientes.
-- [ ] Integración runtime del perfil y revisión del contrato del probe/harness.
-- [ ] Con autorización, microtest en prefijo descartable con salida GPU conocida.
-- [ ] Solo después, integración reversible por juego en Cyberpunk.
+- [x] Create separate workspace, copies and hashes.
+- [x] Clone and identify the upstream revision.
+- [x] Reproducible static inventory of the DLL.
+- [x] Initial map of APIs and ABI risks.
+- [x] Resource extractor and initial CM-SPIR-V carving (without running the DLL; no complete pack parser).
+- [x] CM footer parser: 690 blocks recovered and disassembled.
+- [x] Normal PRE options and root signature reconstructed; sizes of 36 variants verified.
+- [x] 22 synthetic CPU tests and 2 optional ones with local artifacts, including the table-offset mismatch model.
+- [x] Offline compilation of the Xe2 native_1080 PRE for B580; BTIs confirmed and option control reproduced.
+- [x] Hash-pinned profile, offline CMK3 adapter and candidate ANV reader patch for both versions.
+- [x] 41 local tests passing, including the validation C block with synthetic layouts.
+- [x] Static audit of cross-thread bytes and opaque surface uses; no reads under full mask, with hash evidence.
+- [x] 68 local tests passing, including read cases, partial/predicated writes and auditor branches.
+- [x] Candidate D3D12 context copy patch: Windows ABI and generated bodies tested on CPU, and the complete shim built with LLVM-MinGW without running the DLL.
+- [ ] Validation of the PRE's local mask and dimensions; the [pinned inspector](pre-dispatch-dimensions.md) keeps the gates open.
+- [x] CPU build of local Mesa with LLVM 23 and candidate reader; not installed or run on GPU.
+- [x] Synthetic DPAS probe compiled, payload audited under static assumptions, and explicit CMK3 heap.
+- [x] Vulkan harness compiled without execution and inventory preflight; 96 CPU tests pass.
+- [x] Manual preparation with local ICD, hashes, new environment and opt-in launcher; 102 CPU tests pass, no GPU run.
+- [x] User ran the synthetic probe on B580: injection and 1,408 correct values, with remaining slots intact; see [evidence](first-synthetic-gpu-result.md).
+- [x] Image/sampler probe compiled, audited and prepared for manual test with CPU reference and independent binary readback; 133 CPU tests pass.
+- [x] User ran image/sampler on B580: independent binary review confirms 64 values with max error 0 and 1,984 sentinel words intact; see [result](first-image-gpu-result.md).
+- [x] [PRE host views](pre-resource-descriptors.md) reconstructed for buffers: `R8_UINT`, SRV of 2,112/128 bytes and lower bound of the native_1080 UAV; D3D12 ABI assertions and 150 CPU tests pass. Image formats/inputs and the oracle remain pending.
+- [ ] Runtime integration of the profile and review of the probe/harness contract.
+- [ ] With authorization, microtest in a disposable prefix with known GPU output.
+- [ ] Only afterwards, reversible per-game integration in Cyberpunk.
 
-## Serie 4.1.2 (DLL `fadbcb50…b37f44732`, 45.558.272 B) — cerrada en estático
+## 4.1.2 series (DLL `fadbcb50…b37f44732`, 45,558,272 B) — closed statically
 
-- [x] Decodificador LZMS del envelope (header 24 B + chunks, digest SHA-256 por loader `FUN_180029640`); 6 packs, 1.977 envelopes CM; ver [envelope](xmx412-pack-envelope.md).
-- [x] Censo SPIR-V PRE Xe2 + dispatch equivalente + 18 variantes: entry `fsr4_pre_xmx`, 12 args, `WorkgroupId` único, guards `120×540/240×1080/480×2160`, conteos `78/85/1`, grid/modos idénticos a 4.0.2x; helper reescrito (no reutilizar `0x180002df0`); ver [censo](xmx412-spirv-census.md), [dispatch](xmx412-dispatch.md), [variantes](xmx412-variants.md).
-- [x] Compilación offline PRE `native_1080` posicional (IR `49e069fd…`, envelope `ce372719…` → zebin `b1781bb4…`, code `68b962b5…`, `ze_info` byte-idéntico al viejo, BTIs `[8,9,1,2,3,4,5,6,7,10,11]`); ver [offline 4.1.2](xmx412-offline-compile.md).
-- [x] Auditoría `macl`/`acc0` limpia bajo máscara completa y constante (160 visitadas, 0 lecturas, overwrites 20/23/143/179/379; alcance un kernel/input/output); ver [auditoría](xmx412-macl-acc0.md) (commit `db2e834`). `runtime_approved=false` se mantiene.
-- [x] Puente re-verificado contra 4.1.2: 0002/0003 mantener, 0001 mantener forma, registry promovido a 2 entradas con digest nuevo; determinismo + `apply --check` + shim 14/14; ver [recheck](xmx412-bridge-recheck.md), [regen](xmx412-bridge-regen.md).
-- [x] Runbook de traza Spider-Man fijado (DLL/pack/IR/envelope con SHA-256, contrato y checklist); ver [runbook](spiderman-trace-runbook.md) y [checklist de usuario](xmx412-user-checklist.md).
+- [x] LZMS decoder for the envelope (header 24 B + chunks, SHA-256 digest by loader `FUN_180029640`); 6 packs, 1,977 CM envelopes; see [envelope](xmx412-pack-envelope.md).
+- [x] SPIR-V PRE Xe2 census + equivalent dispatch + 18 variants: entry `fsr4_pre_xmx`, 12 args, single `WorkgroupId`, guards `120×540/240×1080/480×2160`, counts `78/85/1`, grid/modes identical to 4.0.2x; helper rewritten (do not reuse `0x180002df0`); see [census](xmx412-spirv-census.md), [dispatch](xmx412-dispatch.md), [variants](xmx412-variants.md).
+- [x] Offline compilation PRE `native_1080` positional (IR `49e069fd…`, envelope `ce372719…` → zebin `b1781bb4…`, code `68b962b5…`, `ze_info` byte-identical to the old one, BTIs `[8,9,1,2,3,4,5,6,7,10,11]`); see [offline 4.1.2](xmx412-offline-compile.md).
+- [x] `macl`/`acc0` audit clean under a full constant mask (160 visited, 0 reads, overwrites 20/23/143/179/379; scope one kernel/input/output); see [audit](xmx412-macl-acc0.md) (commit `db2e834`). `runtime_approved=false` remains.
+- [x] Bridge re-verified against 4.1.2: 0002/0003 keep, 0001 keeps its shape, registry promoted to 2 entries with a new digest; determinism + `apply --check` + shim 14/14; see [recheck](xmx412-bridge-recheck.md), [regen](xmx412-bridge-regen.md).
+- [x] Spider-Man trace runbook pinned (DLL/pack/IR/envelope with SHA-256, contract and checklist); see [runbook](spiderman-trace-runbook.md) and [user checklist](xmx412-user-checklist.md).
 
-## Sigue abierto (no runtime, no oracle, no dispatch real)
+## Still open (not runtime, not oracle, not real dispatch)
 
-- [ ] Traza runtime Fase 1 en prefijo descartable (usuario, manual): grid real, 11 tablas + sampler, `rootParameters`, DIAG/FNV, bytes pre/post; ver [spec](pre-trace-capture-spec.md) y [runbook](spiderman-trace-runbook.md).
-- [ ] Oracle de salida y contenidos iniciales (formatos de 8 imágenes, bytes arg 9/10/0, referencia CPU); ver [contrato](pre-controlled-test-contract.md).
-- [ ] Dispatch real: máscara/local-size, helper nuevo (`0xbbd0`+`0x27bc0`), tabla de variantes 4.1.2 (nombres posicionales no confirmados), resto de PREs/pass6/otras familias.
+- [ ] Phase 1 runtime trace in a disposable prefix (user, manual): real grid, 11 tables + sampler, `rootParameters`, DIAG/FNV, pre/post bytes; see [spec](pre-trace-capture-spec.md) and [runbook](spiderman-trace-runbook.md).
+- [ ] Output oracle and initial contents (formats of 8 images, bytes of arg 9/10/0, CPU reference); see [contract](pre-controlled-test-contract.md).
+- [ ] Real dispatch: mask/local-size, new helper (`0xbbd0`+`0x27bc0`), 4.1.2 variant table (positional names not confirmed), remaining PREs/pass6/other families.
 
-## Criterio de éxito y seguridad
+## Success criterion and safety
 
-No modificar el driver de la sesión ni prefijos del usuario durante el análisis.
-Un experimento runtime deberá usar un prefijo descartable y variables por proceso,
-mantener el canary del driver y comprobar readback GPU determinista más logs de
-inyección. No considerar suficiente el overlay, S_OK, o que desaparezca el magenta.
+Do not modify the session's driver or the user's prefixes during analysis.
+A runtime experiment must use a disposable prefix and per-process variables,
+keep the driver canary, and check deterministic GPU readback plus injection logs.
+The overlay, S_OK, or the disappearance of magenta are not considered sufficient.
 
-El [shim baseline compiló desde Linux](shim-cross-build.md) con LLVM-MinGW UCRT,
-sin ejecutar la DLL; la variante MSVC/Windows SDK no se compiló. Los imports UCRT
-siguen pendientes de validación runtime. ANV Mesa parcheado
-compiló localmente con LLVM 23, sin instalar ni ejecutar el ICD.
-IGC/ocloc oficiales se extrajeron localmente sin instalación y compilaron un PRE
-para B580. Eso no demuestra corrección GPU ni compatibilidad del resto de etapas.
+The [shim baseline compiled from Linux](shim-cross-build.md) with LLVM-MinGW UCRT,
+without running the DLL; the MSVC/Windows SDK variant was not compiled. The UCRT
+imports still await runtime validation. Patched ANV Mesa compiled locally with
+LLVM 23, without installing or running the ICD.
+Official IGC/ocloc were extracted locally without installation and compiled a PRE
+for B580. That does not demonstrate GPU correctness or compatibility of the remaining stages.

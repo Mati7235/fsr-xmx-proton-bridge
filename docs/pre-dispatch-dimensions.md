@@ -1,13 +1,13 @@
-# PRE native_1080: dimensiones locales y gate de máscara
+# PRE native_1080: local dimensions and mask gate
 
-## Resultado
+## Result
 
-El análisis estático **no determina el tamaño local requerido** de
-`fsr4_pre_xmx`. Para preparar un launcher PRE, el local size/runtime dispatch
-sigue siendo un gate: no sustituirlo por `1×1×1`, por `SubgroupSize 1`, ni por
-el selector Vulkan de workgroup usado para escoger un kernel.
+The static analysis **does not determine the required local size** of
+`fsr4_pre_xmx`. To prepare a PRE launcher, the local size/runtime dispatch
+remains a gate: do not replace it with `1×1×1`, with `SubgroupSize 1`, nor
+with the Vulkan workgroup selector used to choose a kernel.
 
-La herramienta reproducible es:
+The reproducible tool is:
 
 ```sh
 python tools/inspect_pre_dispatch.py \
@@ -18,86 +18,87 @@ python tools/inspect_pre_dispatch.py \
 python -m unittest discover -s tests -p test_pre_dispatch.py -v
 ```
 
-El inspector solo acepta los tres artefactos completos fijados por SHA-256; falla
-con archivos truncados o modificados. `.ze_info` SHA-256:
+The inspector only accepts the three complete artifacts pinned by SHA-256;
+it fails with truncated or modified files. `.ze_info` SHA-256:
 `5546d5172c3094110fe25fd34922bcf1d4842fb1b0e97b9a42afc32c2ffe8f7c`;
 zebin SHA-256: `3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2`;
-desensamblado IGA SHA-256:
+IGA disassembly SHA-256:
 `a9c82bbfccc535959e73ddd6b80fb209ed8a12bf8607927f62078b43b6215660`.
-El origen, compilador/target y hashes de input constan en
-[`offline-pre-compilation.md`](offline-pre-compilation.md) y
+The origin, compiler/target and input hashes are recorded in
+[`offline-pre-compilation.md`](offline-pre-compilation.md) and
 [`pre-payload-audit.md`](pre-payload-audit.md).
 
-Con `--spirv-assembly`, el inspector también fija el hash del IR textual
+With `--spirv-assembly`, the inspector also pins the hash of the textual IR
 `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e`.
-Solo aparece `BuiltIn WorkgroupId` en las declaraciones (`:120`), cargado en
-`:5166,5172`; los modos del entry no incluyen `LocalSize`. No aparecen builtins
-de invocación local declarados. Esto no demuestra que el payload por thread del
-binario nativo esté sin uso ni establece por sí solo un tamaño local válido.
+Only `BuiltIn WorkgroupId` appears in the declarations (`:120`), loaded at
+`:5166,5172`; the entry modes do not include `LocalSize`. No declared
+local-invocation builtins appear. This does not demonstrate that the
+per-thread payload of the native binary is unused, nor does it by itself
+establish a valid local size.
 
-## No confundir las magnitudes
+## Do not confuse the quantities
 
-| Magnitud | Evidencia fijada | Conclusión permitida |
+| Quantity | Pinned evidence | Permitted conclusion |
 |---|---|---|
-| Tamaño local requerido del workgroup (X,Y,Z) | `.ze_info` completo del kernel, comprobado para los nombres de atributo locales conocidos por el inspector; IR/SPIR-V revisado | No se encontró atributo de tamaño local requerido en los datos revisados; no queda establecido. El inspector usa un lector restringido, no un parser YAML general, y la ausencia no prueba lo que una ruta runtime específica eligió. |
-| SIMD size del compilador | `ze_info.yaml`, `execution_env.simd_size: 1` | El campo de metadata vale 1. No es una dimensión local ni el número total de lanes del workgroup Vulkan. |
-| Lanes/anchos de instrucciones nativas | Desensamblado IGA fijado; contiene operaciones con texto `simd16` | Confirma operaciones SIMD16 representadas por ese disassembler; no fija workgroup size ni contradice por sí solo `simd_size: 1` del entorno CM. |
-| Hardware threadcount / dispatch SIMD del driver | No hay atributo equivalente fijado en `.ze_info` ni evidencia de dispatch PRE observado | Desconocido para el lanzamiento real. La política SIMD32 del driver mencionada por la auditoría no demuestra por sí sola el threadcount ni la máscara del runtime PRE; la compilación local de Mesa y los probes sintéticos tampoco lo establecen. |
-| Selector Vulkan de workgroup/kernel | Placeholder de selección generado por el packer | Un selector `1,1,1` no es contrato del shader ni geometría de dispatch. No usarlo como local size. |
-| Workgroupcount (grid) | Guardas de `WorkgroupId.x >= 120` y `y >= 540` en IR fijado (SHA-256 `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e`; véase `pre-controlled-test-contract.md`) | `120×540×1` cubre el rectángulo permitido por esas guardas; es solo candidato mínimo derivado de límites. No prueba el grid que despacha la DLL/host ni cobertura por píxel. |
+| Required local size of the workgroup (X,Y,Z) | Full `.ze_info` of the kernel, checked for the local attribute names known to the inspector; reviewed IR/SPIR-V | No required local-size attribute was found in the reviewed data; it is not established. The inspector uses a restricted reader, not a general YAML parser, and the absence does not prove what a specific runtime path chose. |
+| Compiler SIMD size | `ze_info.yaml`, `execution_env.simd_size: 1` | The metadata field is 1. It is neither a local dimension nor the total number of lanes of the Vulkan workgroup. |
+| Native instruction lanes/widths | Pinned IGA disassembly; contains operations with the text `simd16` | Confirms SIMD16 operations as represented by that disassembler; it does not fix the workgroup size nor, by itself, contradict the CM environment's `simd_size: 1`. |
+| Hardware threadcount / driver SIMD dispatch | No equivalent attribute pinned in `.ze_info`, and no observed PRE dispatch evidence | Unknown for the real launch. The driver's SIMD32 policy mentioned by the audit does not by itself demonstrate the threadcount or the PRE runtime mask; the local Mesa build and the synthetic probes do not establish it either. |
+| Vulkan workgroup/kernel selector | Selection placeholder generated by the packer | A `1,1,1` selector is not a shader contract nor a dispatch geometry. Do not use it as the local size. |
+| Workgroupcount (grid) | Guards `WorkgroupId.x >= 120` and `y >= 540` in the pinned IR (SHA-256 `7ed1d81b8127e9dbb1e0c5befa621060cf7ab47cd82f98f789099b7968db6a9e`; see `pre-controlled-test-contract.md`) | `120×540×1` covers the rectangle allowed by those guards; it is only a minimal candidate derived from bounds. It does not prove the grid the DLL/host dispatches nor per-pixel coverage. |
 
-En particular, el `packed_local_ids` de seis bytes en offset 0 de payload por
-thread, `simd_size: 1`, las anchuras de instrucciones IGA y la cantidad de
-threads físicos son conceptos distintos. No hay conversión demostrada entre
-ellos que permita obtener las dimensiones locales.
+In particular, the six-byte `packed_local_ids` at offset 0 of the per-thread
+payload, `simd_size: 1`, the IGA instruction widths and the number of physical
+threads are different concepts. No demonstrated conversion between them allows
+the local dimensions to be obtained.
 
-## Configuración estática que construiría el driver local
+## Static configuration the local driver would build
 
-Hay una configuración del driver que sí se puede derivar, sin confundirla con
-un requisito del PRE. En `build/mesa-26.1.2/src/intel/vulkan/anv_shader_compile.c`
-`:1725-1734`, el lector CMK transforma `lws` en
-`cs->local_size = (32*lws.x, lws.y, lws.z)` y fija `prog_mask = 1 << 2`.
-Para un paquete con `lws=(1,1,1)`, la representación interna es `(32,1,1)`.
+There is a driver configuration that can be derived, without confusing it with
+a PRE requirement. In `build/mesa-26.1.2/src/intel/vulkan/anv_shader_compile.c`
+`:1725-1734`, the CMK reader turns `lws` into `cs->local_size = (32*lws.x, lws.y, lws.z)`
+and sets `prog_mask = 1 << 2`. For a package with `lws=(1,1,1)`, the internal
+representation is `(32,1,1)`.
 
-`src/intel/compiler/brw/brw_shader.cpp:993-1027` calcula SIMD32, group size 32,
-un thread y `right_mask=0xffffffff` para esos valores sin override. La ruta
-de compute usa `brw_cs_get_dispatch_info(..., NULL)`; el `COMPUTE_WALKER` Xe2
-recibe `ExecutionMask = dispatch.right_mask` en
-`src/intel/vulkan/genX_cmd_compute.c:638-647`. La máscara inferior del antiguo
-`GPGPU_WALKER` no es la evidencia pertinente para Xe2.
+`src/intel/compiler/brw/brw_shader.cpp:993-1027` computes SIMD32, group size 32,
+one thread and `right_mask=0xffffffff` for those values without override. The
+compute path uses `brw_cs_get_dispatch_info(..., NULL)`; the Xe2 `COMPUTE_WALKER`
+receives `ExecutionMask = dispatch.right_mask` in
+`src/intel/vulkan/genX_cmd_compute.c:638-647`. The lower mask of the old
+`GPGPU_WALKER` is not the relevant evidence for Xe2.
 
-Esta es una derivación del código local y una configuración **condicional** al
-paquete y ruta indicados. No prueba que `lws=1` sea el contrato correcto del PRE,
-que el binario del driver en otro entorno sea el mismo, ni que la máscara efectiva
-permanezca completa durante toda la ejecución del kernel. El inspector de
-artefactos no verifica esas fuentes de Mesa ni observa registros de hardware.
+This is a derivation from the local code and a **conditional** configuration,
+tied to the package and path indicated. It does not prove that `lws=1` is the
+correct PRE contract, that the driver binary in another environment is the same,
+or that the effective mask stays full throughout the kernel's execution. The
+artifact inspector does not verify those Mesa sources nor observe hardware logs.
 
-## Gate de máscara del payload
+## Payload mask gate
 
-`pre-payload-audit.md` y `analysis/pre-payload/report.json` muestran que los
-cuatro campos extra del payload no se leen antes de sobrescritura/fin **bajo la
-suposición** de máscara de ejecución completa y constante. Esta es una certeza
-condicionada del análisis estático del zebin fijado, no una prueba de la máscara
-que usará el dispatch real. El informe conserva el supuesto explícito; este
-inspector no reaudita instrucciones ni lo eleva a hecho runtime.
+`pre-payload-audit.md` and `analysis/pre-payload/report.json` show that the four
+extra payload fields are not read before overwrite/end **under the assumption**
+of a full and constant execution mask. This is a conditional certainty of the
+static analysis of the pinned zebin, not a proof of the mask the real dispatch
+will use. The report keeps the explicit assumption; this inspector does not
+re-audit instructions nor elevate it to a runtime fact.
 
-Gate pendiente: establecer local size, threadcount/modo de dispatch y máscara
-efectiva de la ruta PRE real con evidencia del driver/launcher y confirmar que
-la ejecución satisface el supuesto de la auditoría. Hasta entonces, la máscara
-requerida no está validada y no se autoriza rellenar campos ni despachar PRE
-basándose en este análisis. El estado del perfil sigue
+Pending gate: establish the local size, threadcount/dispatch mode and effective
+mask of the real PRE path with driver/launcher evidence, and confirm that
+execution satisfies the audit's assumption. Until then, the required mask is
+not validated, and neither filling the fields nor dispatching the PRE based on
+this analysis is authorized. The profile status remains
 `experimental-offline-only` / `runtime_approved=false`.
 
-## Límites y siguiente evidencia útil
+## Limits and next useful evidence
 
-Este trabajo no ejecutó GPU, DLL, Wine ni herramientas de instalación. Los
-guards del shader determinan límites de WorkgroupId, no tamaño local, dimensiones
-de imagen, grid observado ni resultado funcional. Para resolver el gate del
-launcher se necesita registrar/capturar por una ruta autorizada el local size y
-workgroupcount efectivos, la política SIMD/thread dispatch y evidencia que
-valide la máscara completa y constante; comprobar además el readback PRE contra
-un oracle, tal como exige el [contrato controlado](pre-controlled-test-contract.md).
+This work did not run a GPU, DLL, Wine or installation tools. The shader's
+guards determine WorkgroupId bounds, not local size, image dimensions, observed
+grid or functional result. To resolve the launcher gate, the effective local
+size and workgroupcount, the SIMD/thread dispatch policy, and evidence
+validating the full and constant mask must be recorded/captured through an
+authorized path; additionally, the PRE readback must be checked against an
+oracle, as the [controlled contract](pre-controlled-test-contract.md) requires.
 
-Los tests son de CPU. Comprueban fijación de hashes, rechazo de truncamiento y
-que la salida preserve como desconocidas las geometrías/máscara no demostradas;
-no validan ejecución ni semántica general de zebin/IGA.
+The tests are CPU-only. They check hash pinning, rejection of truncation, and
+that the output keeps undemonstrated geometries/mask as unknown; they do not
+validate execution nor the general semantics of zebin/IGA.

@@ -1,63 +1,65 @@
-# Compilación offline y primer prototipo del mapa
+# Offline compilation and first map prototype
 
-## Resumen sin jerga
+## Summary without jargon
 
-La receta inicial del mod **sí compila para una B580 con la herramienta usada por
-xess-xmx-linux**. Ahora conocemos el orden real que espera el código generado.
-Además hicimos un prototipo que conserva ese orden y separa el casillero del
-sampler, en lugar de adivinar tomando los últimos casilleros.
+The mod's initial recipe **does compile for a B580 with the tool used by
+xess-xmx-linux**. We now know the real order the generated code expects.
+We also built a prototype that keeps that order and separates the
+sampler's slot, instead of guessing by taking the last slots.
 
-No ejecutamos ese código en la GPU. El prototipo no se instaló ni se conectó a
-Steam. Que compile no demuestra que procese correctamente una imagen.
+We did not run that code on the GPU. The prototype was not installed and
+was not connected to Steam. Compiling does not prove that it processes an
+image correctly.
 
-## Herramientas y alcance
+## Tools and scope
 
-- IGC `2.10.10+18926`, ocloc `25.18.33578.6` (binario ocloc-25.18.1).
-- Paquetes oficiales descargados y extraídos **sin instalación** dentro de
+- IGC `2.10.10+18926`, ocloc `25.18.33578.6` (binary ocloc-25.18.1).
+- Official packages downloaded and extracted **without installation** into
   `artifacts/extracted/intel-toolchain/`.
-- Se verificaron SHA-256 contra las publicaciones; ver `profiles/intel-toolchain.json`.
-- Target explícito `0xe20b`, identificado localmente como B580/Battlemage G21.
-- Se usó el compilador offline, sin carga de la DLL, lanzamiento del juego ni dispatch GPU.
-- Input: primer PRE del pack Xe2 40102, variante native_1080, con su pie CM completo.
-- Upstream shim/ANV de referencia original: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`;
-  base actual del stack de parches: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
-- Layout VKD3D de referencia: `ef9a02e873715c9e2da0d6db8a236aca8380b303`.
+- SHA-256 hashes were checked against the publications; see `profiles/intel-toolchain.json`.
+- Explicit target `0xe20b`, identified locally as B580/Battlemage G21.
+- The offline compiler was used, without loading the DLL, launching the game or dispatching on the GPU.
+- Input: first PRE of the Xe2 40102 pack, variant native_1080, with its full CM footer.
+- Original reference upstream shim/ANV: `ef39559d26e083ce1bd1353b2e8c86f33c3c264c`;
+  current base of the patch stack: `662dc6e8787c1e9ed43e09ef73733046bc1b8dc3`.
+- Reference VKD3D layout: `ef9a02e873715c9e2da0d6db8a236aca8380b303`.
 
-## 1. Compilación y control de opciones
+## 1. Build and option control
 
-Con el input completo y `-options '-vc-codegen'`:
+With the full input and `-options '-vc-codegen'`:
 
-- Exit 0, `Build succeeded`; warning de triples LLVM diferentes, conservado en el log.
+- Exit 0, `Build succeeded`; warning about different LLVM triples, kept in the log.
 - Zebin: 365504 bytes, `.text.fsr4_pre_xmx`: 29376 bytes.
 - GRF count **128**, SIMD size **1**, `has_dpas=true`, `has_sample=true`.
-- Payload cross-thread: el packer legado calcula 32 bytes; per-thread: 64 bytes.
-- No `grf_count > 128` en este PRE; eso no permite generalizar a otras variantes.
+- Cross-thread payload: the legacy packer computes 32 bytes; per-thread: 64 bytes.
+- No `grf_count > 128` in this PRE; that does not allow generalizing to other variants.
 
-Se repitió la compilación completa y se hizo un control quitando el pie CM:
+The full build was repeated, and a control was run with the CM footer removed:
 
-| Input | SHA-256 código nativo | Build options registradas |
+| Input | SHA-256 of native code | Registered build options |
 |---|---|---|
-| Completo, dos ejecuciones idénticas | `2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f` | `-vc-codegen  -Xfinalizer '-noDPASMacro'` |
-| SPIR-V sin pie | `31418b6e18b394a874ea6dcc2ff667e48f5305f623fb66955ee39862c46d7346` | `-vc-codegen` |
+| Full, two identical runs | `2e42d33c13d6c93bfe86fa81b1427c92aa2980df1af0100e011753a067f8ed5f` | `-vc-codegen  -Xfinalizer '-noDPASMacro'` |
+| SPIR-V without footer | `31418b6e18b394a874ea6dcc2ff667e48f5305f623fb66955ee39862c46d7346` | `-vc-codegen` |
 
-**Confirmado para esta combinación:** el compilador consume opciones del pie;
-no eran simplemente texto decorativo ni desaparecen por el filtro externo del helper.
-Ambos outputs tienen el mismo mapa BTI, pero distinto código: identificar solo por
-nombre del kernel o BTIs sería insuficiente. El generador del perfil fija tanto
-el SHA-256 del input completo como el del zebin revisado y rechaza el control sin opciones.
+**Confirmed for this combination:** the compiler consumes options from the
+CM footer; they were not simply decorative text, and they are not removed by
+the helper's external filter. Both outputs have the same BTI map but
+different code, so identifying them only by kernel name or BTIs would be
+insufficient. The profile generator pins both the SHA-256 of the full input
+and that of the reviewed zebin, and it rejects the control without options.
 
-SHA-256 input completo:
+SHA-256 of full input:
 `76942f6cff52b09ea8fef63adfce8b4119fcd45c8c0586c913eedb9e35fe773b`
 
-SHA-256 zebin completo, reproducido dos veces:
+SHA-256 of full zebin, reproduced twice:
 `3e974d57678d95d0d9fbc2819acc22e5356589018545f53c9086afcccd8e01b2`
 
-## 2. Orden confirmado por el compilador
+## 2. Order confirmed by the compiler
 
-BTI es el número interno de casillero que usa el código de GPU; no es el número
-de root parameter ni el slot relativo dentro del heap.
+BTI is the internal binding-table index (slot number) that the GPU code uses;
+it is not the root parameter number or the relative slot within the heap.
 
-| Arg | BTI del compilador | Root D3D12 esperado | Registro | Offset push esperado |
+| Arg | Compiler BTI | Expected D3D12 root | Register | Expected push offset |
 |---:|---:|---:|---|---:|
 | 0 | 8 | 1 | u0 | 4 |
 | 1 | 9 | 2 | u1 | 8 |
@@ -70,106 +72,100 @@ de root parameter ni el slot relativo dentro del heap.
 | 8 | 7 | 9 | t6 | 36 |
 | 9 | 10 | 10 | t7 | 40 |
 | 10 | 11 | 11 | t8 | 44 |
-| 11 | —, sampler index 0 | 12 | s0 | 48, heap separado |
+| 11 | —, sampler index 0 | 12 | s0 | 48, separate heap |
 
-Hay once superficies stateful y un sampler. Los tipos de los argumentos coinciden
-con el PRE inspeccionado previamente. El orden del packer por `arg_index` es el
-necesario para esta correspondencia; todavía no es una traza de lecturas GPU.
+There are eleven stateful surfaces and one sampler. The argument types match
+the PRE inspected earlier. The packer's order by `arg_index` is what this
+correspondence requires; it is not yet a trace of GPU reads.
 
-## 3. Desarrollo del prototipo, sin instalación
+## 3. Prototype development, without installation
 
-Nuevas piezas:
+New pieces:
 
-- `tools/inspect_zebin.py`: lee ELF y la forma restringida de `.ze_info`; nombres
-  de kernel exactos, sin confundir prefijos. No es un parser YAML general.
-- `tools/build_pre_profile.py`: genera un perfil para **un input y un output
-  revisados**, rechaza cambios de identidad/opciones y verifica BTIs y entorno.
-- `profiles/fsr4-pre-native1080-bmg.json`: evidencia y mapa explícito por argumento.
-- `tools/apply_cmk_mapping.py`: convierte un CMK2 local revisado a un formato
-  **CMK3 experimental de este proyecto**, sin alterar el código nativo.
-- `tools/build_anv_mapping_patch.py`: genera un parche para los dos parches ANV
-  upstream, manteniendo intacto el checkout.
-- `patches/0001-anv-cmk3-explicit-mapping.patch`: candidato generado y revisable.
+- `tools/inspect_zebin.py`: reads the ELF and the restricted form of `.ze_info`; exact kernel names, without confusing prefixes. It is not a general YAML parser.
+- `tools/build_pre_profile.py`: generates a profile for **one reviewed input and one reviewed output**, rejects identity/option changes, and verifies BTIs and the environment.
+- `profiles/fsr4-pre-native1080-bmg.json`: evidence and an explicit map per argument.
+- `tools/apply_cmk_mapping.py`: converts a reviewed local CMK2 into an **experimental CMK3 format of this project**, without altering the native code.
+- `tools/build_anv_mapping_patch.py`: generates a patch for the two upstream ANV patches, keeping the checkout intact.
+- `patches/0001-anv-cmk3-explicit-mapping.patch`: generated, reviewable candidate.
 
-El nuevo formato no reutiliza silenciosamente CMK2: un lector viejo rechaza
-`CMK3` por su magic. Conserva el header legado de 472 bytes y añade antes del
-código 8 bytes: flags `1` (base explícita) y tamaño push esperado `52`.
-El código nativo comienza en byte **480**.
+The new format does not silently reuse CMK2: an old reader rejects `CMK3`
+by its magic. It keeps the 472-byte legacy header and adds 8 bytes before the
+code: flags `1` (explicit base) and expected push size `52`.
+The native code starts at byte **480**.
 
-El lector candidato:
+The candidate reader:
 
-1. Sigue leyendo CMK2 con su comportamiento anterior.
-2. Para CMK3 comprueba flags, nsurf, alineación y extensión.
-3. Exige tamaño push máximo exacto de 52 bytes según el perfil.
-4. Comprueba con aritmética de 64 bits que cada DWORD esté cubierto por un rango.
-5. Sigue detectando automáticamente el heap, pero **no reemplaza la base explícita 4**
-   por la inferencia de cola que daba 8.
+1. Still reads CMK2 with its previous behavior.
+2. For CMK3, checks flags, nsurf, alignment and extension.
+3. Requires an exact maximum push size of 52 bytes according to the profile.
+4. Uses 64-bit arithmetic to check that every DWORD is covered by a range.
+5. Still detects the heap automatically, but **does not replace the explicit base 4**
+   with the tail inference that gave 8.
 
-El adaptador comprueba la identidad del código nativo y los BTIs antes de emitir
-el nuevo header. El sampler no entra en las once superficies.
+The adapter checks the identity of the native code and the BTIs before it
+emits the new header. The sampler is not among the eleven surfaces.
 
-**Límites importantes:** el parche del lector no se compiló dentro de Mesa ni se
-aplicó a un driver instalado. Se comprobó que aplica al checkout fijado y que los
-parches Mesa internos mantienen sintaxis válida. El bloque C de validación insertado
-se compiló y ejecutó con estructuras sintéticas en CPU; no es una compilación del
-resto del driver. La selección de perfil por hash y el bump de cache identity
-son candidatos offline (`profiles/registry.json`, `tools/pre_profile_registry.py`,
-`docs/profile-selection-cache-identity.md`); el helper runtime sigue sin leerlos.
+**Important limits:** the reader patch was not compiled inside Mesa and was
+not applied to an installed driver. It was checked that it applies to the
+pinned checkout and that the internal Mesa patches keep valid syntax. The
+inserted C validation block was compiled and run on CPU with synthetic
+structures; this is not a build of the rest of the driver. Profile selection
+by hash and the cache identity bump are offline candidates
+(`profiles/registry.json`, `tools/pre_profile_registry.py`,
+`docs/profile-selection-cache-identity.md`); the runtime helper still does not read them.
 
-## 4. Qué falta antes de una prueba GPU
+## 4. What is missing before a GPU test
 
-El compilador revela detalles que no debemos dar por resueltos:
+The compiler reveals details that we must not treat as resolved:
 
-- Args de buffers stateful 0, 9 y 10 tienen también campos de **8 bytes** en offsets
-  cross-thread **8, 16 y 24**. El packer upstream los deja en cero.
-- `private_base_stateless` ocupa **8 bytes en offset 0**; también queda en cero.
-- **Avance posterior:** la [auditoría estática del payload](pre-payload-audit.md)
-  no encuentra lecturas de los cuatro campos antes de sobrescribirlos o terminar,
-  suponiendo máscara de ejecución completa y constante. No se identificó necesidad
-  de inicializarlos con direcciones en este binario; falta validar esa máscara.
-- Dimensiones locales 1x1x1 usadas al empaquetar son provisionales; SIMD1 no las prueba.
-- El sampler sigue usando el fallback del driver, no el descriptor dinámico real.
-- Falta identificar el layout del Proton que se vaya a usar en runtime.
-- Falta corregir/cubrir la devolución de información GPU del contexto.
-- Los demás kernels y variantes no están cubiertos por este perfil.
+- Stateful buffer args 0, 9 and 10 also have **8-byte** fields at cross-thread offsets **8, 16 and 24**. The upstream packer leaves them at zero.
+- `private_base_stateless` occupies **8 bytes at offset 0**; it also stays at zero.
+- **Later progress:** the [static payload audit](pre-payload-audit.md)
+  finds no reads of the four fields before they are overwritten or the program ends, assuming a full and constant execution mask. No need to initialize them with addresses was identified in this binary; the mask still needs to be validated.
+- Local dimensions 1x1x1 used when packing are provisional; SIMD1 does not prove them.
+- The sampler still uses the driver's fallback, not the real dynamic descriptor.
+- The layout of the Proton version to be used at runtime still needs to be identified.
+- Returning GPU information from the context still needs to be fixed/covered.
+- Other kernels and variants are not covered by this profile.
 
- Por eso el perfil y el artefacto CMK3 llevan estado **experimental-offline-only**.
-No copiarlos a un cache runtime. No activar el helper con ellos todavía.
+ For that reason, the profile and the CMK3 artifact carry the status **experimental-offline-only**.
+Do not copy them to a runtime cache. Do not enable the helper with them yet.
 
-## 8. Promoción 4.1.2 (estado actual, sin runtime)
+## 8. 4.1.2 promotion (current status, no runtime)
 
-La serie 4.1.2 cerró el hueco que dejaba este documento en §4/§7:
+The 4.1.2 series closed the gap this document left in §4/§7:
 
-- Perfil nuevo `profiles/fsr4-pre-412-native1080-bmg.json`
+- New profile `profiles/fsr4-pre-412-native1080-bmg.json`
   (`experimental-offline-only`): `input ce372719…`, `code 68b962b5…`,
-  `zebin b1781bb4…`, `surface_count 11`, `push 52`, `base 4` (misma
-  derivación que el viejo: mismo orden/BTIs + mismo `ze_info`).
-- Auditoría `profiles/fsr4-pre-412-native1080-payload-audit.json`:
+  `zebin b1781bb4…`, `surface_count 11`, `push 52`, `base 4` (same derivation
+  as the old one: same order/BTIs + same `ze_info`).
+- Audit `profiles/fsr4-pre-412-native1080-payload-audit.json`:
   `static-analysis-only` / `unread-before-overwrite-or-end`
-  (160 visitadas, 0 lecturas); ver [macl/acc0](xmx412-macl-acc0.md).
-  `runtime_approved=false` se mantiene.
-- `profiles/registry.json` ya tiene **2 entradas** (vieja `2e42d33c…` +
-  nueva `68b962b5…`). Digest de cache `registry_gen()` pasó de
-  `0x912cda6a` (1 entrada) a **`0x3ddd809f`** (2 entradas), embebido en
-  `patches/0001-anv-cmk3-explicit-mapping.patch` (ambas variantes
-  `anv_cm_toolchain_gen`). Miss → ruta legacy CMK2, sin cambio global.
-- Detalle de compilación/auditoría en [offline 4.1.2](xmx412-offline-compile.md);
-  recheck/regen del puente en [recheck](xmx412-bridge-recheck.md) y
+  (160 visited, 0 reads); see [macl/acc0](xmx412-macl-acc0.md).
+  `runtime_approved=false` remains.
+- `profiles/registry.json` already has **2 entries** (old `2e42d33c…` +
+  new `68b962b5…`). The cache digest `registry_gen()` went from
+  `0x912cda6a` (1 entry) to **`0x3ddd809f`** (2 entries), embedded in
+  `patches/0001-anv-cmk3-explicit-mapping.patch` (both `anv_cm_toolchain_gen`
+  variants). Miss → legacy CMK2 path, with no global change.
+- Compilation/audit details in [offline 4.1.2](xmx412-offline-compile.md);
+  bridge recheck/regen in [recheck](xmx412-bridge-recheck.md) and
   [regen](xmx412-bridge-regen.md).
 
-Qué falta (no es runtime): traza Fase 1 autorizada (grid real, tablas,
-DIAG `rootParameters==13`, bytes pre/post), oracle de salida, máscara/
-local-size, helper nuevo y tabla de variantes 4.1.2. `profiles/xmx412-pins.json`
-sigue como staging con `REQUIRED-TBD` (deuda documental, no bloquea el
-registry ya promovido). Nada se copia a cachés runtime ni se instala.
+What is missing (not runtime): authorized Phase 1 trace (real grid, tables,
+DIAG `rootParameters==13`, pre/post bytes), output oracle, mask/
+local-size, new helper and 4.1.2 variant table. `profiles/xmx412-pins.json`
+remains as staging with `REQUIRED-TBD` (documentation debt, does not block
+the registry already promoted). Nothing is copied to runtime caches or installed.
 
-## 5. Reproducción
+## 5. Reproduction
 
-Descargar de las URLs y verificar los hashes de `profiles/intel-toolchain.json`.
-Los dos deb de IGC contienen `data.tar.gz`; el de ocloc contiene `data.tar.zst`.
-Extraer solo esos archivos, no ejecutar maintainer scripts ni instalar paquetes.
+Download from the URLs and verify the hashes in `profiles/intel-toolchain.json`.
+Both IGC debs contain `data.tar.gz`; the ocloc one contains `data.tar.zst`.
+Extract only those files; do not run maintainer scripts or install packages.
 
-Ejemplo de compilación desde la raíz del proyecto, con las extracciones presentes:
+Example build from the project root, with the extractions present:
 
 ```bash
 mkdir -p analysis/offline-pre/full
@@ -198,5 +194,5 @@ git -C upstream/xess-xmx-linux apply --check \
 python -m unittest discover -s tests -v
 ```
 
-El adaptador rechaza sobrescribir outputs. Los artefactos de compilación permanecen
-ignorados por Git; solo se versionan código, documentación, parche y metadata.
+The adapter refuses to overwrite outputs. Build artifacts remain ignored by
+Git; only code, documentation, patch and metadata are versioned.

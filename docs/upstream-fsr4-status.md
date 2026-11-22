@@ -1,76 +1,76 @@
-# Estado de FSR 4 sobre XMX en upstream (xess-xmx-linux)
+# FSR 4 on XMX status upstream (xess-xmx-linux)
 
-Registro de lo que el repo de `xess-xmx-linux` encontró y decidió sobre el
-camino FSR 4 XMX, clonado el 2026-11-13 para verificarlo.
+Record of what the `xess-xmx-linux` repo found and decided about the FSR 4 XMX
+path, cloned on 2026-11-13 to verify it.
 
-## Qué pasó
+## What happened
 
-Upstream **ya tenía FSR 4 sobre XMX funcionando**. No fue un problema técnico
-sin resolver: el 2026-11-02 el autor lo abandonó como dirección del proyecto,
-en el commit `99445d8` ("Docs: FSR 4 on XMX is no longer developed").
+Upstream **already had FSR 4 on XMX working**. It was not an unresolved technical
+problem: on 2026-11-02 the author dropped it as a project direction, in commit
+`99445d8` ("Docs: FSR 4 on XMX is no longer developed").
 
-Razones del abandono, en sus palabras (`docs/games.md`, sección
+Reasons for dropping it, in their words (`docs/games.md`, section
 "FSR 4 on XMX (Upscaler Builds from the OptiScaler Discord)"):
 
-1. Sin ganancia de rendimiento significativa sobre XeSS en XMX.
-2. Más complejidad de setup.
-3. Conflicto con la generación de frames XeSS: la combinación funcionaba,
-   pero necesitaba correcciones de imagen para cada juego, justo lo que el
-   proyecto evita (OptiScaler es el que se adapta por juego).
+1. No significant performance gain over XeSS on XMX.
+2. More setup complexity.
+3. Conflict with XeSS frame generation: the combination worked, but it needed
+   image corrections for each game, exactly what the project avoids
+   (OptiScaler is the one that adapts per game).
 
-Lo que sí probaron: un solo build ("B Boost", FileVersion `4.0.2.1`) en una
-sola GPU (Arc B390) y dos juegos. Setup manual, nada automatizado. El doc
-quedó archivado para referencia.
+What they did test: a single build ("B Boost", FileVersion `4.0.2.1`) on a single
+GPU (Arc B390) and two games. Manual setup, nothing automated. The doc was
+archived for reference.
 
-## Lo que sus docs ya documentaban
+## What their docs already documented
 
-Antes del abandono, `docs/games.md` describía casi toda la receta que este
-repo había ido redescubriendo:
+Before the abandonment, `docs/games.md` described almost the whole recipe that
+this repo had been rediscovering:
 
-- El plugin va como `amd_fidelityfx_upscaler_dx12.dll`; OptiScaler no es
-  obligatorio pero se puede usar.
-- `fsr-original.dll` sale de AMD FSR SDK 2.4.0 (FSR 4.1.2), y el plugin lee
-  los pesos de ahí. `install.sh` y `tools/get-ffx.sh` ya lo descargaban.
-- `cabinet.dll` nativo de Windows + `WINEDLLOVERRIDES=cabinet=n,b`, porque
-  Wine no implementa las ordinals 40, 43 y 45 que el plugin usa para
-  descomprimir sus kernels.
-- `FSR4_XMX_LITE=1` para el modelo Lite.
-- El parche `0005-anv-cm-sampler-descriptor-table.patch` es obligatorio:
+- The plugin goes as `amd_fidelityfx_upscaler_dx12.dll`; OptiScaler is not
+  mandatory but can be used.
+- `fsr-original.dll` comes from AMD FSR SDK 2.4.0 (FSR 4.1.2), and the plugin
+  reads the weights from there. `install.sh` and `tools/get-ffx.sh` already
+  downloaded it.
+- Native Windows `cabinet.dll` + `WINEDLLOVERRIDES=cabinet=n,b`, because Wine
+  does not implement the ordinals 40, 43 and 45 that the plugin uses to
+  decompress its kernels.
+- `FSR4_XMX_LITE=1` for the Lite model.
+- The patch `0005-anv-cm-sampler-descriptor-table.patch` is mandatory:
   "older drivers without patch 0005 render corrupted images".
 
-Ese último punto coincide con lo observado acá: el ruido magenta de la
-primera traza era el driver viejo sin `0005`, no una ABI rota del PRE.
+That last point matches what we saw here: the magenta noise in the first trace
+was the old driver without `0005`, not a broken PRE ABI.
 
-## Rendimiento que midieron
+## Performance they measured
 
-Arc B390, 1280x800 de render, sin frame generation:
+Arc B390, 1280x800 render, no frame generation:
 
-| Upscaler | Cyberpunk 2077 (fps prom.) | CONTROL Resonant (fps) |
+| Upscaler | Cyberpunk 2077 (avg fps) | CONTROL Resonant (fps) |
 |---|---|---|
 | XeSS Ultra Quality (XMX) | 57.5 | — |
-| FSR 4 en XMX, modelo full | 56.4 | 35 |
-| FSR 4 en XMX, Lite | 58.2 / 58.1 | 36 |
+| FSR 4 on XMX, full model | 56.4 | 35 |
+| FSR 4 on XMX, Lite | 58.2 / 58.1 | 36 |
 
-Kernels FSR 4: 2.5 ms por frame (full) y 1.9 ms (Lite). Es decir, **Lite es
-más rápido**, no igual. Si el overlay muestra el mismo tiempo para ambos
-modelos, conviene revisar si Lite está corriendo de verdad.
+FSR 4 kernels: 2.5 ms per frame (full) and 1.9 ms (Lite). That is, **Lite is
+faster**, not equal. If the overlay shows the same time for both models, it is
+worth checking whether Lite is really running.
 
-## Qué aporta este repo entonces
+## What this repo adds then
 
-No el puente mínimo, que upstream ya tenía: el camino 4.0.2X ("B Boost") ya
-estaba documentado y funcionando. Lo que sí queda como trabajo propio:
+Not the minimal bridge, which upstream already had: the 4.0.2X path ("B Boost")
+was already documented and working. What remains as our own work:
 
-- El camino **4.1.2X INT8**, que upstream no probó (ellos quedaron en
-  `4.0.2.1`).
-- Verificación de que `fsr-original.dll` satisface el contrato de pesos
-  (`tools/xmx412_weight_scan.c`), en vez de asumirlo.
-- El método de comparar corridas por fingerprint de código nativo
-  (`tools/xmx_kernel_set.py`) para descartar fallback silencioso.
-- El prototipo CMK3 de mapeo explícito y su generador de parches.
+- The **4.1.2X INT8** path, which upstream did not test (they stayed at `4.0.2.1`).
+- Verification that `fsr-original.dll` satisfies the weights contract
+  (`tools/xmx412_weight_scan.c`), instead of assuming it.
+- The method of comparing runs by native-code fingerprint
+  (`tools/xmx_kernel_set.py`) to rule out a silent fallback.
+- The CMK3 prototype for explicit mapping and its patch generator.
 
-## Lección para el anuncio
+## Lesson for the announcement
 
-Cualquier mensaje a nitec o al hilo debe reconocer que la ruta FSR 4 XMX ya
-estaba soportada por `xess-xmx-linux`. Presentarla como un puente nuevo desde
-cero sería inexacto. Lo que sí es nuevo es el camino INT8 de 4.1.2 y la
-verificación a nivel kernel.
+Any message to nitec or to the thread must acknowledge that the FSR 4 XMX path
+was already supported by `xess-xmx-linux`. Presenting it as a new bridge from
+scratch would be inaccurate. What is new is the 4.1.2 INT8 path and the
+kernel-level verification.

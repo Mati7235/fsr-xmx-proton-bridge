@@ -1,28 +1,28 @@
-# Evidencia estática independiente con REA — DLL fijada
+# Independent static evidence with REA — pinned DLL
 
-Fecha: 2026-11-12. Solo inspección estática, sin ejecutar la DLL.
+Date: 2026-11-12. Static inspection only, without executing the DLL.
 
-## Artefacto
+## Artifact
 
 - `artifacts/extracted/fsr-xmx/amd_fidelityfx_upscaler_dx12.dll`
 - SHA-256: `3eb086566ccc9c24392d98fc83ad0ea54520b87008d1aa1d26aa1c9ea08eba53`
-- PE32+, x86_64. REA `open_binary` confirma formato y arquitectura.
+- PE32+, x86_64. REA `open_binary` confirms the format and architecture.
 
-## Imports (REA `inspect_pe_imports`, cobertura completa)
+## Imports (REA `inspect_pe_imports`, full coverage)
 
-- 16 DLLs, 167 funciones, 0 delay-imports.
-- `d3d12.dll`: solo `D3D12SerializeRootSignature`.
-- `dxgi.dll`: solo `CreateDXGIFactory2`.
-- Sin imports directos de `CreateCommittedResource`,
-  `CreateShaderResourceView`, `CreateUnorderedAccessView` ni `CopyDescriptors*`.
-- Esto corrobora la lectura local con `llvm-objdump -p`: la creación de
-  recursos/vistas ocurre por vtables D3D12 recibidas del host, no por imports.
+- 16 DLLs, 167 functions, 0 delay-imports.
+- `d3d12.dll`: only `D3D12SerializeRootSignature`.
+- `dxgi.dll`: only `CreateDXGIFactory2`.
+- No direct imports of `CreateCommittedResource`,
+  `CreateShaderResourceView`, `CreateUnorderedAccessView` nor `CopyDescriptors*`.
+- This corroborates the local reading with `llvm-objdump -p`: resource/view
+  creation happens through D3D12 vtables received from the host, not through imports.
 
-## Exports (REA `inspect_native_exports`, cobertura completa)
+## Exports (REA `inspect_native_exports`, full coverage)
 
-5 exports, sin forwarders:
+5 exports, no forwarders:
 
-| Nombre | Ordinal | Dirección |
+| Name | Ordinal | Address |
 |---|---|---|
 | `ffxConfigure` | 1 | `0x180001240` |
 | `ffxCreateContext` | 2 | `0x180001290` |
@@ -30,13 +30,13 @@ Fecha: 2026-11-12. Solo inspección estática, sin ejecutar la DLL.
 | `ffxDispatch` | 4 | `0x1800013b0` |
 | `ffxQuery` | 5 | `0x180001400` |
 
-Coinciden con el dump local `analysis/fsr-xmx-disassembly.txt`.
+They match the local dump `analysis/fsr-xmx-disassembly.txt`.
 
-## Recursos (REA `inspect_pe_resources`, cobertura completa)
+## Resources (REA `inspect_pe_resources`, full coverage)
 
-5 recursos, hashes idénticos a `analysis/fsr-resources/manifest.json`:
+5 resources, hashes identical to `analysis/fsr-resources/manifest.json`:
 
-| Tipo | Nombre | Bytes | SHA-256 |
+| Type | Name | Bytes | SHA-256 |
 |---|---|---:|---|
 | 10 | 40101 | 6454442 | `587f138c…34e503a5` |
 | 10 | 40102 | 3777348 | `25538200…815a74290` |
@@ -44,15 +44,16 @@ Coinciden con el dump local `analysis/fsr-xmx-disassembly.txt`.
 | 16 | 1 | 728 | `c974f38e…e99ffdd76` |
 | 24 | 2 | 145 | `d2952e57…d68bde04` |
 
-## Límites de REA en este entorno
+## REA limits in this environment
 
-- Sin proveedor de desensamblado (Ghidra/Hopper/IDA/Kuna no configurados).
-- `analyze_function` no disponible; no hay pseudocódigo ni CFG nuevos.
-- Símbolos objdump: imagen stripped, sin tabla de símbolos.
-- Lo anterior no invalida la evidencia PE; solo limita el alcance.
+- No disassembly provider (Ghidra/Hopper/IDA/Kuna not configured).
+- `analyze_function` not available; no new pseudocode or CFG.
+- objdump symbols: the image is stripped, with no symbol table.
+- The above does not invalidate the PE evidence; it only limits its scope.
 
-## Implicancia
+## Implication
 
-Refuerza `docs/pre-resource-descriptors.md`: vistas por vtables, copias por
-`CopyDescriptorsSimple`, sin asignación directa visible en imports. No prueba
-creadores de imágenes ni contenido inicial. No autoriza dispatch PRE.
+It reinforces `docs/pre-resource-descriptors.md`: views via vtables, copies via
+`CopyDescriptorsSimple`, with no direct allocation visible in the imports. It
+does not prove the creators of images nor initial contents. It does not
+authorize PRE dispatch.
